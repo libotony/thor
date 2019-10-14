@@ -77,10 +77,20 @@ type EventFilter struct {
 	Order       Order //default asc
 }
 
+// HasAddress returns whether any critera contains non-nil address
+func (ef *EventFilter) HasAddress() bool {
+	for _, c := range ef.CriteriaSet {
+		if c.Address != nil {
+			return true
+		}
+	}
+	return false
+}
+
 type TransferCriteria struct {
 	TxOrigin  *thor.Address //who send transaction
 	Sender    *thor.Address //who transferred tokens
-	Recipient *thor.Address //who recieved tokens
+	Recipient *thor.Address //who received tokens
 }
 
 type TransferFilter struct {

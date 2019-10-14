@@ -78,7 +78,12 @@ func (db *LogDB) FilterEvents(ctx context.Context, filter *EventFilter) ([]*Even
 		return db.queryEvents(ctx, "SELECT * FROM event")
 	}
 	var args []interface{}
-	stmt := "SELECT * FROM event WHERE 1"
+	var stmt string
+	if filter.HasAddress() {
+		stmt = "SELECT * FROM event INDEXED BY event_i1 WHERE 1"
+	} else {
+		stmt = "SELECT * FROM event WHERE 1"
+	}
 	condition := "blockNumber"
 	if filter.Range != nil {
 		if filter.Range.Unit == Time {
