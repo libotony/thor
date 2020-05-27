@@ -393,6 +393,18 @@ func loadNodeMaster(ctx *cli.Context) (*node.Master, error) {
 	return master, nil
 }
 
+func loadP2PKey(ctx *cli.Context) (*ecdsa.PrivateKey, error) {
+	configDir, err := makeConfigDir(ctx)
+	if err != nil {
+		return nil, err
+	}
+	key, err := loadOrGeneratePrivateKey(filepath.Join(configDir, "p2p.key"))
+	if err != nil {
+		return nil, errors.Wrap(err, "load or generate P2P key")
+	}
+	return key, nil
+}
+
 type p2pComm struct {
 	comm           *comm.Communicator
 	p2pSrv         *p2psrv.Server
@@ -401,13 +413,9 @@ type p2pComm struct {
 }
 
 func newP2PComm(ctx *cli.Context, repo *chain.Repository, txPool *txpool.TxPool, instanceDir string) (*p2pComm, error) {
-	configDir, err := makeConfigDir(ctx)
+	key, err := loadP2PKey(ctx)
 	if err != nil {
 		return nil, err
-	}
-	key, err := loadOrGeneratePrivateKey(filepath.Join(configDir, "p2p.key"))
-	if err != nil {
-		return nil, errors.Wrap(err, "load or generate P2P key")
 	}
 	nat, err := nat.Parse(ctx.String(natFlag.Name))
 	if err != nil {

@@ -15,6 +15,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/accounts/keystore"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/p2p/discover"
 	"github.com/inconshreveable/log15"
 	isatty "github.com/mattn/go-isatty"
 	"github.com/pborman/uuid"
@@ -116,6 +117,15 @@ func main() {
 					exportMasterKeyFlag,
 				},
 				Action: masterKeyAction,
+			},
+			{
+				Name:  "p2p-key",
+				Usage: "show p2p key",
+				Flags: []cli.Flag{
+					configDirFlag,
+					p2pPortFlag,
+				},
+				Action: p2pKeyAction,
 			},
 		},
 	}
@@ -401,5 +411,14 @@ func masterKeyAction(ctx *cli.Context) error {
 		_, err = fmt.Println(string(keyjson))
 		return err
 	}
+	return nil
+}
+
+func p2pKeyAction(ctx *cli.Context) error {
+	key, err := loadP2PKey(ctx)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("enode://%x@[extip]:%v\n", discover.PubkeyID(&key.PublicKey).Bytes(), ctx.Int(p2pPortFlag.Name))
 	return nil
 }
