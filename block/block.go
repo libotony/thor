@@ -47,8 +47,9 @@ func Compose(header *Header, txs tx.Transactions, backers Approvals) *Block {
 // WithSignature create a new block object with signature set.
 func (b *Block) WithSignature(sig []byte) *Block {
 	return &Block{
-		header: b.header.withSignature(sig),
-		txs:    b.txs,
+		header:  b.header.withSignature(sig),
+		txs:     b.txs,
+		backers: b.backers,
 	}
 }
 

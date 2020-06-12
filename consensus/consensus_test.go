@@ -7,6 +7,7 @@ package consensus
 
 import (
 	"crypto/ecdsa"
+	"crypto/rand"
 	"fmt"
 	"math"
 	"math/big"
@@ -105,6 +106,7 @@ func newTestConsensus(t *testing.T) *testConsensus {
 	}
 
 	proposer := genesis.DevAccounts()[0]
+	backer := genesis.DevAccounts()[1]
 
 	//b0---------
 	priv, _ := crypto.GenerateKey()
@@ -119,7 +121,7 @@ func newTestConsensus(t *testing.T) *testConsensus {
 	}
 	_ = flow.Adopt(tx)
 	proposal, _ := flow.Propose(proposer.PrivateKey)
-	_, beta, _ := poa.TryApprove(proposer.PrivateKey, proposal.Hash().Bytes())
+	_, beta, _ := poa.TryApprove(backer.PrivateKey, proposal.Hash().Bytes())
 	pub := crypto.CompressPubkey(&proposer.PrivateKey.PublicKey)
 	flow.AddApproval(block.NewApproval(pub, beta))
 	b0, stage, receipts, err := flow.Pack(proposer.PrivateKey)
@@ -463,6 +465,55 @@ func (tc *testConsensus) TestValidateBlockBody() {
 			),
 		)
 		tc.assert.Equal(consensusError("tx already exists"), err)
+	}
+	triggers["triggerInvalidBackersCount"] = func() {
+		blk := tc.sign(tc.originalBuilder().Backers(block.Approvals{}, 2).Build())
+		err := tc.consent(blk)
+		expect := consensusError("block total backers count invalid: want 1, have 2")
+		tc.assert.Equal(expect, err)
+	}
+	triggers["triggerInvalidBackersRootCount"] = func() {
+		b := tc.sign(tc.originalBuilder().Backers(block.Approvals{}, 2).Build())
+
+		var (
+			pub   [33]byte
+			proof [81]byte
+		)
+		rand.Read(pub[:])
+		rand.Read(proof[:])
+
+		as := block.Approvals{block.NewApproval(pub[:], proof[:])}
+		blk := block.Compose(b.Header(), tx.Transactions{}, as)
+		err := tc.consent(blk)
+		expect := consensusError(fmt.Sprintf("block backers root mismatch: want %v, have %v", b.Header().BackersRoot(), as.RootHash()))
+		tc.assert.Equal(expect, err)
+	}
+	triggers["triggerBackersNotInPower"] = func() {
+		var proof [81]byte
+		rand.Read(proof[:])
+
+		priv, _ := crypto.GenerateKey()
+		pub := crypto.CompressPubkey(&priv.PublicKey)
+
+		as := block.Approvals{block.NewApproval(pub[:], proof[:])}
+
+		blk := tc.sign(tc.originalBuilder().Backers(as, tc.parent.Header().TotalBackersCount()).Build())
+
+		err := tc.consent(blk)
+		expect := consensusError(fmt.Sprintf("backer: %v not in power", thor.Address(crypto.PubkeyToAddress(priv.PublicKey))))
+		tc.assert.Equal(expect, err)
+	}
+	triggers["triggerLeaderCannotBeBacker"] = func() {
+		var proof [81]byte
+		rand.Read(proof[:])
+		pub := crypto.CompressPubkey(&genesis.DevAccounts()[0].PrivateKey.PublicKey)
+		as := block.Approvals{block.NewApproval(pub[:], proof[:])}
+
+		blk := tc.sign(tc.originalBuilder().Backers(as, tc.parent.Header().TotalBackersCount()).Build())
+
+		err := tc.consent(blk)
+		expect := consensusError("block signer cannot back itself")
+		tc.assert.Equal(expect, err)
 	}
 
 	for _, trigger := range triggers {

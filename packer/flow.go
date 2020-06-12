@@ -173,6 +173,10 @@ func (f *Flow) AddApproval(approval *block.Approval) {
 		return
 	}
 
+	// if signer == f.packer.nodeMaster {
+	// 	return
+	// }
+
 	f.knownBackers[signer] = true
 	f.backers = append(f.backers, approval)
 	return

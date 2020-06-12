@@ -42,7 +42,7 @@ func (c *Consensus) validate(
 		return nil, nil, err
 	}
 
-	if err := c.validateBlockBody(block, parentHeader); err != nil {
+	if err := c.validateBlockBody(block, parentHeader, candidates, state); err != nil {
 		return nil, nil, err
 	}
 
@@ -184,53 +184,7 @@ func (c *Consensus) validateProposer(header blockHeaderReader, parent *block.Hea
 	return candidates, score, nil
 }
 
-func (c *Consensus) validateBackers(blk *block.Block, parent *block.Header, candidates *poa.Candidates, state *state.State) error {
-	header := blk.Header()
-
-	if header.Number() >= c.forkConfig.VIP193 {
-		backers := blk.Backers()
-
-		totalBackers := uint64(len(backers)) + parent.TotalBackersCount()
-		if totalBackers != header.TotalBackersCount() {
-			return consensusError(fmt.Sprintf("block total backers count invalid: want %v, have %v", totalBackers, header.TotalBackersCount()))
-		}
-		if header.BackersRoot() != backers.RootHash() {
-			return consensusError(fmt.Sprintf("block backers root mismatch: want %v, have %v", header.BackersRoot(), backers.RootHash()))
-		}
-		if len(backers) > 0 {
-			proposers, err := candidates.Pick(state)
-			if err != nil {
-				return err
-			}
-			all := make(map[thor.Address]bool, len(proposers))
-			for _, p := range proposers {
-				all[p.Address] = true
-			}
-
-			alpha := header.Proposal().Hash().Bytes()
-			for _, approval := range backers {
-				signer, err := approval.Signer()
-				if err != nil {
-					return consensusError(fmt.Sprintf("block approval's signer unavailable: %v", err))
-				}
-				if all[signer] == false {
-					return consensusError(fmt.Sprintf("backer: %v not in power", signer))
-				}
-				beta, err := approval.Validate(alpha)
-				if err != nil {
-					return consensusError(fmt.Sprintf("failed to verify backer's approval %v", err))
-				}
-				isBacker := poa.EvaluateVRF(beta)
-				if isBacker == false {
-					return consensusError(fmt.Sprintf("signer is not qualified to be a backer: %v", signer))
-				}
-			}
-		}
-	}
-	return nil
-}
-
-func (c *Consensus) validateBlockBody(blk *block.Block, parent *block.Header) error {
+func (c *Consensus) validateBlockBody(blk *block.Block, parent *block.Header, candidates *poa.Candidates, state *state.State) error {
 	header := blk.Header()
 	txs := blk.Transactions()
 	if header.TxsRoot() != txs.RootHash() {
@@ -258,6 +212,57 @@ func (c *Consensus) validateBlockBody(blk *block.Block, parent *block.Header) er
 
 		if err := tx.TestFeatures(header.TxsFeatures()); err != nil {
 			return consensusError("invalid tx: " + err.Error())
+		}
+	}
+
+	if header.Number() >= c.forkConfig.VIP193 {
+		backers := blk.Backers()
+
+		totalBackers := uint64(len(backers)) + parent.TotalBackersCount()
+		if totalBackers != header.TotalBackersCount() {
+			return consensusError(fmt.Sprintf("block total backers count invalid: want %v, have %v", totalBackers, header.TotalBackersCount()))
+		}
+		if header.BackersRoot() != backers.RootHash() {
+			return consensusError(fmt.Sprintf("block backers root mismatch: want %v, have %v", header.BackersRoot(), backers.RootHash()))
+		}
+		if len(backers) > 0 {
+			proposers, err := candidates.Pick(state)
+			if err != nil {
+				return err
+			}
+			all := make(map[thor.Address]bool, len(proposers))
+			for _, p := range proposers {
+				all[p.Address] = true
+			}
+
+			known := make(map[thor.Address]bool, len(backers))
+
+			alpha := header.Proposal().Hash().Bytes()
+			for _, approval := range backers {
+				signer, err := approval.Signer()
+				if err != nil {
+					return consensusError(fmt.Sprintf("block approval's signer unavailable: %v", err))
+				}
+				if all[signer] == false {
+					return consensusError(fmt.Sprintf("backer: %v not in power", signer))
+				}
+				leader, _ := header.Signer()
+				if signer == leader {
+					return consensusError("block signer cannot back itself")
+				}
+				if known[signer] == true {
+					return consensusError(fmt.Sprintf("backer: %v already known", signer))
+				}
+				beta, err := approval.Validate(alpha)
+				if err != nil {
+					return consensusError(fmt.Sprintf("failed to verify backer's approval: %v", err))
+				}
+				isBacker := poa.EvaluateVRF(beta)
+				if isBacker == false {
+					return consensusError(fmt.Sprintf("signer is not qualified to be a backer: %v", signer))
+				}
+				known[signer] = true
+			}
 		}
 	}
 
