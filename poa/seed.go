@@ -65,7 +65,7 @@ func (seeder *Seeder) Generate(parentHeader *block.Header) ([]byte, error) {
 			betas := make([][]byte, len(bss))
 
 			for _, bs := range bss {
-				beta, err := bs.Validate(alpha[:])
+				beta, err := bs.Validate(alpha.Bytes())
 				if err != nil {
 					return nil, err
 				}
