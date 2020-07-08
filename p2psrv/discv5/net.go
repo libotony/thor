@@ -99,6 +99,7 @@ type findnodeQuery struct {
 	remote *Node
 	target common.Hash
 	reply  chan<- []*Node
+	bornAt uint64
 }
 
 type topicRegisterReq struct {
@@ -316,7 +317,7 @@ func (net *Network) reqRefresh(nursery []*Node) <-chan struct{} {
 }
 
 func (net *Network) reqQueryFindnode(n *Node, target common.Hash, reply chan []*Node) bool {
-	q := &findnodeQuery{remote: n, target: target, reply: reply}
+	q := &findnodeQuery{remote: n, target: target, reply: reply, bornAt: uint64(time.Now().Unix())}
 	select {
 	case net.queryReq <- q:
 		return true
@@ -605,6 +606,27 @@ loop:
 			if refreshDone == nil {
 				refreshDone = make(chan struct{})
 				net.refresh(refreshDone)
+			}
+
+			// evict expired deferred queries
+			now := uint64(time.Now().Unix())
+			maxLifetime := uint64(60 * 60)
+			for _, n := range net.nodes {
+				if len(n.deferredQueries) > 0 {
+					for i, q := range n.deferredQueries {
+						if now-q.bornAt > maxLifetime {
+							q.reply <- nil
+						} else {
+							if i > 0 {
+								n.deferredQueries = n.deferredQueries[i:]
+							}
+							break
+						}
+						if i == len(n.deferredQueries)-1 {
+							n.deferredQueries = nil
+						}
+					}
+				}
 			}
 		case <-bucketRefreshTimer.C:
 			target := net.tab.chooseBucketRefreshTarget()
