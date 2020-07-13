@@ -10,6 +10,7 @@ import (
 	"sort"
 
 	"github.com/ethereum/go-ethereum/rlp"
+	"github.com/hashicorp/golang-lru/simplelru"
 	"github.com/vechain/thor/block"
 	"github.com/vechain/thor/chain"
 	"github.com/vechain/thor/thor"
@@ -21,31 +22,39 @@ var emptyRoot = thor.Blake2b(rlp.EmptyString) // This is the known root hash of 
 type Seeder struct {
 	repo       *chain.Repository
 	forkConfig thor.ForkConfig
+	cache      *simplelru.LRU
 }
 
 // NewSeeder creates a seeder
 func NewSeeder(repo *chain.Repository, forkConfig thor.ForkConfig) *Seeder {
+	cache, _ := simplelru.NewLRU(8, nil)
 	return &Seeder{
 		repo,
 		forkConfig,
+		cache,
 	}
 }
 
-// Generate creates a seed for the given parent block's header. Seeder will traverse back by parentID.
+// Generate creates a seed for the given parent block's header. Seeder will traverse back by blockID of previous epoch.
 // Until there is a block contains at least one backer signature, concatenate the VRF outputs(beta) to create seed.
 func (seeder *Seeder) Generate(parentHeader *block.Header) ([]byte, error) {
-	if parentHeader.Number() <= 1 || parentHeader.Number() <= seeder.forkConfig.VIP193 {
+	if parentHeader.Number() < thor.EpochInterval*2 {
 		return nil, nil
 	}
 
-	b := parentHeader
-	for {
-		summary, err := seeder.repo.GetBlockSummary(b.ParentID())
-		if err != nil {
-			return nil, nil
-		}
-		b = summary.Header
+	blockNum := parentHeader.Number() + 1
+	seedNum := blockNum - thor.EpochInterval - blockNum%thor.EpochInterval
 
+	seedBlock, err := seeder.repo.NewChain(parentHeader.ID()).GetBlock(seedNum)
+	if err != nil {
+		return nil, err
+	}
+
+	b := seedBlock.Header()
+	if entry, ok := seeder.cache.Get(seedBlock.Header().ID()); ok == true {
+		return entry.([]byte), nil
+	}
+	for {
 		if b.Number() < seeder.forkConfig.VIP193 || b.Number() == 0 {
 			return nil, nil
 		}
@@ -80,7 +89,14 @@ func (seeder *Seeder) Generate(parentHeader *block.Header) ([]byte, error) {
 				seed = append(seed, b...)
 			}
 
+			seeder.cache.Add(seedBlock.Header().ID(), seed)
 			return seed, nil
 		}
+
+		summary, err := seeder.repo.GetBlockSummary(b.ParentID())
+		if err != nil {
+			return nil, nil
+		}
+		b = summary.Header
 	}
 }
