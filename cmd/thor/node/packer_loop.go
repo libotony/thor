@@ -12,8 +12,12 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/mclock"
+	"github.com/ethereum/go-ethereum/event"
 	"github.com/pkg/errors"
+	"github.com/vechain/thor/block"
+	"github.com/vechain/thor/comm"
 	"github.com/vechain/thor/packer"
+	"github.com/vechain/thor/poa"
 	"github.com/vechain/thor/thor"
 	"github.com/vechain/thor/tx"
 )
@@ -67,9 +71,7 @@ func (n *Node) packerLoop(ctx context.Context) {
 		log.Debug("scheduled to pack block", "after", time.Duration(flow.When()-now)*time.Second)
 
 		for {
-			if uint64(time.Now().Unix())+thor.BlockInterval/2 > flow.When() {
-				// time to pack block
-				// blockInterval/2 early to allow more time for processing txs
+			if uint64(time.Now().Unix())+thor.BlockInterval > flow.When() {
 				if err := n.pack(flow); err != nil {
 					log.Error("failed to pack block", "err", err)
 				}
@@ -98,6 +100,9 @@ func (n *Node) pack(flow *packer.Flow) error {
 		}
 	}()
 
+	var scope event.SubscriptionScope
+	defer scope.Close()
+
 	startTime := mclock.Now()
 	for _, tx := range txs {
 		if err := flow.Adopt(tx); err != nil {
@@ -110,13 +115,91 @@ func (n *Node) pack(flow *packer.Flow) error {
 			txsToRemove = append(txsToRemove, tx)
 		}
 	}
+	execElapsed := mclock.Now() - startTime
 
+	var proposal *block.Proposal
+	if flow.Number() >= n.forkConfig.VIP193 {
+		var err error
+		proposal, err = flow.Propose(n.master.PrivateKey)
+		if err != nil {
+			return nil
+		}
+		n.comm.BroadcastProposal(proposal)
+	}
+
+	newBsCh := make(chan *comm.NewBackerSignatureEvent)
+	scope.Track(n.comm.SubscribeBackerSignature(newBsCh))
+
+	now := uint64(time.Now().Unix())
+	if now < flow.When()-1 {
+		ticker := time.NewTimer(time.Duration(flow.When()-1-now) * time.Second)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case ev := <-newBsCh:
+				if flow.Number() >= n.forkConfig.VIP193 {
+					if ev.ProposalHash == proposal.Hash() {
+						err := func() (err error) {
+							startTime := mclock.Now()
+							defer func() {
+								if err != nil {
+									execElapsed += mclock.Now() - startTime
+								}
+							}()
+
+							bs := ev.Signature
+							signer, err := bs.Signer()
+							if err != nil {
+								return
+							}
+
+							if known := flow.IsBackerKnown(signer); known == true {
+								return errors.New("known backer")
+							}
+
+							isAuthority, err := n.isAuthority(flow.ParentHeader(), signer)
+							if err != nil {
+								return
+							}
+							if isAuthority == false {
+								return fmt.Errorf("backer: %v is not an authority", signer)
+							}
+
+							alpha := proposal.Alpha(n.master.Address()).Bytes()
+							beta, err := bs.Validate(alpha)
+							if err != nil {
+								return
+							}
+							isBacker := poa.EvaluateVRF(beta)
+							if isBacker == true {
+								flow.AddBackerSignature(bs)
+							} else {
+								return fmt.Errorf("signer is not qualified to be a backer: %v", signer)
+							}
+							return
+						}()
+						if err != nil {
+							log.Debug("failed to process backer signature", "err", err)
+							continue
+						}
+					}
+				}
+			case <-ticker.C:
+				goto NEXT
+			}
+		}
+	NEXT:
+	}
+
+	startTime = mclock.Now()
 	newBlock, stage, receipts, err := flow.Pack(n.master.PrivateKey)
 	if err != nil {
 		return err
 	}
-	execElapsed := mclock.Now() - startTime
+	execElapsed += mclock.Now() - startTime
 
+	startTime = mclock.Now()
 	if _, err := stage.Commit(); err != nil {
 		return errors.WithMessage(err, "commit state")
 	}
@@ -125,7 +208,7 @@ func (n *Node) pack(flow *packer.Flow) error {
 	if err != nil {
 		return errors.WithMessage(err, "commit block")
 	}
-	commitElapsed := mclock.Now() - startTime - execElapsed
+	commitElapsed := mclock.Now() - startTime
 
 	n.processFork(prevTrunk, curTrunk)
 
