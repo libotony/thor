@@ -58,6 +58,11 @@ func (f *Flow) When() uint64 {
 	return f.runtime.Context().Time
 }
 
+// Number returns the block number to pack.
+func (f *Flow) Number() uint32 {
+	return f.runtime.Context().Number
+}
+
 // TotalScore returns total score of new block.
 func (f *Flow) TotalScore() uint64 {
 	return f.runtime.Context().TotalScore
