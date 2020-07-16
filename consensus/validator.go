@@ -18,6 +18,13 @@ import (
 	"github.com/vechain/thor/xenv"
 )
 
+type blockHeaderReader interface {
+	ParentID() thor.Bytes32
+	Timestamp() uint64
+	GasLimit() uint64
+	Signer() (thor.Address, error)
+}
+
 func (c *Consensus) validate(
 	state *state.State,
 	block *block.Block,
@@ -30,7 +37,7 @@ func (c *Consensus) validate(
 		return nil, nil, err
 	}
 
-	candidates, err := c.validateProposer(header, parentHeader, state)
+	candidates, _, err := c.validateProposer(header, parentHeader, state)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -88,7 +95,7 @@ func (c *Consensus) validate(
 	return stage, receipts, nil
 }
 
-func (c *Consensus) validateBlockHeader(header *block.Header, parent *block.Header, nowTimestamp uint64) error {
+func (c *Consensus) validateBlockHeader(header blockHeaderReader, parent *block.Header, nowTimestamp uint64) error {
 	if header.Timestamp() <= parent.Timestamp() {
 		return consensusError(fmt.Sprintf("block timestamp behind parents: parent %v, current %v", parent.Timestamp(), header.Timestamp()))
 	}
@@ -105,25 +112,25 @@ func (c *Consensus) validateBlockHeader(header *block.Header, parent *block.Head
 		return consensusError(fmt.Sprintf("block gas limit invalid: parent %v, current %v", parent.GasLimit(), header.GasLimit()))
 	}
 
-	if header.GasUsed() > header.GasLimit() {
-		return consensusError(fmt.Sprintf("block gas used exceeds limit: limit %v, used %v", header.GasLimit(), header.GasUsed()))
-	}
-
-	if header.TotalScore() <= parent.TotalScore() {
-		return consensusError(fmt.Sprintf("block total score invalid: parent %v, current %v", parent.TotalScore(), header.TotalScore()))
-	}
-
-	if header.TotalBackersCount() < parent.TotalBackersCount() {
-		return consensusError(fmt.Sprintf("block total backers count invalid: parent %v, current %v", parent.TotalBackersCount(), header.TotalBackersCount()))
+	if h, ok := header.(*block.Header); ok == true {
+		if h.GasUsed() > h.GasLimit() {
+			return consensusError(fmt.Sprintf("block gas used exceeds limit: limit %v, used %v", h.GasLimit(), h.GasUsed()))
+		}
+		if h.TotalScore() <= parent.TotalScore() {
+			return consensusError(fmt.Sprintf("block total score invalid: parent %v, current %v", parent.TotalScore(), h.TotalScore()))
+		}
+		if h.TotalBackersCount() < parent.TotalBackersCount() {
+			return consensusError(fmt.Sprintf("block total backers count invalid: parent %v, current %v", parent.TotalBackersCount(), h.TotalBackersCount()))
+		}
 	}
 
 	return nil
 }
 
-func (c *Consensus) validateProposer(header *block.Header, parent *block.Header, st *state.State) (*poa.Candidates, error) {
+func (c *Consensus) validateProposer(header blockHeaderReader, parent *block.Header, st *state.State) (*poa.Candidates, uint64, error) {
 	signer, err := header.Signer()
 	if err != nil {
-		return nil, consensusError(fmt.Sprintf("block signer unavailable: %v", err))
+		return nil, 0, consensusError(fmt.Sprintf("block signer unavailable: %v", err))
 	}
 
 	authority := builtin.Authority.Native(st)
@@ -133,45 +140,48 @@ func (c *Consensus) validateProposer(header *block.Header, parent *block.Header,
 	} else {
 		list, err := authority.AllCandidates()
 		if err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 		candidates = poa.NewCandidates(list)
 	}
 
 	proposers, err := candidates.Pick(st)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
 	seed, err := c.seeder.Generate(parent)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
 	sched, err := poa.NewScheduler(signer, proposers, parent.Number(), parent.Timestamp(), seed)
 	if err != nil {
-		return nil, consensusError(fmt.Sprintf("block signer invalid: %v %v", signer, err))
+		return nil, 0, consensusError(fmt.Sprintf("block signer invalid: %v %v", signer, err))
 	}
+
 	if !sched.IsTheTime(header.Timestamp()) {
-		return nil, consensusError(fmt.Sprintf("block timestamp unscheduled: t %v, s %v", header.Timestamp(), signer))
+		return nil, 0, consensusError(fmt.Sprintf("block timestamp unscheduled: t %v, s %v", header.Timestamp(), signer))
 	}
 
 	updates, score := sched.Updates(header.Timestamp())
-	if parent.TotalScore()+score != header.TotalScore() {
-		return nil, consensusError(fmt.Sprintf("block total score invalid: want %v, have %v", parent.TotalScore()+score, header.TotalScore()))
+
+	if h, ok := header.(*block.Header); ok == true {
+		if parent.TotalScore()+score != h.TotalScore() {
+			return nil, 0, consensusError(fmt.Sprintf("block total score invalid: want %v, have %v", parent.TotalScore()+score, h.TotalScore()))
+		}
+		for _, u := range updates {
+			if _, err := authority.Update(u.Address, u.Active); err != nil {
+				return nil, 0, err
+			}
+			if !candidates.Update(u.Address, u.Active) {
+				// should never happen
+				panic("something wrong with candidates list")
+			}
+		}
 	}
 
-	for _, u := range updates {
-		if _, err := authority.Update(u.Address, u.Active); err != nil {
-			return nil, err
-		}
-		if !candidates.Update(u.Address, u.Active) {
-			// should never happen
-			panic("something wrong with candidates list")
-		}
-	}
-
-	return candidates, nil
+	return candidates, score, nil
 }
 
 func (c *Consensus) validateBlockBody(blk *block.Block, parent *block.Header, candidates *poa.Candidates, state *state.State) error {

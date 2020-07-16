@@ -7,6 +7,7 @@ package consensus
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/hashicorp/golang-lru/simplelru"
 	"github.com/vechain/thor/block"
@@ -109,7 +110,7 @@ func (c *Consensus) NewRuntimeForReplay(header *block.Header, skipPoA bool) (*ru
 	}
 	state := c.stater.NewState(parentSummary.Header.StateRoot())
 	if !skipPoA {
-		if _, err := c.validateProposer(header, parentSummary.Header, state); err != nil {
+		if _, _, err := c.validateProposer(header, parentSummary.Header, state); err != nil {
 			return nil, err
 		}
 	}
@@ -126,4 +127,24 @@ func (c *Consensus) NewRuntimeForReplay(header *block.Header, skipPoA bool) (*ru
 			TotalScore:  header.TotalScore(),
 		},
 		c.forkConfig), nil
+}
+
+// ValidateProposal validate a block proposal
+func (c *Consensus) ValidateProposal(proposal *block.Proposal) (uint64, error) {
+	parent, err := c.repo.GetBlockSummary(proposal.ParentID())
+	if err != nil {
+		return 0, err
+	}
+
+	if err = c.validateBlockHeader(proposal, parent.Header, uint64(time.Now().Unix())); err != nil {
+		return 0, err
+	}
+
+	state := c.stater.NewState(parent.Header.StateRoot())
+	_, score, err := c.validateProposer(proposal, parent.Header, state)
+	if err != nil {
+		return 0, err
+	}
+
+	return score, nil
 }

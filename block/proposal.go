@@ -7,20 +7,24 @@ package block
 
 import (
 	"encoding/binary"
+	"io"
 	"sync/atomic"
 
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/vechain/thor/thor"
 )
 
 // Proposal is block proposal.
 type Proposal struct {
-	ParentID  thor.Bytes32
-	TxsRoot   thor.Bytes32
-	GasLimit  uint64
-	Timestamp uint64
-	Signature []byte
-	cache     struct {
+	body struct {
+		ParentID  thor.Bytes32
+		TxsRoot   thor.Bytes32
+		GasLimit  uint64
+		Timestamp uint64
+		Signature []byte
+	}
+	cache struct {
 		signingHash atomic.Value
 		signer      atomic.Value
 		hash        atomic.Value
@@ -29,12 +33,33 @@ type Proposal struct {
 
 // NewProposal creates a new proposal.
 func NewProposal(parentID, txsRoot thor.Bytes32, gasLimit, timestamp uint64) *Proposal {
-	return &Proposal{
-		ParentID:  parentID,
-		TxsRoot:   txsRoot,
-		GasLimit:  gasLimit,
-		Timestamp: timestamp,
-	}
+	var p Proposal
+	p.body.ParentID = parentID
+	p.body.TxsRoot = txsRoot
+	p.body.GasLimit = gasLimit
+	p.body.Timestamp = timestamp
+
+	return &p
+}
+
+// Number returns the number of the proposed block.
+func (p *Proposal) Number() uint32 {
+	return Number(p.body.ParentID) + 1
+}
+
+// ParentID returns the parent block's ID.
+func (p *Proposal) ParentID() thor.Bytes32 {
+	return p.body.ParentID
+}
+
+// Timestamp returns the unix timestamp of the proposed block.
+func (p *Proposal) Timestamp() uint64 {
+	return p.body.Timestamp
+}
+
+// GasLimit returns the proposed gaslimit.
+func (p *Proposal) GasLimit() uint64 {
+	return p.body.GasLimit
 }
 
 // SigningHash returns the hash of the proposal body without signature.
@@ -45,11 +70,11 @@ func (p *Proposal) SigningHash() (hash thor.Bytes32) {
 	defer func() { p.cache.signingHash.Store(hash) }()
 
 	b := make([]byte, 16)
-	binary.BigEndian.PutUint64(b, p.GasLimit)
-	binary.BigEndian.PutUint64(b[8:], p.Timestamp)
+	binary.BigEndian.PutUint64(b, p.body.GasLimit)
+	binary.BigEndian.PutUint64(b[8:], p.body.Timestamp)
 
 	// [parentID + txsRoot + Gaslimit + Timestamp]
-	hash = thor.Blake2b(p.ParentID.Bytes(), p.TxsRoot.Bytes(), b)
+	hash = thor.Blake2b(p.body.ParentID.Bytes(), p.body.TxsRoot.Bytes(), b)
 	return
 }
 
@@ -64,7 +89,7 @@ func (p *Proposal) Signer() (signer thor.Address, err error) {
 		}
 	}()
 
-	pub, err := crypto.SigToPub(p.SigningHash().Bytes(), p.Signature)
+	pub, err := crypto.SigToPub(p.SigningHash().Bytes(), p.body.Signature)
 	if err != nil {
 		return thor.Address{}, err
 	}
@@ -75,13 +100,10 @@ func (p *Proposal) Signer() (signer thor.Address, err error) {
 
 // WithSignature create a new proposal with signature set.
 func (p *Proposal) WithSignature(sig []byte) *Proposal {
-	return &Proposal{
-		ParentID:  p.ParentID,
-		TxsRoot:   p.TxsRoot,
-		GasLimit:  p.GasLimit,
-		Timestamp: p.Timestamp,
-		Signature: append([]byte(nil), sig...),
-	}
+	cpy := Proposal{body: p.body}
+	cpy.body.Signature = append([]byte(nil), sig...)
+
+	return &cpy
 }
 
 // Hash is the hash of proposal body.
@@ -92,21 +114,43 @@ func (p *Proposal) Hash() (hash thor.Bytes32) {
 	defer func() { p.cache.hash.Store(hash) }()
 
 	b := make([]byte, 16)
-	binary.BigEndian.PutUint64(b, p.GasLimit)
-	binary.BigEndian.PutUint64(b[8:], p.Timestamp)
+	binary.BigEndian.PutUint64(b, p.body.GasLimit)
+	binary.BigEndian.PutUint64(b[8:], p.body.Timestamp)
 
 	// [parentID + txsRoot + gaslimit + timestamp + signature]
-	hash = thor.Blake2b(p.ParentID.Bytes(), p.TxsRoot.Bytes(), b, p.Signature)
+	hash = thor.Blake2b(p.body.ParentID.Bytes(), p.body.TxsRoot.Bytes(), b, p.body.Signature)
 	return
 }
 
 // Alpha computes the hash of proposal with signer as the input of VRF function.
 func (p *Proposal) Alpha(signer thor.Address) thor.Bytes32 {
 	b := make([]byte, 16)
-	binary.BigEndian.PutUint64(b, p.GasLimit)
-	binary.BigEndian.PutUint64(b[8:], p.Timestamp)
+	binary.BigEndian.PutUint64(b, p.body.GasLimit)
+	binary.BigEndian.PutUint64(b[8:], p.body.Timestamp)
 
 	// [parentID + txsRoot + gaslimit + timestamp + signer]
-	alpha := thor.Blake2b(p.ParentID.Bytes(), p.TxsRoot.Bytes(), b, signer.Bytes())
+	alpha := thor.Blake2b(p.body.ParentID.Bytes(), p.body.TxsRoot.Bytes(), b, signer.Bytes())
 	return alpha
+}
+
+// EncodeRLP implements rlp.Encoder.
+func (p *Proposal) EncodeRLP(w io.Writer) error {
+	return rlp.Encode(w, &p.body)
+}
+
+// DecodeRLP implements rlp.Decoder.
+func (p *Proposal) DecodeRLP(s *rlp.Stream) error {
+	var body struct {
+		ParentID  thor.Bytes32
+		TxsRoot   thor.Bytes32
+		GasLimit  uint64
+		Timestamp uint64
+		Signature []byte
+	}
+
+	if err := s.Decode(&body); err != nil {
+		return err
+	}
+	*p = Proposal{body: body}
+	return nil
 }
