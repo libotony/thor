@@ -148,3 +148,33 @@ func (c *Consensus) ValidateProposal(proposal *block.Proposal) (uint64, error) {
 
 	return score, nil
 }
+
+// IsAuthority returns true if the given node master meets all requirements of a authority.
+func (c *Consensus) IsAuthority(parent *block.Header, master thor.Address) (bool, error) {
+	state := c.stater.NewState(parent.StateRoot())
+
+	var candidates *poa.Candidates
+	if entry, ok := c.candidatesCache.Get(parent.ID()); ok {
+		candidates = entry.(*poa.Candidates).Copy()
+	} else {
+		authority := builtin.Authority.Native(state)
+		list, err := authority.AllCandidates()
+		if err != nil {
+			return false, err
+		}
+		candidates = poa.NewCandidates(list)
+		c.candidatesCache.Add(parent.ID(), candidates)
+	}
+
+	proposers, err := candidates.Pick(state)
+	if err != nil {
+		return false, err
+	}
+
+	for _, p := range proposers {
+		if p.Address == master {
+			return true, nil
+		}
+	}
+	return false, nil
+}

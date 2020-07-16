@@ -54,6 +54,7 @@ type Node struct {
 	skipLogs       bool
 	logDBFailed    bool
 	bandwidth      bandwidth.Bandwidth
+	forkConfig     thor.ForkConfig
 }
 
 func New(
@@ -79,6 +80,7 @@ func New(
 		comm:           comm,
 		targetGasLimit: targetGasLimit,
 		skipLogs:       skipLogs,
+		forkConfig:     forkConfig,
 	}
 }
 
@@ -88,6 +90,7 @@ func (n *Node) Run(ctx context.Context) error {
 	n.goes.Go(func() { n.houseKeeping(ctx) })
 	n.goes.Go(func() { n.txStashLoop(ctx) })
 	n.goes.Go(func() { n.packerLoop(ctx) })
+	n.goes.Go(func() { n.backerLoop(ctx) })
 
 	n.goes.Wait()
 	return nil
@@ -246,7 +249,6 @@ func (n *Node) txStashLoop(ctx context.Context) {
 }
 
 func (n *Node) processBlock(blk *block.Block, stats *blockStats) (bool, error) {
-
 	// consensus object is not thread-safe
 	n.consLock.Lock()
 	startTime := mclock.Now()
@@ -376,6 +378,13 @@ side-chain:   %v  %v`,
 			}
 		}
 	}
+}
+
+func (n *Node) isAuthority(parent *block.Header, master thor.Address) (bool, error) {
+	n.consLock.Lock()
+	defer n.consLock.Unlock()
+
+	return n.cons.IsAuthority(parent, master)
 }
 
 func checkClockOffset() {
