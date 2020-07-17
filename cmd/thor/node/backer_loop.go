@@ -124,6 +124,7 @@ func (n *Node) backerLoop(ctx context.Context) {
 					lastBacked.Number = proposal.Number()
 					lastBacked.Score = score
 
+					seenBs.Add(full.Hash(), struct{}{})
 					n.comm.BroadcastBackerSignature(&full)
 				}
 			}
@@ -204,8 +205,6 @@ func (n *Node) validateBacker(bs *block.BackerSignature, parentHeader *block.Hea
 }
 
 func (n *Node) validateBackerSignature(alpha []byte, bs *block.BackerSignature) error {
-	signer, _ := bs.Signer()
-
 	beta, err := bs.Validate(alpha)
 	if err != nil {
 		return err
@@ -213,6 +212,7 @@ func (n *Node) validateBackerSignature(alpha []byte, bs *block.BackerSignature) 
 
 	isBacker := poa.EvaluateVRF(beta)
 	if isBacker == false {
+		signer, _ := bs.Signer()
 		return fmt.Errorf("signer is not qualified to be a backer: %v", signer)
 	}
 	return nil
