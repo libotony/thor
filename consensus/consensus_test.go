@@ -116,7 +116,7 @@ func newTestConsensus(t *testing.T) *testConsensus {
 	tx = tx.WithSignature(sig)
 
 	p := packer.New(repo, stater, proposer.Address, &proposer.Address, forkConfig)
-	flow, err := p.Schedule(parent.Header(), 1591709330)
+	flow, _, err := p.Schedule(parent.Header(), 1591709330)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -141,7 +141,7 @@ func newTestConsensus(t *testing.T) *testConsensus {
 	//-----------
 
 	p = packer.New(repo, stater, proposer.Address, &proposer.Address, forkConfig)
-	flow, err = p.Schedule(b0.Header(), uint64(1591709330))
+	flow, _, err = p.Schedule(b0.Header(), uint64(1591709330))
 	if err != nil {
 		t.Fatal(err)
 	}

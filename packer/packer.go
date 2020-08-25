@@ -49,7 +49,7 @@ func New(
 }
 
 // Schedule schedule a packing flow to pack new block upon given parent and clock time.
-func (p *Packer) Schedule(parent *block.Header, nowTimestamp uint64) (flow *Flow, err error) {
+func (p *Packer) Schedule(parent *block.Header, nowTimestamp uint64) (*Flow, []poa.Proposer, error) {
 	state := p.stater.NewState(parent.StateRoot())
 
 	// Before process hook of VIP-191, update builtin extension contract's code to V2
@@ -59,7 +59,7 @@ func (p *Packer) Schedule(parent *block.Header, nowTimestamp uint64) (flow *Flow
 	}
 	if parent.Number()+1 == vip191 {
 		if err := state.SetCode(builtin.Extension.Address, builtin.Extension.V2.RuntimeBytecodes()); err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 	}
 
@@ -71,11 +71,11 @@ func (p *Packer) Schedule(parent *block.Header, nowTimestamp uint64) (flow *Flow
 	authority := builtin.Authority.Native(state)
 	endorsement, err := builtin.Params.Native(state).Get(thor.KeyProposerEndorsement)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	candidates, err := authority.Candidates(endorsement, thor.MaxBlockProposers)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	var (
 		proposers   = make([]poa.Proposer, 0, len(candidates))
@@ -98,13 +98,13 @@ func (p *Packer) Schedule(parent *block.Header, nowTimestamp uint64) (flow *Flow
 
 	seed, err := p.seeder.Generate(parent)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	// calc the time when it's turn to produce block
 	sched, err := poa.NewScheduler(p.nodeMaster, proposers, parent.Number(), parent.Timestamp(), seed)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	newBlockTime := sched.Schedule(nowTimestamp)
@@ -112,7 +112,7 @@ func (p *Packer) Schedule(parent *block.Header, nowTimestamp uint64) (flow *Flow
 
 	for _, u := range updates {
 		if _, err := authority.Update(u.Address, u.Active); err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 	}
 
@@ -129,7 +129,7 @@ func (p *Packer) Schedule(parent *block.Header, nowTimestamp uint64) (flow *Flow
 		},
 		p.forkConfig)
 
-	return newFlow(p, parent, rt, features), nil
+	return newFlow(p, parent, rt, features), proposers, nil
 }
 
 // Mock create a packing flow upon given parent, but with a designated timestamp.

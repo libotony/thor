@@ -50,7 +50,7 @@ func (n *Node) packerLoop(ctx context.Context) {
 			n.packer.SetTargetGasLimit(suggested)
 		}
 
-		flow, err := n.packer.Schedule(n.repo.BestBlock().Header(), now)
+		flow, proposers, err := n.packer.Schedule(n.repo.BestBlock().Header(), now)
 		if err != nil {
 			if authorized {
 				authorized = false
@@ -72,7 +72,7 @@ func (n *Node) packerLoop(ctx context.Context) {
 
 		for {
 			if uint64(time.Now().Unix())+thor.BlockInterval > flow.When() {
-				if err := n.pack(flow); err != nil {
+				if err := n.pack(flow, proposers); err != nil {
 					log.Error("failed to pack block", "err", err)
 				}
 				break
@@ -91,7 +91,7 @@ func (n *Node) packerLoop(ctx context.Context) {
 	}
 }
 
-func (n *Node) pack(flow *packer.Flow) error {
+func (n *Node) pack(flow *packer.Flow, proposers []poa.Proposer) error {
 	txs := n.txPool.Executables()
 	var txsToRemove []*tx.Transaction
 	defer func() {
@@ -130,11 +130,21 @@ func (n *Node) pack(flow *packer.Flow) error {
 	newBsCh := make(chan *comm.NewBackerSignatureEvent)
 	scope.Track(n.comm.SubscribeBackerSignature(newBsCh))
 
+	isBacker := func(addr thor.Address) bool {
+		for _, p := range proposers {
+			if p.Address == addr {
+				return true
+			}
+		}
+		return false
+	}
+
 	now := uint64(time.Now().Unix())
 	if now < flow.When()-1 {
 		ticker := time.NewTimer(time.Duration(flow.When()-1-now) * time.Second)
 		defer ticker.Stop()
 
+		alpha := proposal.Alpha(n.master.Address()).Bytes()
 		for {
 			select {
 			case ev := <-newBsCh:
@@ -158,15 +168,10 @@ func (n *Node) pack(flow *packer.Flow) error {
 								return errors.New("known backer")
 							}
 
-							isAuthority, err := n.isAuthority(flow.ParentHeader(), signer)
-							if err != nil {
-								return
-							}
-							if isAuthority == false {
+							if isBacker(signer) == false {
 								return fmt.Errorf("backer: %v is not an authority", signer)
 							}
 
-							alpha := proposal.Alpha(n.master.Address()).Bytes()
 							beta, err := bs.Validate(alpha)
 							if err != nil {
 								return
