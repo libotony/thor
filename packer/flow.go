@@ -30,8 +30,7 @@ type Flow struct {
 	receipts     tx.Receipts
 	features     tx.Features
 	knownBackers []thor.Address
-	bss          block.BackerSignatures
-	alpha        thor.Bytes32
+	bss          block.MixtureSignatures
 }
 
 func newFlow(
@@ -47,7 +46,7 @@ func newFlow(
 		processedTxs: make(map[thor.Bytes32]bool),
 		features:     features,
 		knownBackers: []thor.Address{},
-		bss:          block.BackerSignatures{},
+		bss:          block.MixtureSignatures{},
 	}
 }
 
@@ -152,7 +151,6 @@ func (f *Flow) Declare(privateKey *ecdsa.PrivateKey) (*block.Declaration, error)
 		return nil, err
 	}
 
-	f.alpha = p.Alpha(f.packer.nodeMaster)
 	return p.WithSignature(sig), nil
 }
 
@@ -167,7 +165,7 @@ func (f *Flow) IsBackerKnown(addr thor.Address) bool {
 }
 
 // AddBackerSignature adds a signature from backer.
-func (f *Flow) AddBackerSignature(bs *block.BackerSignature) bool {
+func (f *Flow) AddBackerSignature(bs *block.MixtureSignature) bool {
 	signer, _ := bs.Signer()
 	if f.IsBackerKnown(signer) == true {
 		return false
@@ -210,7 +208,7 @@ func (f *Flow) Pack(privateKey *ecdsa.PrivateKey) (*block.Block, *state.Stage, t
 			betas := make([][]byte, 0, len(f.bss))
 
 			for _, bs := range f.bss {
-				beta, err := bs.Validate(f.alpha.Bytes())
+				beta, err := bs.Validate()
 				if err != nil {
 					return nil, nil, nil, err
 				}

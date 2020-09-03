@@ -7,6 +7,7 @@ package proto
 
 import (
 	"context"
+	"sync/atomic"
 
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/vechain/thor/block"
@@ -14,22 +15,31 @@ import (
 	"github.com/vechain/thor/tx"
 )
 
-type (
+// Status result of MsgGetStatus.
+type Status struct {
+	GenesisBlockID thor.Bytes32
+	SysTimestamp   uint64
+	BestBlockID    thor.Bytes32
+	TotalScore     uint64
+}
 
-	// Status result of MsgGetStatus.
-	Status struct {
-		GenesisBlockID thor.Bytes32
-		SysTimestamp   uint64
-		BestBlockID    thor.Bytes32
-		TotalScore     uint64
-	}
+// Accepted is constructed by the backer's signature to an declaration with it's hash.
+type Accepted struct {
+	DeclarationHash thor.Bytes32
+	Signature       *block.MixtureSignature
+	hash            atomic.Value
+}
 
-	// FullBackerSignature is the backer signature with proposal hash.
-	FullBackerSignature struct {
-		ProposalHash thor.Bytes32
-		Signature    *block.BackerSignature
+// Hash computes the hash of accepted.
+func (acc *Accepted) Hash() (hash thor.Bytes32) {
+	if cached := acc.hash.Load(); cached != nil {
+		return cached.(thor.Bytes32)
 	}
-)
+	defer func() { acc.hash.Store(hash) }()
+
+	hash = thor.Blake2b(acc.DeclarationHash.Bytes(), acc.Signature.Bytes())
+	return
+}
 
 // RPC defines RPC interface.
 type RPC interface {
@@ -66,9 +76,9 @@ func NotifyNewDeclaration(ctx context.Context, rpc RPC, d *block.Declaration) er
 	return rpc.Notify(ctx, MsgNewDeclaration, d)
 }
 
-// NotifyNewBackerSignature notify new backer signature to remote peer.
-func NotifyNewBackerSignature(ctx context.Context, rpc RPC, bs *FullBackerSignature) error {
-	return rpc.Notify(ctx, MsgNewBackerSignature, bs)
+// NotifyNewAccepted notify an accepted message` to remote peer.
+func NotifyNewAccepted(ctx context.Context, rpc RPC, acc *Accepted) error {
+	return rpc.Notify(ctx, MsgNewAccepted, acc)
 }
 
 // GetBlockByID query block from remote peer by given block ID.

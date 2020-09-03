@@ -22,9 +22,9 @@ type NewDeclarationEvent struct {
 	*block.Declaration
 }
 
-// NewBackerSignatureEvent event emitted when received backer signature.
-type NewBackerSignatureEvent struct {
-	*proto.FullBackerSignature
+// NewAcceptedEvent emitted when received accepted.
+type NewAcceptedEvent struct {
+	*proto.Accepted
 }
 
 // HandleBlockStream to handle the stream of downloaded blocks in sync process.

@@ -21,7 +21,7 @@ import (
 type Block struct {
 	header *Header
 	txs    tx.Transactions
-	bss    BackerSignatures
+	bss    MixtureSignatures
 	cache  struct {
 		size atomic.Value
 	}
@@ -30,17 +30,17 @@ type Block struct {
 // Body defines body of a block.
 type Body struct {
 	Txs tx.Transactions
-	Bss BackerSignatures
+	Bss MixtureSignatures
 }
 
 // Compose compose a block with all needed components
 // Note: This method is usually to recover a block by its portions, and the TxsRoot is not verified.
 // To build up a block, use a Builder.
-func Compose(header *Header, txs tx.Transactions, bss BackerSignatures) *Block {
+func Compose(header *Header, txs tx.Transactions, bss MixtureSignatures) *Block {
 	return &Block{
 		header: header,
 		txs:    append(tx.Transactions(nil), txs...),
-		bss:    append(BackerSignatures(nil), bss...),
+		bss:    append(MixtureSignatures(nil), bss...),
 	}
 }
 
@@ -64,15 +64,15 @@ func (b *Block) Transactions() tx.Transactions {
 }
 
 // BackerSignatures returns a copy of backer signature list.
-func (b *Block) BackerSignatures() BackerSignatures {
-	return append(BackerSignatures(nil), b.bss...)
+func (b *Block) BackerSignatures() MixtureSignatures {
+	return append(MixtureSignatures(nil), b.bss...)
 }
 
 // Body returns body of a block.
 func (b *Block) Body() *Body {
 	return &Body{
 		append(tx.Transactions(nil), b.txs...),
-		append(BackerSignatures(nil), b.bss...),
+		append(MixtureSignatures(nil), b.bss...),
 	}
 }
 
@@ -99,7 +99,7 @@ func (b *Block) DecodeRLP(s *rlp.Stream) error {
 		raws   []rlp.RawValue
 		header Header
 		txs    tx.Transactions
-		bss    BackerSignatures
+		bss    MixtureSignatures
 	)
 
 	if err := s.Decode(&raws); err != nil {
@@ -120,7 +120,7 @@ func (b *Block) DecodeRLP(s *rlp.Stream) error {
 			return err
 		}
 	} else if len(raws) == 2 && header.TotalBackersCount() == 0 {
-		bss = BackerSignatures(nil)
+		bss = MixtureSignatures(nil)
 	} else {
 		return errors.New("rlp:unrecognized block format")
 	}

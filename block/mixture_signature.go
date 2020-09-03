@@ -6,6 +6,7 @@
 package block
 
 import (
+	"crypto/ecdsa"
 	"errors"
 	"io"
 	"sync/atomic"
@@ -18,120 +19,139 @@ import (
 )
 
 var (
-	emptyRoot = trie.DeriveRoot(&derivableBackerSignatures{})
+	emptyRoot = trie.DeriveRoot(&derivableMixtureSignatures{})
 )
 
-// BackerSignature is the backer's signature of a block proposal by VRF.
-// Composed by [ Compressed Public Key(33bytes) + Proof(81bytes) ]
-type BackerSignature struct {
+// MixtureSignature is the mixed signature from backer.
+// Composed by [ VRF Proof(81 bytes) + Secp256k1 Signature(65 bytes)]
+type MixtureSignature struct {
 	body  []byte
+	alpha thor.Bytes32
 	cache struct {
-		hash   atomic.Value
-		signer atomic.Value
-		beta   atomic.Value
+		beta atomic.Value
+		pub  atomic.Value
 	}
 }
 
-// NewBackerSignature creates a new backer signature.
-func NewBackerSignature(pub, proof []byte) *BackerSignature {
-	var bs BackerSignature
-	bs.body = append(bs.body, pub...)
-	bs.body = append(bs.body, proof...)
+// NewMixtureSignature creates a new signature.
+func NewMixtureSignature(proof, signature []byte) (*MixtureSignature, error) {
+	if len(proof) != 81 {
+		return nil, errors.New("invalid proof length, 81 bytes required")
+	}
+	if len(signature) != 65 {
+		return nil, errors.New("invalid signature length, 65 bytes required")
+	}
 
-	return &bs
+	var ms MixtureSignature
+	ms.body = append(ms.body, proof...)
+	ms.body = append(ms.body, signature...)
+
+	return &ms, nil
 }
 
-// Hash is the hash of backer signature.
-func (bs *BackerSignature) Hash() (hash thor.Bytes32) {
-	if cached := bs.cache.hash.Load(); cached != nil {
-		return cached.(thor.Bytes32)
-	}
-	defer func() { bs.cache.hash.Store(hash) }()
+// Bytes returns the content in byte slice.
+func (ms *MixtureSignature) Bytes() []byte {
+	return append([]byte(nil), ms.body...)
+}
 
-	hash = thor.Blake2b(bs.body)
+// WithAlpha creates a new mixture signature with alpha set.
+func (ms *MixtureSignature) WithAlpha(alpha thor.Bytes32) *MixtureSignature {
+	cpy := MixtureSignature{body: ms.body, alpha: alpha}
+	return &cpy
+}
+
+// Signer returns the signer of Secp256k1 signature.
+func (ms *MixtureSignature) Signer() (signer thor.Address, err error) {
+	if ms.alpha.IsZero() {
+		err = errors.New("invalid alpha")
+		return
+	}
+	if cached := ms.cache.pub.Load(); cached != nil {
+		signer = thor.Address(crypto.PubkeyToAddress(cached.(ecdsa.PublicKey)))
+		return
+	}
+
+	var pub ecdsa.PublicKey
+	defer func() {
+		if err == nil {
+			ms.cache.pub.Store(pub)
+		}
+	}()
+
+	msg := make([]byte, 32+81)
+	signature := make([]byte, 65)
+	copy(msg[:], ms.alpha.Bytes())
+	copy(msg[32:], ms.body[:])
+	copy(signature[:], ms.body[81:])
+
+	key, err := crypto.SigToPub(thor.Blake2b(msg).Bytes(), signature)
+	if err != nil {
+		return
+	}
+
+	pub = *key
+	signer = thor.Address(crypto.PubkeyToAddress(pub))
 	return
 }
 
-// Validate validates backer's proof and returns the VRF output.
-func (bs *BackerSignature) Validate(alpha []byte) (beta []byte, err error) {
-	if cached := bs.cache.beta.Load(); cached != nil {
+// Validate validates the VRF proof, returns the beta.
+func (ms *MixtureSignature) Validate() (beta []byte, err error) {
+	_, err = ms.Signer()
+	if err != nil {
+		return
+	}
+	if cached := ms.cache.beta.Load(); cached != nil {
 		return cached.([]byte), nil
 	}
-	defer func() { bs.cache.beta.Store(beta) }()
+	defer func() {
+		if err == nil {
+			ms.cache.beta.Store(beta)
+		}
+	}()
 
-	if len(bs.body) != 81+33 {
-		return nil, errors.New("invalid backer signature length, 114 bytes needed")
-	}
-
-	pub := make([]byte, 33)
+	pub := ms.cache.pub.Load().(ecdsa.PublicKey)
 	proof := make([]byte, 81)
+	copy(proof[:], ms.body[:])
 
-	copy(pub[:], bs.body[:])
-	copy(proof[:], bs.body[33:])
-
-	vrf := ecvrf.NewSecp256k1Sha256Tai()
-	pubkey, err := crypto.DecompressPubkey(pub)
-	if err != nil {
-		return nil, err
-	}
-	beta, err = vrf.Verify(pubkey, alpha, proof)
-	return
-}
-
-// Signer computes the address from the public key.
-func (bs *BackerSignature) Signer() (signer thor.Address, err error) {
-	if cached := bs.cache.signer.Load(); cached != nil {
-		return cached.(thor.Address), nil
-	}
-	defer func() { bs.cache.signer.Store(signer) }()
-
-	pub := make([]byte, 33)
-	copy(pub[:], bs.body[:])
-
-	pubkey, err := crypto.DecompressPubkey(pub)
-	if err != nil {
-		return thor.Address{}, err
-	}
-
-	signer = thor.Address(crypto.PubkeyToAddress(*pubkey))
+	beta, err = ecvrf.NewSecp256k1Sha256Tai().Verify(&pub, ms.alpha.Bytes(), proof)
 	return
 }
 
 // EncodeRLP implements rlp.Encoder.
-func (bs *BackerSignature) EncodeRLP(w io.Writer) error {
-	return rlp.Encode(w, &bs.body)
+func (ms *MixtureSignature) EncodeRLP(w io.Writer) error {
+	return rlp.Encode(w, &ms.body)
 }
 
 // DecodeRLP implements rlp.Decoder.
-func (bs *BackerSignature) DecodeRLP(s *rlp.Stream) error {
+func (ms *MixtureSignature) DecodeRLP(s *rlp.Stream) error {
 	var body []byte
 
 	if err := s.Decode(&body); err != nil {
 		return err
 	}
-	*bs = BackerSignature{body: body}
+	*ms = MixtureSignature{body: body}
 	return nil
 }
 
-// BackerSignatures is the list of backer signature.
-type BackerSignatures []*BackerSignature
+// MixtureSignatures is the list of VRF signature.
+type MixtureSignatures []*MixtureSignature
 
-// RootHash computes merkle root hash of backers.
-func (bss BackerSignatures) RootHash() thor.Bytes32 {
-	if len(bss) == 0 {
+// RootHash computes merkle root hash of MixtureSignatures.
+func (mss MixtureSignatures) RootHash() thor.Bytes32 {
+	if len(mss) == 0 {
 		// optimized
 		return emptyRoot
 	}
-	return trie.DeriveRoot(derivableBackerSignatures(bss))
+	return trie.DeriveRoot(derivableMixtureSignatures(mss))
 }
 
 // implements DerivableList.
-type derivableBackerSignatures BackerSignatures
+type derivableMixtureSignatures MixtureSignatures
 
-func (d derivableBackerSignatures) Len() int {
+func (d derivableMixtureSignatures) Len() int {
 	return len(d)
 }
-func (d derivableBackerSignatures) GetRlp(i int) []byte {
+func (d derivableMixtureSignatures) GetRlp(i int) []byte {
 	data, err := rlp.EncodeToBytes(d[i])
 	if err != nil {
 		panic(err)

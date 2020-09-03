@@ -255,6 +255,7 @@ func (c *Consensus) validateBlockBody(blk *block.Block, parent *block.Header, ca
 			prev := []byte{}
 			alpha := block.NewDeclaration(header.ParentID(), header.TxsRoot(), header.GasLimit(), header.Timestamp()).Alpha(proposer)
 			for _, bs := range bss {
+				bs = bs.WithAlpha(alpha)
 				backer, err := bs.Signer()
 				if err != nil {
 					return consensusError(fmt.Sprintf("backer signature's signer unavailable: %v", err))
@@ -265,7 +266,7 @@ func (c *Consensus) validateBlockBody(blk *block.Block, parent *block.Header, ca
 				if backer == proposer {
 					return consensusError("block signer cannot back itself")
 				}
-				beta, err := bs.Validate(alpha.Bytes())
+				beta, err := bs.Validate()
 				if err != nil {
 					return consensusError(fmt.Sprintf("failed to verify backer's signature: %v", err))
 				}

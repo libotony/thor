@@ -14,7 +14,7 @@ import (
 type Builder struct {
 	headerBody headerBody
 	txs        tx.Transactions
-	bss        BackerSignatures
+	bss        MixtureSignatures
 }
 
 // ParentID set parent id.
@@ -78,8 +78,8 @@ func (b *Builder) TransactionFeatures(features tx.Features) *Builder {
 }
 
 // BackerSignatures add the list of backer signature.
-func (b *Builder) BackerSignatures(bss BackerSignatures, parentBackerCount uint64) *Builder {
-	b.bss = append(BackerSignatures(nil), bss...)
+func (b *Builder) BackerSignatures(bss MixtureSignatures, parentBackerCount uint64) *Builder {
+	b.bss = append(MixtureSignatures(nil), bss...)
 	b.headerBody.Extension.TotalBackersCount = parentBackerCount + uint64(len(bss))
 	return b
 }
