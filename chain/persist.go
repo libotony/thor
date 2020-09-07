@@ -18,6 +18,7 @@ import (
 const (
 	txInfix      = byte(0)
 	receiptInfix = byte(1)
+	bssSuffix    = byte(2) // backer signatures suffix
 )
 
 // BlockSummary presents block summary.
@@ -92,4 +93,16 @@ func loadReceipt(r kv.Getter, key txKey) (*tx.Receipt, error) {
 		return nil, err
 	}
 	return &receipt, nil
+}
+
+func saveBackerSignatures(w kv.Putter, id thor.Bytes32, bss block.MixtureSignatures) error {
+	return saveRLP(w, append(id.Bytes(), bssSuffix), bss)
+}
+
+func loadBackerSignatures(r kv.Getter, id thor.Bytes32) (block.MixtureSignatures, error) {
+	var bss block.MixtureSignatures
+	if err := loadRLP(r, append(id.Bytes(), bssSuffix), &bss); err != nil {
+		return nil, err
+	}
+	return bss, nil
 }
