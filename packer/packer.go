@@ -25,6 +25,7 @@ type Packer struct {
 	beneficiary    *thor.Address
 	targetGasLimit uint64
 	forkConfig     thor.ForkConfig
+	seeder         *poa.Seeder
 }
 
 // New create a new Packer instance.
@@ -43,6 +44,7 @@ func New(
 		beneficiary,
 		0,
 		forkConfig,
+		poa.NewSeeder(repo),
 	}
 }
 
@@ -95,7 +97,16 @@ func (p *Packer) Schedule(parent *block.Header, nowTimestamp uint64) (flow *Flow
 	}
 
 	// calc the time when it's turn to produce block
-	sched, err := poa.NewScheduler(p.nodeMaster, proposers, parent.Number(), parent.Timestamp())
+	sched, err := func() (poa.Scheduler, error) {
+		if parent.Number()+1 >= p.forkConfig.VIP193 {
+			seed, err := p.seeder.Generate(parent.ID())
+			if err != nil {
+				return nil, err
+			}
+			return poa.NewSchedulerV2(p.nodeMaster, proposers, parent.Number(), parent.Timestamp(), seed)
+		}
+		return poa.NewSchedulerV1(p.nodeMaster, proposers, parent.Number(), parent.Timestamp())
+	}()
 	if err != nil {
 		return nil, err
 	}

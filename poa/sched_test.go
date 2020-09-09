@@ -33,10 +33,10 @@ var (
 
 func TestSchedule(t *testing.T) {
 
-	_, err := poa.NewScheduler(thor.BytesToAddress([]byte("px")), proposers, 1, parentTime)
+	_, err := poa.NewSchedulerV1(thor.BytesToAddress([]byte("px")), proposers, 1, parentTime)
 	assert.NotNil(t, err)
 
-	sched, _ := poa.NewScheduler(p1, proposers, 1, parentTime)
+	sched, _ := poa.NewSchedulerV1(p1, proposers, 1, parentTime)
 
 	for i := uint64(0); i < 100; i++ {
 		now := parentTime + i*thor.BlockInterval/2
@@ -47,7 +47,7 @@ func TestSchedule(t *testing.T) {
 }
 
 func TestIsTheTime(t *testing.T) {
-	sched, _ := poa.NewScheduler(p2, proposers, 1, parentTime)
+	sched, _ := poa.NewSchedulerV1(p2, proposers, 1, parentTime)
 
 	tests := []struct {
 		now  uint64
@@ -65,13 +65,60 @@ func TestIsTheTime(t *testing.T) {
 
 func TestUpdates(t *testing.T) {
 
-	sched, _ := poa.NewScheduler(p1, proposers, 1, parentTime)
+	sched, _ := poa.NewSchedulerV1(p1, proposers, 1, parentTime)
 
 	tests := []struct {
 		newBlockTime uint64
 		want         uint64
 	}{
 		{parentTime + thor.BlockInterval, 2},
+		{parentTime + thor.BlockInterval*30, 1},
+	}
+
+	for _, tt := range tests {
+		_, score := sched.Updates(tt.newBlockTime)
+		assert.Equal(t, tt.want, score)
+	}
+}
+
+func TestScheduleV2(t *testing.T) {
+	_, err := poa.NewSchedulerV2(p1, proposers, 1, parentTime, nil)
+	assert.NotNil(t, err)
+
+	sched, _ := poa.NewSchedulerV1(p1, proposers, 1, parentTime)
+
+	for i := uint64(0); i < 100; i++ {
+		now := parentTime + i*thor.BlockInterval/2
+		nbt := sched.Schedule(now)
+		assert.True(t, nbt >= now)
+		assert.True(t, sched.IsTheTime(nbt))
+	}
+}
+
+func TestIsTheTimeV2(t *testing.T) {
+	sched, _ := poa.NewSchedulerV2(p2, proposers, 1, parentTime, nil)
+
+	tests := []struct {
+		now  uint64
+		want bool
+	}{
+		{parentTime - 1, false},
+		{parentTime + thor.BlockInterval/2, false},
+		{parentTime + thor.BlockInterval, true},
+	}
+
+	for _, tt := range tests {
+		assert.Equal(t, tt.want, sched.IsTheTime(tt.now))
+	}
+}
+
+func TestUpdatesV2(t *testing.T) {
+	sched, _ := poa.NewSchedulerV2(p2, proposers, 1, parentTime, nil)
+
+	tests := []struct {
+		newBlockTime uint64
+		want         uint64
+	}{
 		{parentTime + thor.BlockInterval*30, 1},
 	}
 
