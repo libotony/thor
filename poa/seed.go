@@ -57,7 +57,8 @@ func (seeder *Seeder) Generate(parentID thor.Bytes32) ([]byte, error) {
 
 	var seed []byte
 	if seedBlock.BackerSignaturesRoot() != emptyRoot {
-		previousSeed, err := seeder.Generate(seedBlock.ParentID())
+		// the seed corresponding to the seed block
+		theSeed, err := seeder.Generate(seedBlock.ParentID())
 		if err != nil {
 			return nil, err
 		}
@@ -76,8 +77,10 @@ func (seeder *Seeder) Generate(parentID thor.Bytes32) ([]byte, error) {
 			num  [4]byte
 		)
 		binary.BigEndian.PutUint32(num[:], block.Number(parentID))
-		data = append(data, previousSeed...)
+		data = append(data, theSeed...)
 		data = append(data, num[:]...)
+		// hash(parentNumber+seed) as alpha to determine backer
+		alpha := thor.Blake2b(data)
 
 		bss, err := seeder.repo.GetBlockBackerSignatures(seedBlock.ID())
 		if err != nil {
@@ -88,7 +91,7 @@ func (seeder *Seeder) Generate(parentID thor.Bytes32) ([]byte, error) {
 			if err != nil {
 				return nil, err
 			}
-			beta, err := bs.Validate(pub, thor.Blake2b(data))
+			beta, err := bs.Validate(pub, alpha)
 			if err != nil {
 				return nil, err
 			}
