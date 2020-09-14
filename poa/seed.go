@@ -31,7 +31,7 @@ func NewSeeder(repo *chain.Repository) *Seeder {
 }
 
 // Generate creates a seed for the given parent block's header. If the seed block contains at least one backer signature,
-// concatenate the VRF outputs(beta) to create seed. Otherwise，returns nil.
+// concatenate the VRF outputs(beta) and parent block number to create seed.
 func (seeder *Seeder) Generate(parentID thor.Bytes32) ([]byte, error) {
 	blockNum := block.Number(parentID) + 1
 
@@ -55,7 +55,11 @@ func (seeder *Seeder) Generate(parentID thor.Bytes32) ([]byte, error) {
 		return nil, err
 	}
 
-	var seed []byte
+	var (
+		seed []byte
+		num  [4]byte
+	)
+	binary.BigEndian.PutUint32(num[:], block.Number(parentID))
 	if seedBlock.BackerSignaturesRoot() != emptyRoot {
 		// the seed corresponding to the seed block
 		theSeed, err := seeder.Generate(seedBlock.ParentID())
@@ -63,25 +67,8 @@ func (seeder *Seeder) Generate(parentID thor.Bytes32) ([]byte, error) {
 			return nil, err
 		}
 
-		// block declaration as message
-		// [parentID + txsRoot + gaslimit + timestamp + signer]
-		msg := make([]byte, 100)
-		copy(msg[:], seedBlock.ParentID().Bytes())
-		copy(msg[32:], seedBlock.TxsRoot().Bytes())
-		binary.BigEndian.PutUint64(msg[64:], seedBlock.GasLimit())
-		binary.BigEndian.PutUint64(msg[72:], seedBlock.Timestamp())
-		copy(msg[80:], signer.Bytes())
-
-		var (
-			data []byte
-			num  [4]byte
-		)
-		binary.BigEndian.PutUint32(num[:], block.Number(parentID))
-		data = append(data, theSeed...)
-		data = append(data, num[:]...)
-		// hash(parentNumber+seed) as alpha to determine backer
-		alpha := thor.Blake2b(data)
-
+		msg := block.NewDeclaration(seedBlock.ParentID(), seedBlock.TxsRoot(), seedBlock.GasLimit(), seedBlock.Timestamp()).Bytes(signer)
+		alpha := thor.Blake2b(theSeed)
 		bss, err := seeder.repo.GetBlockBackerSignatures(seedBlock.ID())
 		if err != nil {
 			return nil, err
@@ -106,5 +93,8 @@ func (seeder *Seeder) Generate(parentID thor.Bytes32) ([]byte, error) {
 	}
 
 	seeder.cache[seedBlock.ID()] = seed
-	return seed, nil
+
+	data := append([]byte(nil), seed...)
+	data = append(data, num[:]...)
+	return data, nil
 }

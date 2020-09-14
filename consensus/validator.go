@@ -7,7 +7,6 @@ package consensus
 
 import (
 	"bytes"
-	"encoding/binary"
 	"fmt"
 
 	"github.com/ethereum/go-ethereum/rlp"
@@ -284,37 +283,21 @@ func (c *Consensus) validateBlockBody(blk *block.Block, parent *block.Header, pr
 		proposer, _ := header.Signer()
 		if len(bss) > 0 {
 			var toActive []poa.Proposer
-			getBacker := func(addr thor.Address) *poa.Proposer {
+			getAuthority := func(addr thor.Address) *poa.Proposer {
 				for _, p := range proposers {
 					if p.Address == addr {
 						return &poa.Proposer{
-							p.Address,
-							p.Active,
+							Address: p.Address,
+							Active:  p.Active,
 						}
 					}
 				}
 				return nil
 			}
 
-			// block declaration as message
-			// [parentID + txsRoot + gaslimit + timestamp + signer]
-			msg := make([]byte, 100)
-			copy(msg[:], header.ParentID().Bytes())
-			copy(msg[32:], header.TxsRoot().Bytes())
-			binary.BigEndian.PutUint64(msg[64:], header.GasLimit())
-			binary.BigEndian.PutUint64(msg[72:], header.Timestamp())
-			copy(msg[80:], proposer.Bytes())
-
+			msg := block.NewDeclaration(header.ParentID(), header.TxsRoot(), header.GasLimit(), header.Timestamp()).Bytes(proposer)
 			seed, _ := c.seeder.Generate(header.ParentID())
-			var (
-				data []byte
-				num  [4]byte
-			)
-			binary.BigEndian.PutUint32(num[:], parent.Number())
-			data = append(data, seed...)
-			data = append(data, num[:]...)
-			// hash(parentNumber+seed) as alpha to determine backer
-			alpha := thor.Blake2b(data)
+			alpha := thor.Blake2b(seed)
 
 			prev := []byte{}
 			for _, bs := range bss {
@@ -323,7 +306,7 @@ func (c *Consensus) validateBlockBody(blk *block.Block, parent *block.Header, pr
 					return nil, consensusError(fmt.Sprintf("backer signature's signer unavailable: %v", err))
 				}
 
-				backer := getBacker(signer)
+				backer := getAuthority(signer)
 				if backer == nil {
 					return nil, consensusError(fmt.Sprintf("backer: %v is not an authority", backer))
 				}
@@ -347,8 +330,8 @@ func (c *Consensus) validateBlockBody(blk *block.Block, parent *block.Header, pr
 				}
 				if backer.Active == false {
 					toActive = append(toActive, poa.Proposer{
-						backer.Address,
-						true,
+						Address: backer.Address,
+						Active:  true,
 					})
 				}
 			}

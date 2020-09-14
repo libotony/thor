@@ -83,6 +83,19 @@ func (d *Declaration) WithSignature(sig []byte) *Declaration {
 	}
 }
 
+// Bytes returns declaration in bytes slice.
+func (d *Declaration) Bytes(signer thor.Address) []byte {
+	// [parentID + txsRoot + gaslimit + timestamp + signer]
+	msg := make([]byte, 100)
+	copy(msg[:], d.ParentID.Bytes())
+	copy(msg[32:], d.TxsRoot.Bytes())
+	binary.BigEndian.PutUint64(msg[64:], d.GasLimit)
+	binary.BigEndian.PutUint64(msg[72:], d.Timestamp)
+	copy(msg[80:], signer.Bytes())
+
+	return msg
+}
+
 // Hash is the hash of declaration body.
 func (d *Declaration) Hash() (hash thor.Bytes32) {
 	if cached := d.cache.hash.Load(); cached != nil {
