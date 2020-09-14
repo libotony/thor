@@ -54,6 +54,7 @@ type Node struct {
 	skipLogs       bool
 	logDBFailed    bool
 	bandwidth      bandwidth.Bandwidth
+	forkConfig     thor.ForkConfig
 }
 
 func New(
@@ -79,6 +80,7 @@ func New(
 		comm:           comm,
 		targetGasLimit: targetGasLimit,
 		skipLogs:       skipLogs,
+		forkConfig:     forkConfig,
 	}
 }
 

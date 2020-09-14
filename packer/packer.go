@@ -77,14 +77,13 @@ func (p *Packer) Schedule(parent *block.Header, nowTimestamp uint64) (flow *Flow
 	if err != nil {
 		return nil, err
 	}
-	var (
-		proposers   = make([]poa.Proposer, 0, len(candidates))
-		beneficiary thor.Address
-	)
+
+	var beneficiary thor.Address
 	if p.beneficiary != nil {
 		beneficiary = *p.beneficiary
 	}
 
+	proposers := make([]poa.Proposer, 0, len(candidates))
 	for _, c := range candidates {
 		if p.beneficiary == nil && c.NodeMaster == p.nodeMaster {
 			// no beneficiary not set, set it to endorsor
@@ -97,15 +96,23 @@ func (p *Packer) Schedule(parent *block.Header, nowTimestamp uint64) (flow *Flow
 	}
 
 	// calc the time when it's turn to produce block
-	sched, err := func() (poa.Scheduler, error) {
+	sched, seed, err := func() (poa.Scheduler, []byte, error) {
 		if parent.Number()+1 >= p.forkConfig.VIP193 {
 			seed, err := p.seeder.Generate(parent.ID())
 			if err != nil {
-				return nil, err
+				return nil, nil, err
 			}
-			return poa.NewSchedulerV2(p.nodeMaster, proposers, parent.Number(), parent.Timestamp(), seed)
+			sched, err := poa.NewSchedulerV2(p.nodeMaster, proposers, parent.Number(), parent.Timestamp(), seed)
+			if err != nil {
+				return nil, nil, err
+			}
+			return sched, seed, nil
 		}
-		return poa.NewSchedulerV1(p.nodeMaster, proposers, parent.Number(), parent.Timestamp())
+		sched, err := poa.NewSchedulerV1(p.nodeMaster, proposers, parent.Number(), parent.Timestamp())
+		if err != nil {
+			return nil, nil, err
+		}
+		return sched, nil, nil
 	}()
 	if err != nil {
 		return nil, err
@@ -114,9 +121,11 @@ func (p *Packer) Schedule(parent *block.Header, nowTimestamp uint64) (flow *Flow
 	newBlockTime := sched.Schedule(nowTimestamp)
 	updates, score := sched.Updates(newBlockTime)
 
-	for _, u := range updates {
-		if _, err := authority.Update(u.Address, u.Active); err != nil {
-			return nil, err
+	if parent.Number()+1 < p.forkConfig.VIP193 {
+		for _, u := range updates {
+			if _, err := authority.Update(u.Address, u.Active); err != nil {
+				return nil, err
+			}
 		}
 	}
 
@@ -133,7 +142,7 @@ func (p *Packer) Schedule(parent *block.Header, nowTimestamp uint64) (flow *Flow
 		},
 		p.forkConfig)
 
-	return newFlow(p, parent, rt, features), nil
+	return newFlow(p, parent, rt, features, proposers, updates, seed), nil
 }
 
 // Mock create a packing flow upon given parent, but with a designated timestamp.
@@ -177,7 +186,7 @@ func (p *Packer) Mock(parent *block.Header, targetTime uint64, gasLimit uint64) 
 		},
 		p.forkConfig)
 
-	return newFlow(p, parent, rt, features), nil
+	return newFlow(p, parent, rt, features, nil, nil, nil), nil
 }
 
 func (p *Packer) gasLimit(parentGasLimit uint64) uint64 {
