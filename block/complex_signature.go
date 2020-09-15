@@ -38,6 +38,7 @@ func NewComplexSignature(proof, signature []byte) (*ComplexSignature, error) {
 	}
 
 	var ms ComplexSignature
+	ms.body = make([]byte, 0, 146)
 	ms.body = append(ms.body, proof...)
 	ms.body = append(ms.body, signature...)
 
@@ -51,8 +52,9 @@ func (ms *ComplexSignature) Bytes() []byte {
 
 // Signer returns the signer of Secp256k1 signature.
 // Complex signature does contain message(declaration), we need to compute the msg hash first.
-func (ms *ComplexSignature) Signer(msg []byte) (signer thor.Address, pub *ecdsa.PublicKey, err error) {
-	input := append([]byte(nil), msg...)
+func (ms *ComplexSignature) Signer(msg thor.Bytes32) (signer thor.Address, pub *ecdsa.PublicKey, err error) {
+	input := make([]byte, 0, 113)
+	input = append(input, msg.Bytes()...)
 	input = append(input, ms.body[:81]...)
 
 	signature := make([]byte, 65)

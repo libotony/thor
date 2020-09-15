@@ -140,7 +140,7 @@ func (n *Node) pack(flow *packer.Flow) error {
 			ticker := time.NewTimer(time.Duration(flow.When()-1-now) * time.Second)
 			defer ticker.Stop()
 
-			msg := dec.Bytes(n.master.Address())
+			msg := dec.AsMessage(n.master.Address())
 			alpha := thor.Blake2b(flow.Seed())
 
 			for {

@@ -295,7 +295,7 @@ func (c *Consensus) validateBlockBody(blk *block.Block, parent *block.Header, pr
 				return nil
 			}
 
-			msg := block.NewDeclaration(header.ParentID(), header.TxsRoot(), header.GasLimit(), header.Timestamp()).Bytes(proposer)
+			msg := block.NewDeclaration(header.ParentID(), header.TxsRoot(), header.GasLimit(), header.Timestamp()).AsMessage(proposer)
 			seed, _ := c.seeder.Generate(header.ParentID())
 			alpha := thor.Blake2b(seed)
 

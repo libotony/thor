@@ -83,8 +83,9 @@ func (d *Declaration) WithSignature(sig []byte) *Declaration {
 	}
 }
 
-// Bytes returns declaration in bytes slice.
-func (d *Declaration) Bytes(signer thor.Address) []byte {
+// AsMessage computes the hash of the declaration body for being a message, it is different from body hash,
+// which is blake2b(parentID+txsRoot+gaslimit+timestamp+signer). Mostly used for computing backer signature.
+func (d *Declaration) AsMessage(signer thor.Address) thor.Bytes32 {
 	// [parentID + txsRoot + gaslimit + timestamp + signer]
 	msg := make([]byte, 100)
 	copy(msg[:], d.ParentID.Bytes())
@@ -93,7 +94,7 @@ func (d *Declaration) Bytes(signer thor.Address) []byte {
 	binary.BigEndian.PutUint64(msg[72:], d.Timestamp)
 	copy(msg[80:], signer.Bytes())
 
-	return msg
+	return thor.Blake2b(msg)
 }
 
 // Hash is the hash of declaration body.

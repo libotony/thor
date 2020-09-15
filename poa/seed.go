@@ -67,7 +67,7 @@ func (seeder *Seeder) Generate(parentID thor.Bytes32) ([]byte, error) {
 			return nil, err
 		}
 
-		msg := block.NewDeclaration(seedBlock.ParentID(), seedBlock.TxsRoot(), seedBlock.GasLimit(), seedBlock.Timestamp()).Bytes(signer)
+		msg := block.NewDeclaration(seedBlock.ParentID(), seedBlock.TxsRoot(), seedBlock.GasLimit(), seedBlock.Timestamp()).AsMessage(signer)
 		alpha := thor.Blake2b(theSeed)
 		bss, err := seeder.repo.GetBlockBackerSignatures(seedBlock.ID())
 		if err != nil {
