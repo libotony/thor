@@ -6,6 +6,7 @@
 package node
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"sort"
@@ -299,11 +300,15 @@ func (n *Node) commitBlock(stage *state.Stage, newBlock *block.Block, receipts t
 	defer n.commitLock.Unlock()
 
 	var (
-		prevBest      = n.repo.BestBlock()
-		becomeNewBest = newBlock.Header().BetterThan(prevBest.Header())
-		awaitLog      = func() {}
+		prevBest = n.repo.BestBlock()
+		awaitLog = func() {}
 	)
 	defer awaitLog()
+
+	becomeNewBest, err := n.compare(newBlock.Header(), prevBest.Header())
+	if err != nil {
+		return nil, nil, err
+	}
 
 	if becomeNewBest && !n.skipLogs && !n.logDBFailed {
 		done := make(chan struct{})
@@ -397,6 +402,118 @@ side-chain:   %v  %v`,
 			}
 		}
 	}
+}
+
+// Compare compares two chains, returns true if new chain is better.
+func (n *Node) compare(newBlock, best *block.Header) (bool, error) {
+	if newBlock.Number() >= n.forkConfig.VIP193 && best.Number() >= n.forkConfig.VIP193 {
+		if better := func() *bool {
+			if newBlock.TotalQuality() != best.TotalQuality() {
+				better := newBlock.TotalQuality() > best.TotalQuality()
+				return &better
+			}
+			c1 := newBlock.TotalBackersCount() + uint64(newBlock.Number())
+			c2 := best.TotalBackersCount() + uint64(best.Number())
+			if c1 != c2 {
+				better := c1 > c2
+				return &better
+			}
+
+			return nil
+		}(); better != nil {
+			larger := newBlock
+			smaller := best
+			if *better == false {
+				larger = best
+				smaller = newBlock
+			}
+
+			var trunk []thor.Bytes32
+			var branch []thor.Bytes32
+			for {
+				if larger.Number() > smaller.Number() {
+					trunk = append(trunk, larger.ID())
+					summary, err := n.repo.GetBlockSummary(larger.ParentID())
+					if err != nil {
+						return false, err
+					}
+					larger = summary.Header
+					continue
+				}
+				if larger.Number() < smaller.Number() {
+					branch = append(branch, smaller.ID())
+					summary, err := n.repo.GetBlockSummary(smaller.ParentID())
+					if err != nil {
+						return false, err
+					}
+					smaller = summary.Header
+					continue
+				}
+
+				if larger.ID() == smaller.ID() {
+					break
+				}
+
+				trunk = append(trunk, larger.ID())
+				branch = append(branch, smaller.ID())
+
+				summary, err := n.repo.GetBlockSummary(larger.ParentID())
+				if err != nil {
+					return false, err
+				}
+				larger = summary.Header
+
+				summary, err = n.repo.GetBlockSummary(smaller.ParentID())
+				if err != nil {
+					return false, err
+				}
+				smaller = summary.Header
+			}
+			/* prevent malicious proposer broadcast a block without backer signatures and later broadcast the block with higher one in the same round
+			 * b0(signer0)--->b1(signer1)--->b2(signer(2))
+			 *	\
+			 *	 \
+			 *	  \--------->b1'(signer1)(higher backer count)
+			 */
+			if len(trunk) > 0 && len(branch) > 0 {
+				b1, err := n.repo.GetBlockSummary(trunk[len(trunk)-1])
+				if err != nil {
+					return false, err
+				}
+				b2, err := n.repo.GetBlockSummary(branch[len(branch)-1])
+				if err != nil {
+					return false, err
+				}
+				s1, err := b1.Header.Signer()
+				if err != nil {
+					return false, err
+				}
+				s2, err := b2.Header.Signer()
+				if err != nil {
+					return false, err
+				}
+				if s1 == s2 {
+					return !*better, nil
+				}
+			}
+			return *better, nil
+		}
+		// fallback to previous method
+	}
+	s1 := newBlock.TotalScore()
+	s2 := best.TotalScore()
+
+	if s1 > s2 {
+		return true, nil
+	}
+	if s1 < s2 {
+		return false, nil
+	}
+	// total scores are equal
+
+	// smaller ID is preferred, since block with smaller ID usually has larger average score.
+	// also, it's a deterministic decision.
+	return bytes.Compare(newBlock.ID().Bytes(), best.ID().Bytes()) < 0, nil
 }
 
 func checkClockOffset() {
