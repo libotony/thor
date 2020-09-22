@@ -94,10 +94,10 @@ func (n *Node) packerLoop(ctx context.Context) {
 func (n *Node) timeToPack(flow *packer.Flow) bool {
 	nowTs := uint64(time.Now().Unix())
 	if flow.ParentHeader().Number() >= n.forkConfig.VIP193 {
-		return nowTs+thor.BlockInterval > flow.When()
+		return nowTs+thor.BlockInterval >= flow.When()
 	}
 	// blockInterval/2 early to allow more time for processing txs
-	return nowTs+thor.BlockInterval/2 > flow.When()
+	return nowTs+thor.BlockInterval/2 >= flow.When()
 }
 
 func (n *Node) pack(flow *packer.Flow) error {

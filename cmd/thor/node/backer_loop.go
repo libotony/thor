@@ -7,7 +7,6 @@ package node
 
 import (
 	"context"
-	"crypto/ecdsa"
 	"encoding/binary"
 	"fmt"
 	"math"
@@ -27,10 +26,15 @@ import (
 	"github.com/vechain/thor/thor"
 )
 
-type apWithPub struct {
-	accepted *proto.Accepted
-	pub      *ecdsa.PublicKey
-}
+var (
+	seenDeclaration, _ = simplelru.NewLRU(512, nil)
+	seenProposer, _    = simplelru.NewLRU(512, nil)
+	seenAccepted, _    = simplelru.NewLRU(512, nil)
+
+	knownDeclaration   = cache.NewPrioCache(16)
+	unknownDeclaration = cache.NewRandCache(128)
+	unknownAccepted    = cache.NewRandCache(128)
+)
 
 func (n *Node) backerLoop(ctx context.Context) {
 	log.Debug("enter backer loop")
@@ -67,16 +71,6 @@ func (n *Node) backerLoop(ctx context.Context) {
 	unknownTicker := time.NewTicker(time.Duration(1) * time.Second)
 	defer unknownTicker.Stop()
 
-	seenDeclaration, _ := simplelru.NewLRU(512, nil)
-	seenProposer, _ := simplelru.NewLRU(512, nil)
-	seenAccepted, _ := simplelru.NewLRU(512, nil)
-
-	var (
-		knownDeclaration   = cache.NewPrioCache(10)
-		unknownDeclaration = cache.NewPrioCache(100)
-		unknownAccepted    = cache.NewPrioCache(100)
-	)
-
 	for {
 		select {
 		case <-ctx.Done():
@@ -96,30 +90,13 @@ func (n *Node) backerLoop(ctx context.Context) {
 			}
 			seenDeclaration.Add(dec.Hash(), struct{}{})
 
-			signer, err := dec.Signer()
-			if err != nil {
-				log.Debug("failed to recover declarations's signer", "err", err)
-				continue
-			}
-			if isAuthority, err := n.isAuthority(parent, signer); err != nil {
-				log.Debug("failed to get authority", "err", err)
-				continue
-			} else if isAuthority == false {
-				continue
-			}
-
-			var key [32]byte
-			copy(key[:], signer.Bytes())
-			binary.BigEndian.PutUint32(key[20:], dec.Number())
-			binary.BigEndian.PutUint64(key[24:], dec.Timestamp)
-			if seenProposer.Contains(key) {
-				log.Debug("proposer already declared in this round", "signer", signer)
-				continue
-			}
-			seenProposer.Add(key, struct{}{})
-
 			if parent.ID() != dec.ParentID {
-				unknownDeclaration.Set(ev.Hash(), ev.Declaration, float64(ev.Declaration.Timestamp))
+				unknownDeclaration.Set(ev.Hash(), ev.Declaration)
+				continue
+			}
+
+			if err := n.validateProposer(dec, parent); err != nil {
+				log.Debug("signer not valid", "err", err)
 				continue
 			}
 
@@ -157,19 +134,6 @@ func (n *Node) backerLoop(ctx context.Context) {
 			}
 			seenAccepted.Add(ev.Hash(), struct{}{})
 
-			signer, pub, err := ev.Signature.Signer(ev.DeclarationHash)
-			if err != nil {
-				log.Debug("failed to get accepted signer", "err", err)
-				continue
-			}
-			if isAuthority, err := n.isAuthority(parent, signer); err != nil {
-				log.Debug("failed to get authority", "err", err)
-				continue
-			} else if isAuthority == false {
-				log.Debug("backer is not an authority", "backer", signer)
-				continue
-			}
-
 			if val, _, ok := knownDeclaration.Get(ev.DeclarationHash); ok == true {
 				dec := val.(*block.Declaration)
 
@@ -177,20 +141,20 @@ func (n *Node) backerLoop(ctx context.Context) {
 					continue
 				}
 
-				if err := n.validateBackerSignature(ev.Signature, pub, parent); err != nil {
+				if err := n.validateBackerSignature(ev.Signature, dec, parent); err != nil {
 					log.Debug("failed to validate backer signature", "err", err)
 					continue
 				}
 
 				n.comm.BroadcastAccepted(ev.Accepted)
 			} else {
-				unknownAccepted.Set(ev.Hash(), &apWithPub{ev.Accepted, pub}, float64(time.Now().Unix()))
+				unknownAccepted.Set(ev.Hash(), ev.Accepted)
 			}
 		case <-unknownTicker.C:
 			parent := n.repo.BestBlock().Header()
 
 			var decs []*block.Declaration
-			unknownDeclaration.ForEach(func(ent *cache.PrioEntry) bool {
+			unknownDeclaration.ForEach(func(ent *cache.Entry) bool {
 				decs = append(decs, ent.Value.(*block.Declaration))
 				return true
 			})
@@ -201,6 +165,11 @@ func (n *Node) backerLoop(ctx context.Context) {
 				}
 				if dec.ParentID == parent.ID() {
 					unknownDeclaration.Remove(dec.Hash())
+
+					if err := n.validateProposer(dec, parent); err != nil {
+						log.Debug("signer not valid", "err", err)
+						continue
+					}
 
 					if err := validateDeclaration(dec, parent); err != nil {
 						log.Debug("block declaration is not valid", "err", err)
@@ -230,16 +199,15 @@ func (n *Node) backerLoop(ctx context.Context) {
 				}
 			}
 
-			var aps []*apWithPub
-			unknownAccepted.ForEach(func(ent *cache.PrioEntry) bool {
-				aps = append(aps, ent.Value.(*apWithPub))
+			var aps []*proto.Accepted
+			unknownAccepted.ForEach(func(ent *cache.Entry) bool {
+				aps = append(aps, ent.Value.(*proto.Accepted))
 				return true
 			})
 
 			for _, ap := range aps {
-				accepted := ap.accepted
-				if val, _, ok := knownDeclaration.Get(accepted.DeclarationHash); ok == true {
-					unknownAccepted.Remove(accepted.Hash())
+				if val, _, ok := knownDeclaration.Get(ap.DeclarationHash); ok == true {
+					unknownAccepted.Remove(ap.Hash())
 
 					dec := val.(*block.Declaration)
 
@@ -247,12 +215,12 @@ func (n *Node) backerLoop(ctx context.Context) {
 						continue
 					}
 
-					if err := n.validateBackerSignature(accepted.Signature, ap.pub, parent); err != nil {
+					if err := n.validateBackerSignature(ap.Signature, dec, parent); err != nil {
 						log.Debug("failed to validate backer signature", "err", err)
 						continue
 					}
 
-					n.comm.BroadcastAccepted(accepted)
+					n.comm.BroadcastAccepted(ap)
 				}
 			}
 		}
@@ -268,11 +236,30 @@ func (n *Node) isAuthority(parent *block.Header, addr thor.Address) (bool, error
 		return false, err
 	}
 
-	if listed == false {
-		return false, nil
+	return listed, nil
+}
+
+func (n *Node) validateProposer(dec *block.Declaration, parent *block.Header) error {
+	signer, err := dec.Signer()
+	if err != nil {
+		return err
+	}
+	if isAuthority, err := n.isAuthority(parent, signer); err != nil {
+		return err
+	} else if isAuthority == false {
+		return errors.Errorf("%v is not an authority", signer)
 	}
 
-	return true, nil
+	var key [32]byte
+	copy(key[:], signer.Bytes())
+	binary.BigEndian.PutUint32(key[20:], dec.Number())
+	binary.BigEndian.PutUint64(key[24:], dec.Timestamp)
+	if seenProposer.Contains(key) {
+		return errors.Errorf("proposer:%v already declared in this round", signer)
+	}
+	seenProposer.Add(key, struct{}{})
+
+	return nil
 }
 
 func (n *Node) tryBacking(dec *block.Declaration, parent *block.Header) (*proto.Accepted, error) {
@@ -281,14 +268,17 @@ func (n *Node) tryBacking(dec *block.Declaration, parent *block.Header) (*proto.
 		return nil, err
 	}
 
-	alpha := thor.Blake2b(seed)
+	var num [4]byte
+	binary.BigEndian.PutUint32(num[:], parent.Number())
+	alpha := thor.Blake2b(seed, num[:])
+
 	beta, proof, err := ecvrf.NewSecp256k1Sha256Tai().Prove(n.master.PrivateKey, alpha.Bytes())
 	if err != nil {
 		return nil, err
 	}
 
 	if lucky := poa.EvaluateVRF(beta); lucky == false {
-		return nil, nil
+		return nil, errors.New("not lucky enough")
 	}
 
 	proposer, _ := dec.Signer()
@@ -314,13 +304,30 @@ func (n *Node) tryBacking(dec *block.Declaration, parent *block.Header) (*proto.
 	return &accepted, nil
 }
 
-func (n *Node) validateBackerSignature(bs *block.ComplexSignature, pub *ecdsa.PublicKey, parent *block.Header) error {
-	msg, err := n.seeder.Generate(parent.ID())
+func (n *Node) validateBackerSignature(bs *block.ComplexSignature, dec *block.Declaration, parent *block.Header) error {
+	proposer, _ := dec.Signer()
+	msg := dec.AsMessage(proposer)
+
+	backer, pub, err := bs.Signer(msg)
+	if err != nil {
+		return nil
+	}
+
+	if isAuthority, err := n.isAuthority(parent, backer); err != nil {
+		return err
+	} else if isAuthority == false {
+		return errors.Errorf("backer:%v is not an authority", backer)
+	}
+
+	seed, err := n.seeder.Generate(parent.ID())
 	if err != nil {
 		return err
 	}
 
-	alpha := thor.Blake2b(msg)
+	var num [4]byte
+	binary.BigEndian.PutUint32(num[:], parent.Number())
+	alpha := thor.Blake2b(seed, num[:])
+
 	beta, err := bs.Validate(pub, alpha)
 	if err != nil {
 		return err

@@ -469,8 +469,8 @@ func (n *Node) compare(newBlock, best *block.Header) (bool, error) {
 				}
 				smaller = summary.Header
 			}
-			/* prevent malicious proposer broadcast a block without backer signatures and later broadcast the block with higher one in the same round
-			 * b0(signer0)--->b1(signer1)--->b2(signer(2))
+			/* prevent malicious proposer broadcast a block lower priority(quality or backer) first and later broadcast the block with higher one in the same round
+			 * b0(signer0)--->b1(signer1)--->b2(signer(2))z
 			 *	\
 			 *	 \
 			 *	  \--------->b1'(signer1)(higher backer count)
