@@ -105,7 +105,7 @@ func (s *SchedulerV2) Schedule(nowTime uint64) (newBlockTime uint64) {
 	}
 
 	offset := (newBlockTime-s.parentBlockTime)/T - 1
-	for i := offset; i < uint64(len(s.shuffled)); i++ {
+	for i := uint64(0); i < uint64(len(s.shuffled)); i++ {
 		index := (i + offset) % uint64(len(s.shuffled))
 		if s.shuffled[index] == s.proposer.Address {
 			return newBlockTime + i*T

@@ -7,6 +7,7 @@ package node
 
 import (
 	"context"
+	"encoding/binary"
 	"fmt"
 	"time"
 
@@ -141,8 +142,9 @@ func (n *Node) pack(flow *packer.Flow) error {
 			defer ticker.Stop()
 
 			msg := dec.AsMessage(n.master.Address())
-			alpha := thor.Blake2b(flow.Seed())
-
+			var num [4]byte
+			binary.BigEndian.PutUint32(num[:], flow.ParentHeader().Number())
+			alpha := thor.Blake2b(flow.Seed(), num[:])
 			for {
 				select {
 				case ev := <-newAccCh:

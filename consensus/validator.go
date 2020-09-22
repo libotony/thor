@@ -7,6 +7,7 @@ package consensus
 
 import (
 	"bytes"
+	"encoding/binary"
 	"fmt"
 
 	"github.com/ethereum/go-ethereum/rlp"
@@ -297,7 +298,9 @@ func (c *Consensus) validateBlockBody(blk *block.Block, parent *block.Header, pr
 
 			msg := block.NewDeclaration(header.ParentID(), header.TxsRoot(), header.GasLimit(), header.Timestamp()).AsMessage(proposer)
 			seed, _ := c.seeder.Generate(header.ParentID())
-			alpha := thor.Blake2b(seed)
+			var num [4]byte
+			binary.BigEndian.PutUint32(num[:], parent.Number())
+			alpha := thor.Blake2b(seed, num[:])
 
 			prev := []byte{}
 			for _, bs := range bss {
@@ -421,17 +424,6 @@ func (c *Consensus) verifyTransactions(blk *block.Block, state *state.State, upd
 			return nil, consensusError(fmt.Sprintf("block receipts root mismatch: want %v, have %v", header.ReceiptsRoot(), receiptsRoot))
 		}
 	}
-
-	stage, err := state.Stage()
-	if err != nil {
-		return nil, err
-	}
-	stateRoot := stage.Hash()
-
-	if blk.Header().StateRoot() != stateRoot {
-		return nil, consensusError(fmt.Sprintf("block state root mismatch: want %v, have %v", header.StateRoot(), stateRoot))
-	}
-
 	return receipts, nil
 }
 

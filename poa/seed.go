@@ -31,7 +31,7 @@ func NewSeeder(repo *chain.Repository) *Seeder {
 }
 
 // Generate creates a seed for the given parent block's header. If the seed block contains at least one backer signature,
-// concatenate the VRF outputs(beta) and parent block number to create seed.
+// concatenate the VRF outputs(beta) to create seed.
 func (seeder *Seeder) Generate(parentID thor.Bytes32) ([]byte, error) {
 	blockNum := block.Number(parentID) + 1
 
@@ -55,11 +55,7 @@ func (seeder *Seeder) Generate(parentID thor.Bytes32) ([]byte, error) {
 		return nil, err
 	}
 
-	var (
-		seed []byte
-		num  [4]byte
-	)
-	binary.BigEndian.PutUint32(num[:], block.Number(parentID))
+	var seed []byte
 	if seedBlock.BackerSignaturesRoot() != emptyRoot {
 		// the seed corresponding to the seed block
 		theSeed, err := seeder.Generate(seedBlock.ParentID())
@@ -68,7 +64,10 @@ func (seeder *Seeder) Generate(parentID thor.Bytes32) ([]byte, error) {
 		}
 
 		msg := block.NewDeclaration(seedBlock.ParentID(), seedBlock.TxsRoot(), seedBlock.GasLimit(), seedBlock.Timestamp()).AsMessage(signer)
-		alpha := thor.Blake2b(theSeed)
+		var num [4]byte
+		binary.BigEndian.PutUint32(num[:], block.Number(seedBlock.ParentID()))
+		alpha := thor.Blake2b(theSeed, num[:])
+
 		bss, err := seeder.repo.GetBlockBackerSignatures(seedBlock.ID())
 		if err != nil {
 			return nil, err
@@ -93,8 +92,5 @@ func (seeder *Seeder) Generate(parentID thor.Bytes32) ([]byte, error) {
 	}
 
 	seeder.cache[seedBlock.ID()] = seed
-
-	data := append([]byte(nil), seed...)
-	data = append(data, num[:]...)
-	return data, nil
+	return append([]byte(nil), seed...), nil
 }

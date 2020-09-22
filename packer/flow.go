@@ -61,6 +61,7 @@ func newFlow(
 		proposers:    proposers,
 		updates:      updates,
 		seed:         seed,
+		knownBackers: make(map[thor.Address]bool),
 	}
 }
 
