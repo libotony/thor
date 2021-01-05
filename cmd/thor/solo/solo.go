@@ -58,7 +58,7 @@ func New(
 		packer: packer.New(
 			repo,
 			stater,
-			genesis.DevAccounts()[0].Address,
+			append([]thor.Address(nil), genesis.DevAccounts()[0].Address),
 			&genesis.DevAccounts()[0].Address,
 			forkConfig),
 		logDB:    logDB,

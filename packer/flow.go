@@ -104,6 +104,11 @@ func (f *Flow) Alpha() []byte {
 	return f.alpha
 }
 
+// Signer returns the signer.
+func (f *Flow) Signer() thor.Address {
+	return f.packer.nodeMaster
+}
+
 // IsBackerKnown returns true is backer's signature is already added.
 func (f *Flow) IsBackerKnown(backer thor.Address) bool {
 	return f.knownBackers[backer]

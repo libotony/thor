@@ -99,7 +99,7 @@ func initBlockServer(t *testing.T) {
 		t.Fatal(err)
 	}
 	tx = tx.WithSignature(sig)
-	packer := packer.New(repo, stater, genesis.DevAccounts()[0].Address, &genesis.DevAccounts()[0].Address, thor.NoFork)
+	packer := packer.New(repo, stater, append([]thor.Address(nil), genesis.DevAccounts()[0].Address), &genesis.DevAccounts()[0].Address, thor.NoFork)
 	flow, err := packer.Schedule(b, uint64(time.Now().Unix()))
 	if err != nil {
 		t.Fatal(err)

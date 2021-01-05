@@ -160,12 +160,18 @@ func defaultAction(ctx *cli.Context) error {
 		return err
 	}
 
-	master, err := loadNodeMaster(ctx)
+	keys, err := loadNodeMasterKeys(ctx)
+	if err != nil {
+		return err
+	}
+	masters := node.NewMasters(keys)
+
+	bene, err := beneficiary(ctx)
 	if err != nil {
 		return err
 	}
 
-	printStartupMessage1(gene, repo, master, instanceDir, forkConfig)
+	printStartupMessage1(gene, repo, masters.Addresses(), bene, instanceDir, forkConfig)
 
 	if !skipLogs {
 		if err := syncLogDB(exitSignal, repo, logDB, ctx.Bool(verifyLogsFlag.Name)); err != nil {
@@ -214,7 +220,8 @@ func defaultAction(ctx *cli.Context) error {
 	}
 
 	return node.New(
-		master,
+		masters,
+		bene,
 		repo,
 		state.NewStater(mainDB),
 		logDB,
