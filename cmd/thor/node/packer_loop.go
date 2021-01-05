@@ -154,7 +154,8 @@ func (n *Node) pack(ctx context.Context, flow *packer.Flow) error {
 	}
 
 	if flow.Number() >= n.forkConfig.VIP193 {
-		draft, err := flow.Draft(n.master.PrivateKey)
+
+		draft, err := flow.Draft(n.masters.GetPrivateKey(flow.Signer()))
 		if err != nil {
 			return nil
 		}
@@ -191,7 +192,7 @@ func (n *Node) pack(ctx context.Context, flow *packer.Flow) error {
 		}
 	}
 
-	newBlock, stage, receipts, err := flow.Pack(n.master.PrivateKey)
+	newBlock, stage, receipts, err := flow.Pack(n.masters.GetPrivateKey(flow.Signer()))
 	if err != nil {
 		return err
 	}

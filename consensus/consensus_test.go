@@ -112,7 +112,7 @@ func newTestConsensus(t *testing.T) *testConsensus {
 	sig, _ := crypto.Sign(tx.SigningHash().Bytes(), randomPriv)
 	tx = tx.WithSignature(sig)
 
-	p := packer.New(repo, stater, proposer.Address, &proposer.Address, forkConfig)
+	p := packer.New(repo, stater, append([]thor.Address(nil), proposer.Address), &proposer.Address, forkConfig)
 	flow, err := p.Schedule(parent, parent.Header().Timestamp()+thor.BlockInterval)
 	if err != nil {
 		t.Fatal(err)
@@ -146,7 +146,7 @@ func newTestConsensus(t *testing.T) *testConsensus {
 	}
 	//-----------
 
-	p = packer.New(repo, stater, proposer.Address, &proposer.Address, forkConfig)
+	p = packer.New(repo, stater, append([]thor.Address(nil), proposer.Address), &proposer.Address, forkConfig)
 	flow, err = p.Schedule(b1, b1.Header().Timestamp()+thor.BlockInterval)
 	if err != nil {
 		t.Fatal(err)
