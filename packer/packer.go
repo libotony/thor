@@ -6,6 +6,8 @@
 package packer
 
 import (
+	"errors"
+
 	"github.com/vechain/thor/block"
 	"github.com/vechain/thor/builtin"
 	"github.com/vechain/thor/chain"
@@ -21,6 +23,7 @@ import (
 type Packer struct {
 	repo           *chain.Repository
 	stater         *state.Stater
+	masters        []thor.Address
 	nodeMaster     thor.Address
 	beneficiary    *thor.Address
 	targetGasLimit uint64
@@ -33,14 +36,15 @@ type Packer struct {
 func New(
 	repo *chain.Repository,
 	stater *state.Stater,
-	nodeMaster thor.Address,
+	masters []thor.Address,
 	beneficiary *thor.Address,
 	forkConfig thor.ForkConfig) *Packer {
 
 	return &Packer{
 		repo,
 		stater,
-		nodeMaster,
+		masters,
+		thor.Address{},
 		beneficiary,
 		0,
 		forkConfig,
@@ -86,10 +90,6 @@ func (p *Packer) Schedule(parent *block.Block, nowTimestamp uint64) (flow *Flow,
 	}
 
 	for _, c := range candidates {
-		if p.beneficiary == nil && c.NodeMaster == p.nodeMaster {
-			// no beneficiary not set, set it to endorsor
-			beneficiary = c.Endorsor
-		}
 		proposers = append(proposers, poa.Proposer{
 			Address: c.NodeMaster,
 			Active:  c.Active,
@@ -98,23 +98,59 @@ func (p *Packer) Schedule(parent *block.Block, nowTimestamp uint64) (flow *Flow,
 
 	var sched poa.Scheduler
 	var seed thor.Bytes32
+	var newBlockTime uint64
 	if parent.Header().Number()+1 >= p.forkConfig.VIP193 {
 		seed, err = p.seeder.Generate(parent.Header().ID())
 		if err != nil {
 			return nil, err
 		}
-		sched, err = poa.NewSchedulerV2(p.nodeMaster, proposers, parent, seed.Bytes())
+		var schedV2 *poa.SchedulerV2
+		for _, master := range p.masters {
+			if schedV2 == nil {
+				schedV2, err = poa.NewSchedulerV2(master, proposers, parent, seed.Bytes())
+			} else {
+				err = schedV2.ChangeProposer(master)
+			}
+			if err != nil {
+				continue
+			}
+
+			ts := schedV2.Schedule(nowTimestamp)
+			if newBlockTime == 0 || ts < newBlockTime {
+				newBlockTime = ts
+				sched = schedV2
+				p.nodeMaster = master
+			}
+		}
 	} else {
-		sched, err = poa.NewSchedulerV1(p.nodeMaster, proposers, parent.Header().Number(), parent.Header().Timestamp())
+		for _, master := range p.masters {
+			schedV1, err := poa.NewSchedulerV1(master, proposers, parent.Header().Number(), parent.Header().Timestamp())
+			if err != nil {
+				continue
+			}
+			ts := schedV1.Schedule(nowTimestamp)
+			if newBlockTime == 0 || ts < newBlockTime {
+				newBlockTime = ts
+				sched = schedV1
+				p.nodeMaster = master
+			}
+		}
 	}
-	if err != nil {
-		return nil, err
+	if sched == nil {
+		return nil, errors.New("failed to schedule")
 	}
 
-	// calc the time when it's turn to produce block
-	newBlockTime := sched.Schedule(nowTimestamp)
+	if p.beneficiary == nil {
+		// no beneficiary not set, set it to endorsor
+		for _, c := range candidates {
+			if c.NodeMaster == p.nodeMaster {
+				beneficiary = c.Endorsor
+				break
+			}
+		}
+	}
+
 	updates, score := sched.Updates(newBlockTime)
-
 	for _, u := range updates {
 		if _, err := authority.Update(u.Address, u.Active); err != nil {
 			return nil, err
@@ -142,6 +178,7 @@ func (p *Packer) Schedule(parent *block.Block, nowTimestamp uint64) (flow *Flow,
 // the returned flow is not in consensus.
 func (p *Packer) Mock(parent *block.Header, targetTime uint64, gasLimit uint64) (*Flow, error) {
 	state := p.stater.NewState(parent.StateRoot())
+	p.nodeMaster = p.masters[0]
 
 	// Before process hook of VIP-191, update builtin extension contract's code to V2
 	vip191 := p.forkConfig.VIP191

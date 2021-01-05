@@ -85,7 +85,7 @@ func TestP(t *testing.T) {
 
 	for {
 		best := repo.BestBlock()
-		p := packer.New(repo, stater, a1.Address, &a1.Address, thor.NoFork)
+		p := packer.New(repo, stater, append([]thor.Address(nil), a1.Address), &a1.Address, thor.NoFork)
 		flow, err := p.Schedule(best, uint64(time.Now().Unix()))
 		if err != nil {
 			t.Fatal(err)
@@ -147,7 +147,7 @@ func TestForkVIP191(t *testing.T) {
 	repo, _ := chain.NewRepository(db, b0)
 
 	best := repo.BestBlock()
-	p := packer.New(repo, stater, a1.Address, &a1.Address, thor.ForkConfig{
+	p := packer.New(repo, stater, append([]thor.Address(nil), a1.Address), &a1.Address, thor.ForkConfig{
 		VIP191: 1,
 	})
 	flow, err := p.Schedule(best, uint64(time.Now().Unix()))
@@ -196,7 +196,7 @@ func TestBlocklist(t *testing.T) {
 	thor.MockBlocklist([]string{a0.Address.String()})
 
 	best := repo.BestBlock()
-	p := packer.New(repo, stater, a0.Address, &a0.Address, forkConfig)
+	p := packer.New(repo, stater, append([]thor.Address(nil), a0.Address), &a0.Address, forkConfig)
 	flow, err := p.Schedule(best, uint64(time.Now().Unix()))
 	if err != nil {
 		t.Fatal(err)

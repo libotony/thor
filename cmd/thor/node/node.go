@@ -45,7 +45,7 @@ type Node struct {
 	cons     *consensus.Consensus
 	consLock sync.Mutex
 
-	master         *Master
+	masters        Masters
 	repo           *chain.Repository
 	logDB          *logdb.LogDB
 	txPool         *txpool.TxPool
@@ -62,7 +62,8 @@ type Node struct {
 }
 
 func New(
-	master *Master,
+	masters Masters,
+	beneficiary *thor.Address,
 	repo *chain.Repository,
 	stater *state.Stater,
 	logDB *logdb.LogDB,
@@ -74,9 +75,9 @@ func New(
 	forkConfig thor.ForkConfig,
 ) *Node {
 	return &Node{
-		packer:         packer.New(repo, stater, master.Address(), master.Beneficiary, forkConfig),
+		packer:         packer.New(repo, stater, masters.Addresses(), beneficiary, forkConfig),
 		cons:           consensus.New(repo, stater, forkConfig),
-		master:         master,
+		masters:        masters,
 		repo:           repo,
 		logDB:          logDB,
 		txPool:         txPool,

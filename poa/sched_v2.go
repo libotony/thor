@@ -132,6 +132,18 @@ func (s *SchedulerV2) Schedule(nowTime uint64) (newBlockTime uint64) {
 	panic("something wrong with proposers list")
 }
 
+// ChangeProposer changes the proposer of scheduler.
+func (s *SchedulerV2) ChangeProposer(proposer thor.Address) error {
+	for _, addr := range s.activates {
+		if addr == proposer {
+			s.proposer.Address = proposer
+			return nil
+		}
+	}
+
+	return errors.New("unauthorized or inactive block proposer")
+}
+
 // IsTheTime returns if the newBlockTime is correct for the proposer.
 func (s *SchedulerV2) IsTheTime(newBlockTime uint64) bool {
 	return s.IsScheduled(newBlockTime, s.proposer.Address)

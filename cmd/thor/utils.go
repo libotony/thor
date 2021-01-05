@@ -38,7 +38,6 @@ import (
 	"github.com/pkg/errors"
 	"github.com/vechain/thor/api/doc"
 	"github.com/vechain/thor/chain"
-	"github.com/vechain/thor/cmd/thor/node"
 	"github.com/vechain/thor/co"
 	"github.com/vechain/thor/comm"
 	"github.com/vechain/thor/genesis"
@@ -383,7 +382,7 @@ func masterKeyPath(ctx *cli.Context) (string, error) {
 	return filepath.Join(configDir, "master.key"), nil
 }
 
-func loadNodeMaster(ctx *cli.Context) (*node.Master, error) {
+func loadNodeMasterKeys(ctx *cli.Context) ([]*ecdsa.PrivateKey, error) {
 	path, err := masterKeyPath(ctx)
 	if err != nil {
 		return nil, err
@@ -392,11 +391,8 @@ func loadNodeMaster(ctx *cli.Context) (*node.Master, error) {
 	if err != nil {
 		return nil, errors.Wrap(err, "load or generate master key")
 	}
-	master := &node.Master{PrivateKey: key}
-	if master.Beneficiary, err = beneficiary(ctx); err != nil {
-		return nil, err
-	}
-	return master, nil
+
+	return append([]*ecdsa.PrivateKey(nil), key), nil
 }
 
 type p2pComm struct {
@@ -518,7 +514,8 @@ func startAPIServer(ctx *cli.Context, handler http.Handler, genesisID thor.Bytes
 func printStartupMessage1(
 	gene *genesis.Genesis,
 	repo *chain.Repository,
-	master *node.Master,
+	masters []thor.Address,
+	beneficiary *thor.Address,
 	dataDir string,
 	forkConfig thor.ForkConfig,
 ) {
@@ -536,12 +533,17 @@ func printStartupMessage1(
 		gene.ID(), gene.Name(),
 		bestBlock.Header().ID(), bestBlock.Header().Number(), time.Unix(int64(bestBlock.Header().Timestamp()), 0),
 		forkConfig,
-		master.Address(),
 		func() string {
-			if master.Beneficiary == nil {
+			if len(masters) > 1 {
+				return "multiple"
+			}
+			return masters[0].String()
+		}(),
+		func() string {
+			if beneficiary == nil {
 				return "not set, defaults to endorsor"
 			}
-			return master.Beneficiary.String()
+			return beneficiary.String()
 		}(),
 		dataDir)
 }

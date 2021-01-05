@@ -185,11 +185,13 @@ func (n *Node) backerLoop(ctx context.Context) {
 				log.Debug("failed to process draft", "err", err)
 				continue
 			}
-			if signer == n.master.Address() {
-				continue
-			}
-			if err := n.tryBacking(ev.Proposal.Hash(), st); err != nil {
-				log.Debug("failed to back proposal", "err", err)
+			for _, master := range n.masters {
+				if master.Address == signer {
+					continue
+				}
+				if err := n.tryBacking(master, ev.Proposal.Hash(), st); err != nil {
+					log.Debug("failed to back proposal", "err", err)
+				}
 			}
 		case ev := <-newAcceptedCh:
 			if st == nil {
@@ -257,11 +259,13 @@ func (n *Node) backerLoop(ctx context.Context) {
 						log.Debug("failed to process draft", "err", err)
 						continue
 					}
-					if signer == n.master.Address() {
-						continue
-					}
-					if err := n.tryBacking(draft.Proposal.Hash(), st); err != nil {
-						log.Debug("failed to back proposal", "err", err)
+					for _, master := range n.masters {
+						if master.Address == signer {
+							continue
+						}
+						if err := n.tryBacking(master, draft.Proposal.Hash(), st); err != nil {
+							log.Debug("failed to back proposal", "err", err)
+						}
 					}
 				}
 			}
@@ -352,13 +356,15 @@ func (n *Node) processDraft(d *proto.Draft, signer thor.Address, st *status) err
 	return nil
 }
 
-func (n *Node) tryBacking(proposalHash thor.Bytes32, st *status) error {
-	if !st.IsAuthority(n.master.Address()) {
+func (n *Node) tryBacking(master Master, proposalHash thor.Bytes32, st *status) error {
+	if !st.IsAuthority(master.Address) {
 		return nil
 	}
 
+	priv := master.PrivateKey
+
 	alpha := append([]byte(nil), st.Alpha()...)
-	beta, proof, err := ecvrf.NewSecp256k1Sha256Tai().Prove(n.master.PrivateKey, alpha)
+	beta, proof, err := ecvrf.NewSecp256k1Sha256Tai().Prove(priv, alpha)
 	if err != nil {
 		return err
 	}
@@ -367,7 +373,7 @@ func (n *Node) tryBacking(proposalHash thor.Bytes32, st *status) error {
 		return errors.New("not lucky enough")
 	}
 
-	signature, err := crypto.Sign(proposalHash.Bytes(), n.master.PrivateKey)
+	signature, err := crypto.Sign(proposalHash.Bytes(), priv)
 	if err != nil {
 		return err
 	}
