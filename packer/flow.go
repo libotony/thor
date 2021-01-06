@@ -149,10 +149,6 @@ func (f *Flow) Draft(privateKey *ecdsa.PrivateKey) (*proto.Draft, error) {
 
 // AddBackerSignature adds a backer signature.
 func (f *Flow) AddBackerSignature(bs block.ComplexSignature, beta []byte, signer thor.Address) bool {
-	if signer == f.packer.nodeMaster {
-		return false
-	}
-
 	cpy := bs
 	f.knownBackers[signer] = true
 	f.bss = append(f.bss, bsWithBeta{cpy, beta})
