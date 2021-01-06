@@ -362,7 +362,7 @@ func (n *Node) processDraft(d *proto.Draft, signer thor.Address, st *status) err
 	}
 
 	knownProposal.Set(p.Hash(), p, float64(p.Timestamp))
-	n.comm.BroadcastDraft(d)
+	n.comm.BroadcastDraft(d, false)
 	return nil
 }
 
@@ -399,7 +399,7 @@ func (n *Node) tryBacking(master Master, proposalHash thor.Bytes32, st *status) 
 	}
 
 	seenAccepted.Add(accepted.Hash(), struct{}{})
-	n.comm.BroadcastAccepted(&accepted)
+	n.comm.BroadcastAccepted(&accepted, true)
 	return nil
 }
 
@@ -428,6 +428,6 @@ func (n *Node) processBackerSignature(acc *proto.Accepted, pub *ecdsa.PublicKey,
 	if !poa.EvaluateVRF(beta, st.maxBlockProposers) {
 		return fmt.Errorf("VRF output is not lucky enough to be a backer: %v", crypto.PubkeyToAddress(*pub))
 	}
-	n.comm.BroadcastAccepted(acc)
+	n.comm.BroadcastAccepted(acc, false)
 	return nil
 }
