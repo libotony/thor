@@ -298,7 +298,7 @@ func (c *Communicator) PeersStats() []*PeerStats {
 }
 
 // BroadcastDraft broadcast a draft to remote peers.
-func (c *Communicator) BroadcastDraft(d *proto.Draft) {
+func (c *Communicator) BroadcastDraft(d *proto.Draft, local bool) {
 	hash := d.Hash()
 
 	peers := c.peerSet.Slice().Filter(func(peer *Peer) bool {
@@ -314,10 +314,17 @@ func (c *Communicator) BroadcastDraft(d *proto.Draft) {
 			}
 		})
 	}
+
+	if local {
+		// draft is generated locally, broadcast to notify backer loop
+		c.newDraftFeed.Send(&NewDraftEvent{
+			Draft: d,
+		})
+	}
 }
 
 // BroadcastAccepted broadcast an accepted message to remote peers.
-func (c *Communicator) BroadcastAccepted(acc *proto.Accepted) {
+func (c *Communicator) BroadcastAccepted(acc *proto.Accepted, local bool) {
 	peers := c.peerSet.Slice().Filter(func(peer *Peer) bool {
 		return !peer.IsAcceptedKnown(acc.Hash())
 	})
@@ -329,6 +336,13 @@ func (c *Communicator) BroadcastAccepted(acc *proto.Accepted) {
 			if err := proto.NotifyNewAccepted(c.ctx, peer, acc); err != nil {
 				peer.logger.Debug("failed to broadcast new accepted message", "err", err)
 			}
+		})
+	}
+
+	if local {
+		// accepted is generated locally, broadcast to notify packer loop
+		c.newAcceptedFeed.Send(&NewAcceptedEvent{
+			Accepted: acc,
 		})
 	}
 }

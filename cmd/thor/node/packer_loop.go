@@ -159,7 +159,7 @@ func (n *Node) pack(ctx context.Context, flow *packer.Flow) error {
 		if err != nil {
 			return nil
 		}
-		n.comm.BroadcastDraft(draft)
+		n.comm.BroadcastDraft(draft, true)
 
 		now := uint64(time.Now().Unix())
 		if now < flow.When()-1 {
@@ -224,6 +224,10 @@ func validateBackerSignature(sig block.ComplexSignature, flow *packer.Flow, prop
 		return
 	}
 	backer := thor.Address(crypto.PubkeyToAddress(*pub))
+
+	if flow.Signer() == backer {
+		return errors.New("block signer cannot back itself")
+	}
 
 	if flow.IsBackerKnown(backer) {
 		return errors.New("known backer")
