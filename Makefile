@@ -23,6 +23,11 @@ disco:| go_version_check
 	@go build -v -o $(CURDIR)/bin/$@ -ldflags "-X main.version=$(DISCO_VERSION) -X main.gitCommit=$(GIT_COMMIT) -X main.gitTag=$(GIT_TAG)" ./cmd/disco
 	@echo "done. executable created at 'bin/$@'"
 
+multi:| go_version_check
+	@echo "building $@..."
+	@go build -v -i -o $(CURDIR)/bin/$@ -ldflags "-X main.version=$(DISCO_VERSION) -X main.gitCommit=$(GIT_COMMIT) -X main.gitTag=$(GIT_TAG)" ./cmd/multi
+	@echo "done. executable created at 'bin/$@'" 
+
 dep:| go_version_check
 	@go mod download
 
@@ -37,12 +42,13 @@ go_version_check:
 		fi \
 	fi
 
-all: thor disco
+all: thor disco multi
 
 clean:
 	-rm -rf \
 $(CURDIR)/bin/thor \
-$(CURDIR)/bin/disco 
+$(CURDIR)/bin/disco \
+$(CURDIR)/bin/multi 
 
 test:| go_version_check
 	@go test -cover $(PACKAGES)
