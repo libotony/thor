@@ -138,4 +138,9 @@ var (
 		Value: 16,
 		Usage: "set tx limit per account in pool",
 	}
+	multiMasterFlag = cli.BoolFlag{
+		Name:   "multi",
+		Usage:  "use multiple master key",
+		Hidden: true,
+	}
 )
