@@ -80,6 +80,7 @@ func main() {
 			pprofFlag,
 			verifyLogsFlag,
 			disablePrunerFlag,
+			multiMasterFlag,
 		},
 		Action: defaultAction,
 		Commands: []cli.Command{

@@ -6,6 +6,7 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"crypto/ecdsa"
 	"encoding/json"
@@ -379,20 +380,62 @@ func masterKeyPath(ctx *cli.Context) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(configDir, "master.key"), nil
+
+	fileName := "master.key"
+	if ctx.Bool(multiMasterFlag.Name) {
+		fileName = "multi-master.key"
+	}
+
+	return filepath.Join(configDir, fileName), nil
 }
 
 func loadNodeMasterKeys(ctx *cli.Context) ([]*ecdsa.PrivateKey, error) {
-	path, err := masterKeyPath(ctx)
+	configDir, err := makeConfigDir(ctx)
 	if err != nil {
 		return nil, err
 	}
-	key, err := loadOrGeneratePrivateKey(path)
-	if err != nil {
-		return nil, errors.Wrap(err, "load or generate master key")
+
+	var (
+		keyFile string
+		keys    []*ecdsa.PrivateKey
+	)
+
+	if ctx.Bool(multiMasterFlag.Name) {
+		keyFile = filepath.Join(configDir, "multi-master.key")
+		file, err := os.Open(keyFile)
+		if err != nil {
+			return nil, err
+		}
+		defer file.Close()
+
+		scanner := bufio.NewScanner(file)
+		for scanner.Scan() {
+			str := strings.TrimSpace(scanner.Text())
+			if str == "" {
+				continue
+			}
+
+			priv, err := crypto.HexToECDSA(str)
+			if err != nil {
+				return nil, err
+			}
+
+			keys = append(keys, priv)
+		}
+		if err := scanner.Err(); err != nil {
+			return nil, err
+		}
+
+	} else {
+		keyFile = filepath.Join(configDir, "master.key")
+		key, err := loadOrGeneratePrivateKey(keyFile)
+		if err != nil {
+			return nil, errors.Wrap(err, "load or generate master key")
+		}
+		keys = append(keys, key)
 	}
 
-	return append([]*ecdsa.PrivateKey(nil), key), nil
+	return keys, nil
 }
 
 type p2pComm struct {
