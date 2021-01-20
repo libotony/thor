@@ -316,9 +316,11 @@ func (c *Communicator) BroadcastDraft(d *proto.Draft, local bool) {
 	}
 
 	if local {
-		// draft is generated locally, broadcast to notify backer loop
-		c.newDraftFeed.Send(&NewDraftEvent{
-			Draft: d,
+		c.goes.Go(func() {
+			// draft is generated locally, broadcast to notify backer loop
+			c.newDraftFeed.Send(&NewDraftEvent{
+				Draft: d,
+			})
 		})
 	}
 }
@@ -340,9 +342,11 @@ func (c *Communicator) BroadcastAccepted(acc *proto.Accepted, local bool) {
 	}
 
 	if local {
-		// accepted is generated locally, broadcast to notify packer loop
-		c.newAcceptedFeed.Send(&NewAcceptedEvent{
-			Accepted: acc,
+		c.goes.Go(func() {
+			// accepted is generated locally, broadcast to notify packer loop
+			c.newAcceptedFeed.Send(&NewAcceptedEvent{
+				Accepted: acc,
+			})
 		})
 	}
 }
