@@ -132,7 +132,7 @@ func (s *SchedulerV2) Schedule(nowTime uint64) (newBlockTime uint64) {
 
 // ChangeProposer changes the proposer of scheduler.
 func (s *SchedulerV2) ChangeProposer(proposer thor.Address) error {
-	for _, addr := range s.activates {
+	for _, addr := range s.shuffled {
 		if addr == proposer {
 			s.proposer.Address = proposer
 			return nil
