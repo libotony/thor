@@ -10,6 +10,7 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -484,14 +485,10 @@ func (n *Node) processFork(prevTrunk, curTrunk *chain.Chain) {
 		return
 	}
 
-	if n := len(sideIds); n >= 2 {
-		log.Warn(fmt.Sprintf(
-			`⑂⑂⑂⑂⑂⑂⑂⑂ FORK HAPPENED ⑂⑂⑂⑂⑂⑂⑂⑂
-side-chain:   %v  %v`,
-			n, sideIds[n-1]))
-	}
+	var builder strings.Builder
+	builder.Grow(len(sideIds)*67 - 1)
 
-	for _, id := range sideIds {
+	for i, id := range sideIds {
 		b, err := n.repo.GetBlock(id)
 		if err != nil {
 			log.Warn("failed to process fork", "err", err)
@@ -502,7 +499,14 @@ side-chain:   %v  %v`,
 				log.Debug("failed to add tx to tx pool", "err", err, "id", tx.ID())
 			}
 		}
+
+		builder.WriteString(id.String())
+		if i < len(sideIds)-1 {
+			builder.WriteString(",")
+		}
 	}
+
+	log.Warn(fmt.Sprintf("FORK HAPPEND: %v", builder.String()))
 }
 
 func checkClockOffset() {
