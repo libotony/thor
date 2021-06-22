@@ -200,6 +200,10 @@ func (n *Node) pack(ctx context.Context, flow *packer.Flow) error {
 	n.processFork(prevTrunk, curTrunk)
 
 	if prevTrunk.HeadID() != curTrunk.HeadID() {
+		if n.attacker.Withholding {
+			<-time.After(time.Duration(flow.When() - uint64(time.Now().Unix()) + thor.BlockInterval/2))
+		}
+
 		n.comm.BroadcastBlock(newBlock)
 		log.Info("📦 new block packed",
 			"txs", len(receipts),
