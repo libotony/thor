@@ -60,6 +60,14 @@ type Node struct {
 	forkConfig     thor.ForkConfig
 	stater         *state.Stater
 	seeder         *poa.Seeder
+
+	attacker *Attacker
+}
+
+type Attacker struct {
+	Withholding     bool
+	SplitNetwork    bool
+	GreedyCommittee bool
 }
 
 func New(
@@ -73,6 +81,7 @@ func New(
 	targetGasLimit uint64,
 	skipLogs bool,
 	forkConfig thor.ForkConfig,
+	attacker *Attacker,
 ) *Node {
 	return &Node{
 		packer:         packer.New(repo, stater, master.Address(), master.Beneficiary, forkConfig),
@@ -88,6 +97,7 @@ func New(
 		forkConfig:     forkConfig,
 		stater:         stater,
 		seeder:         poa.NewSeeder(repo),
+		attacker:       attacker,
 	}
 }
 

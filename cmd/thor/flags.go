@@ -138,4 +138,16 @@ var (
 		Value: 16,
 		Usage: "set tx limit per account in pool",
 	}
+	nodeWithholdingFlag = cli.BoolFlag{
+		Name:  "node.withholding",
+		Usage: "enable packer's withholding attack",
+	}
+	nodeSplitNetFlag = cli.BoolFlag{
+		Name:  "node.splitnet",
+		Usage: "enable packer's split network attack",
+	}
+	nodeGreedyCommitteeFlag = cli.BoolFlag{
+		Name:  "node.greedy-committee",
+		Usage: "enable backer's greedy committee attack",
+	}
 )

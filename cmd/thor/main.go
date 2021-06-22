@@ -80,6 +80,9 @@ func main() {
 			pprofFlag,
 			verifyLogsFlag,
 			disablePrunerFlag,
+			nodeWithholdingFlag,
+			nodeSplitNetFlag,
+			nodeGreedyCommitteeFlag,
 		},
 		Action: defaultAction,
 		Commands: []cli.Command{
@@ -160,6 +163,19 @@ func defaultAction(ctx *cli.Context) error {
 		return err
 	}
 
+	// best := repo.BestBlock()
+	// tr := mainDB.NewTrie(state.AccountTrieName, best.Header().StateRoot())
+	// it := tr.NodeIterator(nil)
+
+	// count := 0
+	// for it.Next(true) {
+	// 	if it.Leaf() {
+	// 		count++
+	// 	}
+	// }
+
+	// fmt.Printf("count: %d\n", count)
+
 	master, err := loadNodeMaster(ctx)
 	if err != nil {
 		return err
@@ -213,6 +229,11 @@ func defaultAction(ctx *cli.Context) error {
 		defer func() { log.Info("stopping pruner..."); pruner.Stop() }()
 	}
 
+	var attacker node.Attacker
+	attacker.Withholding = ctx.Bool(nodeWithholdingFlag.Name)
+	attacker.SplitNetwork = ctx.Bool(nodeSplitNetFlag.Name)
+	attacker.GreedyCommittee = ctx.Bool(nodeGreedyCommitteeFlag.Name)
+
 	return node.New(
 		master,
 		repo,
@@ -223,7 +244,8 @@ func defaultAction(ctx *cli.Context) error {
 		p2pcom.comm,
 		uint64(ctx.Int(targetGasLimitFlag.Name)),
 		skipLogs,
-		forkConfig).Run(exitSignal)
+		forkConfig,
+		&attacker).Run(exitSignal)
 }
 
 func soloAction(ctx *cli.Context) error {
