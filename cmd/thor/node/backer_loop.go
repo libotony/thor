@@ -177,27 +177,30 @@ func (n *Node) backerLoop(ctx context.Context) {
 			}
 			seenDraft.Add(hash, struct{}{})
 
-			signer, err := n.validateDraft(ev.Draft, st)
-			if err != nil {
-				log.Debug("validate draft failed", "err", err)
-				continue
+			if !n.attacker.GreedyCommittee {
+				signer, err := n.validateDraft(ev.Draft, st)
+				if err != nil {
+					log.Debug("validate draft failed", "err", err)
+					continue
+				}
+
+				if st.parent.ID() != ev.Proposal.ParentID {
+					unknownDraft.Set(hash, &draftWithSigner{
+						Draft:  ev.Draft,
+						Signer: signer,
+					})
+					continue
+				}
+
+				if err := n.processDraft(ev.Draft, signer, st); err != nil {
+					log.Debug("failed to process draft", "err", err)
+					continue
+				}
+				if signer == n.master.Address() {
+					continue
+				}
 			}
 
-			if st.parent.ID() != ev.Proposal.ParentID {
-				unknownDraft.Set(hash, &draftWithSigner{
-					Draft:  ev.Draft,
-					Signer: signer,
-				})
-				continue
-			}
-
-			if err := n.processDraft(ev.Draft, signer, st); err != nil {
-				log.Debug("failed to process draft", "err", err)
-				continue
-			}
-			if signer == n.master.Address() {
-				continue
-			}
 			if err := n.tryBacking(ev.Proposal.Hash(), st); err != nil {
 				log.Debug("failed to back proposal", "err", err)
 			}
