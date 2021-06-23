@@ -201,7 +201,7 @@ func (n *Node) pack(ctx context.Context, flow *packer.Flow) error {
 
 	if prevTrunk.HeadID() != curTrunk.HeadID() {
 		if n.attacker.Withholding {
-			<-time.After(time.Duration(flow.When() - uint64(time.Now().Unix()) + thor.BlockInterval/2))
+			<-time.After(time.Duration(flow.When()-uint64(time.Now().Unix())+thor.BlockInterval/2) * time.Second)
 		}
 
 		n.comm.BroadcastBlock(newBlock)
