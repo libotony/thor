@@ -143,7 +143,7 @@ func (s *Solo) packing(pendingTxs tx.Transactions, onDemand bool) error {
 		}
 	}
 
-	b, stage, receipts, err := flow.Pack(genesis.DevAccounts()[0].PrivateKey)
+	b, _, stage, receipts, err := flow.Pack(genesis.DevAccounts()[0].PrivateKey, false)
 	if err != nil {
 		return errors.WithMessage(err, "pack")
 	}

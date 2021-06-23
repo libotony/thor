@@ -187,7 +187,7 @@ func (n *Node) pack(ctx context.Context, flow *packer.Flow) error {
 	NEXT:
 	}
 
-	newBlock, stage, receipts, err := flow.Pack(n.master.PrivateKey)
+	newBlock, _, stage, receipts, err := flow.Pack(n.master.PrivateKey, false)
 	if err != nil {
 		return err
 	}

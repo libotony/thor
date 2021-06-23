@@ -134,7 +134,7 @@ func newTestConsensus(t *testing.T) *testConsensus {
 	bs, _ := block.NewComplexSignature(proof, backerSig)
 
 	flow.AddBackerSignature(bs, beta[:], backer.Address)
-	b1, stage, receipts, err := flow.Pack(proposer.PrivateKey)
+	b1, _, stage, receipts, err := flow.Pack(proposer.PrivateKey, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -153,7 +153,7 @@ func newTestConsensus(t *testing.T) *testConsensus {
 	if err != nil {
 		t.Fatal(err)
 	}
-	original, _, _, err := flow.Pack(proposer.PrivateKey)
+	original, _, _, _, err := flow.Pack(proposer.PrivateKey, false)
 	if err != nil {
 		t.Fatal(err)
 	}

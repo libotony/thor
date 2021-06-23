@@ -163,19 +163,6 @@ func defaultAction(ctx *cli.Context) error {
 		return err
 	}
 
-	// best := repo.BestBlock()
-	// tr := mainDB.NewTrie(state.AccountTrieName, best.Header().StateRoot())
-	// it := tr.NodeIterator(nil)
-
-	// count := 0
-	// for it.Next(true) {
-	// 	if it.Leaf() {
-	// 		count++
-	// 	}
-	// }
-
-	// fmt.Printf("count: %d\n", count)
-
 	master, err := loadNodeMaster(ctx)
 	if err != nil {
 		return err

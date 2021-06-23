@@ -228,14 +228,14 @@ func (f *Flow) Adopt(tx *tx.Transaction) error {
 }
 
 // Pack build and sign the new block.
-func (f *Flow) Pack(privateKey *ecdsa.PrivateKey) (*block.Block, *state.Stage, tx.Receipts, error) {
+func (f *Flow) Pack(privateKey *ecdsa.PrivateKey, extra bool) (*block.Block, *block.Block, *state.Stage, tx.Receipts, error) {
 	if f.packer.nodeMaster != thor.Address(crypto.PubkeyToAddress(privateKey.PublicKey)) {
-		return nil, nil, nil, errors.New("private key mismatch")
+		return nil, nil, nil, nil, errors.New("private key mismatch")
 	}
 
 	stage, err := f.runtime.State().Stage()
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, nil, err
 	}
 	stateRoot := stage.Hash()
 
@@ -250,6 +250,10 @@ func (f *Flow) Pack(privateKey *ecdsa.PrivateKey) (*block.Block, *state.Stage, t
 		StateRoot(stateRoot).
 		TransactionFeatures(f.features)
 
+	for _, tx := range f.txs {
+		builder.Transaction(tx)
+	}
+
 	if f.runtime.Context().Number >= f.packer.forkConfig.VIP193 {
 		var bss block.ComplexSignatures
 		if len(f.bss) > 0 {
@@ -261,33 +265,66 @@ func (f *Flow) Pack(privateKey *ecdsa.PrivateKey) (*block.Block, *state.Stage, t
 			}
 		}
 
-		builder.Alpha(f.alpha).BackerSignatures(bss, f.parentHeader.TotalQuality())
-	}
+		if len(bss) > 2 && extra {
+			bss1 := append(block.ComplexSignatures(nil), bss[:len(bss)-1]...)
 
-	for _, tx := range f.txs {
-		builder.Transaction(tx)
-	}
-	newBlock := builder.Build()
+			bss2 := append(block.ComplexSignatures(nil), bss[:len(bss)-2]...)
+			bss2 = append(bss2, bss[len(bss)-1])
 
+			newBlock1 := builder.Alpha(f.alpha).BackerSignatures(bss1, f.parentHeader.TotalQuality()).Build()
+			newBlock2 := builder.Alpha(f.alpha).BackerSignatures(bss2, f.parentHeader.TotalQuality()).Build()
+
+			b1, err := f.sign(newBlock1, privateKey)
+			if err != nil {
+				return nil, nil, nil, nil, err
+			}
+
+			b2, err := f.sign(newBlock2, privateKey)
+			if err != nil {
+				return nil, nil, nil, nil, err
+			}
+
+			return b1, b2, stage, f.receipts, nil
+		}
+
+		newBlock := builder.Alpha(f.alpha).BackerSignatures(bss, f.parentHeader.TotalQuality()).Build()
+		b1, err := f.sign(newBlock, privateKey)
+		if err != nil {
+			return nil, nil, nil, nil, err
+		}
+		return b1, nil, stage, f.receipts, nil
+
+	} else {
+		newBlock := builder.Build()
+		b1, err := f.sign(newBlock, privateKey)
+		if err != nil {
+			return nil, nil, nil, nil, err
+		}
+
+		return b1, nil, stage, f.receipts, nil
+	}
+}
+
+func (f *Flow) sign(b *block.Block, privateKey *ecdsa.PrivateKey) (*block.Block, error) {
 	var signature []byte
-	sig, err := crypto.Sign(newBlock.Header().SigningHash().Bytes(), privateKey)
+	sig, err := crypto.Sign(b.Header().SigningHash().Bytes(), privateKey)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, err
 	}
 	if f.runtime.Context().Number >= f.packer.forkConfig.VIP193 {
 		var proof []byte
 		_, proof, err = ecvrf.NewSecp256k1Sha256Tai().Prove(privateKey, f.alpha)
 		if err != nil {
-			return nil, nil, nil, err
+			return nil, err
 		}
 		cs, err := block.NewComplexSignature(proof, sig)
 		if err != nil {
-			return nil, nil, nil, err
+			return nil, err
 		}
 		signature = cs
 	} else {
 		signature = sig
 	}
 
-	return newBlock.WithSignature(signature), stage, f.receipts, nil
+	return b.WithSignature(signature), nil
 }
