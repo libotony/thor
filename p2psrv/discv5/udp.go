@@ -26,7 +26,6 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/p2p/nat"
 	"github.com/ethereum/go-ethereum/p2p/netutil"
 	"github.com/ethereum/go-ethereum/rlp"
@@ -333,9 +332,9 @@ func (t *udp) sendPacket(toid NodeID, toaddr *net.UDPAddr, ptype byte, req inter
 		//fmt.Println(err)
 		return hash, err
 	}
-	log.Trace(fmt.Sprintf(">>> %v to %x@%v", nodeEvent(ptype), toid[:8], toaddr))
+	log.Debug(fmt.Sprintf(">>> %v to %x@%v", nodeEvent(ptype), toid[:8], toaddr))
 	if nbytes, err := t.conn.WriteToUDP(packet, toaddr); err != nil {
-		log.Trace(fmt.Sprint("UDP send failed:", err))
+		log.Debug(fmt.Sprint("UDP send failed:", err))
 	} else {
 		egressTrafficMeter.Mark(int64(nbytes))
 	}
