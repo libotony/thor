@@ -15,11 +15,13 @@ import (
 
 	"github.com/ethereum/go-ethereum/accounts/keystore"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/inconshreveable/log15"
 	isatty "github.com/mattn/go-isatty"
 	"github.com/pborman/uuid"
 	"github.com/pkg/errors"
 	"github.com/vechain/thor/api"
+	"github.com/vechain/thor/chain"
 	"github.com/vechain/thor/cmd/thor/node"
 	"github.com/vechain/thor/cmd/thor/pruner"
 	"github.com/vechain/thor/cmd/thor/solo"
@@ -116,6 +118,17 @@ func main() {
 					exportMasterKeyFlag,
 				},
 				Action: masterKeyAction,
+			},
+			{
+				Name:  "sum",
+				Usage: "summarize world state and storage entry",
+				Flags: []cli.Flag{
+					networkFlag,
+					dataDirFlag,
+					disablePrunerFlag,
+					hiddenVerbosityFlag,
+				},
+				Action: summarizeAction,
 			},
 		},
 	}
@@ -401,5 +414,119 @@ func masterKeyAction(ctx *cli.Context) error {
 		_, err = fmt.Println(string(keyjson))
 		return err
 	}
+	return nil
+}
+
+func summarizeAction(ctx *cli.Context) error {
+	initLogger(ctx)
+	exitSignal := handleExitSignal()
+
+	gene, _, err := selectGenesis(ctx)
+	if err != nil {
+		return err
+	}
+
+	instanceDir, err := makeInstanceDir(ctx, gene)
+	if err != nil {
+		return err
+	}
+
+	mainDB, err := openMainDB(ctx, instanceDir)
+	if err != nil {
+		return err
+	}
+	defer mainDB.Close()
+
+	genesisBlock, _, _, err := gene.Build(state.NewStater(mainDB))
+	if err != nil {
+		return err
+	}
+
+	repo, err := chain.NewRepository(mainDB, genesisBlock)
+	if err != nil {
+		return err
+	}
+
+	best := repo.BestBlock()
+	summary, err := repo.GetBlockSummary(best.Header().ID())
+	if err != nil {
+		return err
+	}
+
+	tr := mainDB.NewSecureTrie(state.AccountTrieName, best.Header().StateRoot())
+	it := tr.NodeIterator(nil)
+
+	accountNode := 0
+	accountEntry := 0
+	storageNode := 0
+	storageEntry := 0
+	for it.Next(true) {
+		if !it.Hash().IsZero() {
+			accountNode++
+		}
+
+		if it.Leaf() {
+			accountEntry++
+
+			var acc state.Account
+			if err := rlp.DecodeBytes(it.LeafBlob(), &acc); err != nil {
+				return err
+			}
+
+			sRoot := thor.BytesToBytes32(acc.StorageRoot)
+			if !sRoot.IsZero() {
+				sNode := 0
+				sEntry := 0
+				sTr := mainDB.NewSecureTrie(state.StorageTrieName(thor.BytesToBytes32(it.LeafKey())), sRoot)
+				sIt := sTr.NodeIterator(nil)
+
+				for sIt.Next(true) {
+					if !sIt.Hash().IsZero() {
+						sNode++
+					}
+
+					if sIt.Leaf() {
+						sEntry++
+					}
+					select {
+					case <-exitSignal.Done():
+						return exitSignal.Err()
+					default:
+					}
+				}
+				storageNode += sNode
+				storageEntry += sEntry
+
+				if sEntry >= 1000 {
+					addr := tr.GetKeyPreimage(thor.BytesToBytes32((it.LeafKey())))
+					fmt.Printf("%s: Node: %d, Entry: %d\n", thor.BytesToAddress(addr), sNode, sEntry)
+				}
+
+			}
+		}
+
+		select {
+		case <-exitSignal.Done():
+			return exitSignal.Err()
+		default:
+		}
+	}
+	iTr := mainDB.NewTrie(chain.IndexTrieName, summary.IndexRoot)
+	iIt := iTr.NodeIterator(nil)
+
+	indexNode := 0
+	indexEntry := 0
+	for iIt.Next(true) {
+		if !iIt.Hash().IsZero() {
+			indexNode++
+		}
+
+		if iIt.Leaf() {
+			indexEntry++
+		}
+	}
+	fmt.Printf("Account Trie: Node: %d, Entry: %d\n", accountNode, accountEntry)
+	fmt.Printf("Storage Trie: Node: %d, Entry: %d\n", storageNode, storageEntry)
+	fmt.Printf("Index Trie: Node: %d, Entry: %d\n", indexNode, indexEntry)
 	return nil
 }
