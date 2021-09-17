@@ -52,9 +52,8 @@ import (
 	cli "gopkg.in/urfave/cli.v1"
 )
 
-func initLogger(ctx *cli.Context) {
-	logLevel := ctx.Int(verbosityFlag.Name)
-	log15.Root().SetHandler(log15.LvlFilterHandler(log15.Lvl(logLevel), log15.StderrHandler))
+func initLogger(logLevel log15.Lvl) {
+	log15.Root().SetHandler(log15.LvlFilterHandler(logLevel, log15.StderrHandler))
 	// set go-ethereum log lvl to Warn
 	ethLogHandler := ethlog.NewGlogHandler(ethlog.StreamHandler(os.Stderr, ethlog.TerminalFormat(true)))
 	ethLogHandler.Verbosity(ethlog.LvlWarn)

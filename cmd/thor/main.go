@@ -20,6 +20,8 @@ import (
 	"github.com/pborman/uuid"
 	"github.com/pkg/errors"
 	"github.com/vechain/thor/api"
+	"github.com/vechain/thor/chain"
+	chaindata "github.com/vechain/thor/cmd/thor/chain"
 	"github.com/vechain/thor/cmd/thor/node"
 	"github.com/vechain/thor/cmd/thor/pruner"
 	"github.com/vechain/thor/cmd/thor/solo"
@@ -117,6 +119,15 @@ func main() {
 				},
 				Action: masterKeyAction,
 			},
+			{
+				Name:      "export",
+				Usage:     "export chain data into file",
+				ArgsUsage: "<export directory>",
+				Flags: []cli.Flag{
+					instanceDirFlag,
+				},
+				Action: exportChainAction,
+			},
 		},
 	}
 
@@ -131,7 +142,7 @@ func defaultAction(ctx *cli.Context) error {
 
 	defer func() { log.Info("exited") }()
 
-	initLogger(ctx)
+	initLogger(log15.Lvl(ctx.Int(verbosityFlag.Name)))
 	gene, forkConfig, err := selectGenesis(ctx)
 	if err != nil {
 		return err
@@ -230,7 +241,7 @@ func soloAction(ctx *cli.Context) error {
 	exitSignal := handleExitSignal()
 	defer func() { log.Info("exited") }()
 
-	initLogger(ctx)
+	initLogger(log15.Lvl(ctx.Int(verbosityFlag.Name)))
 	gene := genesis.NewDevnet()
 	// Solo forks from the start
 	forkConfig := thor.ForkConfig{}
@@ -402,4 +413,64 @@ func masterKeyAction(ctx *cli.Context) error {
 		return err
 	}
 	return nil
+}
+
+func exportChainAction(ctx *cli.Context) error {
+	exitSignal := handleExitSignal()
+	initLogger(log15.LvlCrit)
+
+	if err := func() error {
+		if len(ctx.Args()) == 0 || len(ctx.Args().First()) == 0 {
+			return errors.New("exported data directory required")
+		}
+
+		path := ctx.Args().First()
+		if fi, err := os.Stat(path); err == nil {
+			if !fi.IsDir() {
+				return fmt.Errorf("open %s: not a directory", path)
+			}
+		} else if os.IsNotExist(err) {
+			if err := os.MkdirAll(path, 0755); err != nil {
+				return err
+			}
+		} else {
+			return err
+		}
+
+		if len(ctx.String(instanceDirFlag.Name)) == 0 {
+			return errors.New("instance directory required")
+		}
+
+		return nil
+	}(); err != nil {
+		_ = cli.ShowCommandHelp(ctx, "export")
+		return err
+	}
+
+	path := ctx.Args().First()
+	instanceDir := ctx.String(instanceDirFlag.Name)
+
+	mainDB, err := openMainDB(ctx, instanceDir)
+	if err != nil {
+		return errors.Wrap(err, "open main db")
+	}
+	defer mainDB.Close()
+
+	repo, err := chain.NewRepositoryFromDB(mainDB)
+	if err != nil {
+		return errors.Wrap(err, "init repository")
+	}
+
+	best := repo.BestBlock()
+	if best.Header().Number() == 0 {
+		return errors.New("empty chain db")
+	}
+
+	fd, err := os.OpenFile(filepath.Join(path, fmt.Sprintf("chain-%x.gz", repo.GenesisBlock().Header().ID().Bytes()[24:])), os.O_CREATE|os.O_EXCL|os.O_WRONLY, os.ModePerm)
+	if err != nil {
+		return err
+	}
+	defer fd.Close()
+
+	return chaindata.ExportChain(exitSignal, repo, fd)
 }

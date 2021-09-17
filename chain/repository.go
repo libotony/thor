@@ -104,6 +104,41 @@ func NewRepository(db *muxdb.MuxDB, genesis *block.Block) (*Repository, error) {
 	return repo, nil
 }
 
+func NewRepositoryFromDB(db *muxdb.MuxDB) (*Repository, error) {
+	repo := &Repository{
+		db:    db,
+		data:  db.NewStore(dataStoreName),
+		props: db.NewStore(propStoreName),
+	}
+
+	repo.caches.summaries = newCache(512)
+	repo.caches.txs = newCache(2048)
+	repo.caches.receipts = newCache(2048)
+
+	val, err := repo.props.Get(bestBlockIDKey)
+	if err != nil {
+		return nil, err
+	}
+	bestID := thor.BytesToBytes32(val)
+	best, err := repo.GetBlock(bestID)
+	if err != nil {
+		return nil, errors.Wrap(err, "get best block")
+	}
+	genesis, err := repo.NewChain(bestID).GetBlock(0)
+	if err != nil {
+		return nil, errors.Wrap(err, "get genesis block")
+	}
+	repo.best.Store(best)
+
+	repo.genesis = genesis
+	repo.tag = genesis.Header().ID()[31]
+	repo.caches.summaries = newCache(512)
+	repo.caches.txs = newCache(2048)
+	repo.caches.receipts = newCache(2048)
+
+	return repo, nil
+}
+
 // ChainTag returns chain tag, which is the last byte of genesis id.
 func (r *Repository) ChainTag() byte {
 	return r.tag
