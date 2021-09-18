@@ -6,6 +6,7 @@
 package main
 
 import (
+	"compress/gzip"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -15,16 +16,19 @@ import (
 
 	"github.com/ethereum/go-ethereum/accounts/keystore"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/inconshreveable/log15"
 	isatty "github.com/mattn/go-isatty"
 	"github.com/pborman/uuid"
 	"github.com/pkg/errors"
 	"github.com/vechain/thor/api"
+	"github.com/vechain/thor/block"
 	"github.com/vechain/thor/chain"
 	chaindata "github.com/vechain/thor/cmd/thor/chain"
 	"github.com/vechain/thor/cmd/thor/node"
 	"github.com/vechain/thor/cmd/thor/pruner"
 	"github.com/vechain/thor/cmd/thor/solo"
+	"github.com/vechain/thor/comm"
 	"github.com/vechain/thor/genesis"
 	"github.com/vechain/thor/logdb"
 	"github.com/vechain/thor/muxdb"
@@ -82,6 +86,7 @@ func main() {
 			pprofFlag,
 			verifyLogsFlag,
 			disablePrunerFlag,
+			importChainFlag,
 		},
 		Action: defaultAction,
 		Commands: []cli.Command{
@@ -178,6 +183,54 @@ func defaultAction(ctx *cli.Context) error {
 
 	printStartupMessage1(gene, repo, master, instanceDir, forkConfig)
 
+	if !ctx.Bool(disablePrunerFlag.Name) {
+		pruner := pruner.New(mainDB, repo)
+		defer func() { log.Info("stopping pruner..."); pruner.Stop() }()
+	}
+
+	if len(ctx.String(importChainFlag.Name)) > 0 {
+		if repo.BestBlock().Header().Number() == 0 {
+
+			fp := ctx.String(importChainFlag.Name)
+			fd, err := os.Open(fp)
+			if err != nil {
+				return errors.Wrap(err, "open chain data file")
+			}
+			defer fd.Close()
+
+			reader, err := gzip.NewReader(fd)
+			if err != nil {
+				return errors.Wrap(err, "prepare gzip reader")
+			}
+			defer reader.Close()
+			stream := rlp.NewStream(reader, 0)
+
+			var b0 block.Block
+			err = stream.Decode(&b0)
+			if err != nil {
+				return errors.Wrap(err, "decode header")
+			}
+
+			if b0.Header().ID() != gene.ID() {
+				return errors.New("invalid chain data file, genesis id mismatch")
+			}
+
+			var (
+				dummyTxStashPath                     = ""
+				dummyTxPool       *txpool.TxPool     = nil
+				dummyCommunicator *comm.Communicator = nil
+			)
+			dummyNode := node.New(master, repo, state.NewStater(mainDB), logDB, dummyTxPool, dummyTxStashPath, dummyCommunicator, uint64(ctx.Int(targetGasLimitFlag.Name)), skipLogs, forkConfig)
+
+			if err := chaindata.ImportChain(exitSignal, stream, dummyNode); err != nil {
+				return errors.Wrap(err, "import chain data")
+			}
+			log.Info("import process done")
+		} else {
+			log.Warn("chain db is not empty,skipping import procedure")
+		}
+	}
+
 	if !skipLogs {
 		if err := syncLogDB(exitSignal, repo, logDB, ctx.Bool(verifyLogsFlag.Name)); err != nil {
 			return err
@@ -212,17 +265,13 @@ func defaultAction(ctx *cli.Context) error {
 	}
 	defer func() { log.Info("stopping API server..."); srvCloser() }()
 
-	printStartupMessage2(apiURL, p2pcom.enode)
+	log.Info("API portal started", "listen", apiURL)
+	log.Info("Communicator started", "Node ID", p2pcom.enode)
 
 	if err := p2pcom.Start(); err != nil {
 		return err
 	}
 	defer p2pcom.Stop()
-
-	if !ctx.Bool(disablePrunerFlag.Name) {
-		pruner := pruner.New(mainDB, repo)
-		defer func() { log.Info("stopping pruner..."); pruner.Stop() }()
-	}
 
 	return node.New(
 		master,

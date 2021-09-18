@@ -141,4 +141,8 @@ var (
 		Name:  "instance-dir",
 		Usage: "directory of block-chain databases",
 	}
+	importChainFlag = cli.StringFlag{
+		Name:  "import-chain",
+		Usage: "bootstrap file to import",
+	}
 )

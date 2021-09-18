@@ -545,17 +545,6 @@ func printStartupMessage1(
 		dataDir)
 }
 
-func printStartupMessage2(
-	apiURL string,
-	nodeID string,
-) {
-	fmt.Printf(`    API portal   [ %v ]
-    Node ID      [ %v ]
-`,
-		apiURL,
-		nodeID)
-}
-
 func openMemMainDB() *muxdb.MuxDB {
 	return muxdb.NewMem()
 }
