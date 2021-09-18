@@ -424,21 +424,30 @@ func exportChainAction(ctx *cli.Context) error {
 			return errors.New("exported data directory required")
 		}
 
-		path := ctx.Args().First()
-		if fi, err := os.Stat(path); err == nil {
+		exportDir := ctx.Args().First()
+		if fi, err := os.Stat(exportDir); err == nil {
 			if !fi.IsDir() {
-				return fmt.Errorf("open %s: not a directory", path)
+				return fmt.Errorf("open %s: not a directory", exportDir)
 			}
 		} else if os.IsNotExist(err) {
-			if err := os.MkdirAll(path, 0755); err != nil {
+			if err := os.MkdirAll(exportDir, 0755); err != nil {
 				return err
 			}
 		} else {
 			return err
 		}
 
-		if len(ctx.String(instanceDirFlag.Name)) == 0 {
+		instanceDir := ctx.String(instanceDirFlag.Name)
+		if len(instanceDir) == 0 {
 			return errors.New("instance directory required")
+		}
+
+		if fi, err := os.Stat(filepath.Join(instanceDir, "main.db")); err == nil {
+			if !fi.IsDir() {
+				return errors.New("invalid instance directory")
+			}
+		} else if os.IsNotExist(err) {
+			return errors.New("invalid instance directory")
 		}
 
 		return nil
@@ -447,9 +456,7 @@ func exportChainAction(ctx *cli.Context) error {
 		return err
 	}
 
-	path := ctx.Args().First()
 	instanceDir := ctx.String(instanceDirFlag.Name)
-
 	mainDB, err := openMainDB(ctx, instanceDir)
 	if err != nil {
 		return errors.Wrap(err, "open main db")
@@ -466,7 +473,7 @@ func exportChainAction(ctx *cli.Context) error {
 		return errors.New("empty chain db")
 	}
 
-	fd, err := os.OpenFile(filepath.Join(path, fmt.Sprintf("chain-%x.gz", repo.GenesisBlock().Header().ID().Bytes()[24:])), os.O_CREATE|os.O_EXCL|os.O_WRONLY, os.ModePerm)
+	fd, err := os.OpenFile(filepath.Join(ctx.Args().First(), fmt.Sprintf("chain-%x.gz", repo.GenesisBlock().Header().ID().Bytes()[24:])), os.O_CREATE|os.O_EXCL|os.O_WRONLY, os.ModePerm)
 	if err != nil {
 		return err
 	}

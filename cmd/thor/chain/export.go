@@ -22,6 +22,10 @@ func ExportChain(ctx context.Context, repo *chain.Repository, fd *os.File) error
 	chain := repo.NewBestChain()
 	bestNum := repo.BestBlock().Header().Number()
 
+	if err := rlp.Encode(writer, repo.GenesisBlock()); err != nil {
+		return err
+	}
+
 	pb := pb.New64(int64(bestNum)).
 		Set64(int64(0)).
 		SetMaxWidth(90).
