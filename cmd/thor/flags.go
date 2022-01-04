@@ -138,4 +138,9 @@ var (
 		Value: 16,
 		Usage: "set tx limit per account in pool",
 	}
+	txPoolBlocklistURL = cli.StringFlag{
+		Name:   "txpool-blocklist",
+		Hidden: true,
+		Usage:  "txpool blocklist URL",
+	}
 )

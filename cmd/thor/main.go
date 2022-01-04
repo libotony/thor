@@ -80,6 +80,7 @@ func main() {
 			pprofFlag,
 			verifyLogsFlag,
 			disablePrunerFlag,
+			txPoolBlocklistURL,
 		},
 		Action: defaultAction,
 		Commands: []cli.Command{
@@ -174,6 +175,11 @@ func defaultAction(ctx *cli.Context) error {
 	}
 
 	txpoolOpt := defaultTxPoolOptions
+	blocklist := ctx.String(txPoolBlocklistURL.Name)
+	if blocklist != "" {
+		txpoolOpt.BlocklistFetchURL = blocklist
+	}
+
 	txPool := txpool.New(repo, state.NewStater(mainDB), txpoolOpt)
 	defer func() { log.Info("closing tx pool..."); txPool.Close() }()
 
