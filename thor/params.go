@@ -37,6 +37,8 @@ const (
 	MaxStateHistory = 65535 // max guaranteed state history allowed to be accessed in EVM, presented in block number
 
 	EpochInterval = 8640 // blocks between two epochs.
+
+	BFTRoundInterval = 180 // blocks between two BFT rounds.
 )
 
 // Keys of governance params.

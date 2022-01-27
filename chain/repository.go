@@ -26,9 +26,10 @@ const (
 )
 
 var (
-	errNotFound      = errors.New("not found")
-	bestBlockIDKey   = []byte("best-block-id")
-	steadyBlockIDKey = []byte("steady-block-id")
+	errNotFound         = errors.New("not found")
+	bestBlockIDKey      = []byte("best-block-id")
+	steadyBlockIDKey    = []byte("steady-block-id")
+	committedBlockIDKey = []byte("committed-block-id")
 )
 
 // Repository stores block headers, txs and receipts.
@@ -43,6 +44,7 @@ type Repository struct {
 	genesis     *block.Block
 	bestSummary atomic.Value
 	steadyID    atomic.Value
+	committed   atomic.Value
 	tag         byte
 	tick        co.Signal
 
@@ -114,6 +116,16 @@ func NewRepository(db *muxdb.MuxDB, genesis *block.Block) (*Repository, error) {
 	} else {
 		repo.steadyID.Store(thor.BytesToBytes32(val))
 	}
+
+	if val, err := repo.props.Get(committedBlockIDKey); err != nil {
+		if !repo.props.IsNotFound(err) {
+			return nil, err
+		}
+		repo.committed.Store(genesis.Header().ID())
+	} else {
+		repo.committed.Store(thor.BytesToBytes32(val))
+	}
+
 	return repo, nil
 }
 
@@ -176,7 +188,19 @@ func (r *Repository) SetSteadyBlockID(id thor.Bytes32) error {
 	return nil
 }
 
-func (r *Repository) saveBlock(block *block.Block, receipts tx.Receipts, conflicts, steadyNum uint32) (*BlockSummary, error) {
+func (r *Repository) Committed() thor.Bytes32 {
+	return r.committed.Load().(thor.Bytes32)
+}
+
+func (r *Repository) SetCommitted(id thor.Bytes32) error {
+	if err := r.props.Put(committedBlockIDKey, id[:]); err != nil {
+		return err
+	}
+	r.committed.Store(id)
+	return nil
+}
+
+func (r *Repository) saveBlock(block *block.Block, receipts tx.Receipts, indexRoot thor.Bytes32, conflicts, steadyNum uint32) (*BlockSummary, error) {
 	var (
 		header      = block.Header()
 		id          = header.ID()

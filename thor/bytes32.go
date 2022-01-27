@@ -6,6 +6,7 @@
 package thor
 
 import (
+	"encoding"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -19,8 +20,10 @@ import (
 type Bytes32 [32]byte
 
 var (
-	_ json.Marshaler   = (*Bytes32)(nil)
-	_ json.Unmarshaler = (*Bytes32)(nil)
+	_ json.Marshaler           = (*Bytes32)(nil)
+	_ json.Unmarshaler         = (*Bytes32)(nil)
+	_ encoding.TextMarshaler   = (*Bytes32)(nil)
+	_ encoding.TextUnmarshaler = (*Bytes32)(nil)
 )
 
 // String implements stringer
@@ -61,6 +64,22 @@ func (b *Bytes32) UnmarshalJSON(data []byte) error {
 	if err != nil {
 		return err
 	}
+	*b = parsed
+	return nil
+}
+
+// MarshalText implements encoding.TextMarshaler.
+func (b Bytes32) MarshalText() ([]byte, error) {
+	return []byte(b.String()), nil
+}
+
+// UnmarshalText implements encoding.TextUnMarshaler.
+func (b *Bytes32) UnmarshalText(data []byte) error {
+	parsed, err := ParseBytes32(string(data))
+	if err != nil {
+		return err
+	}
+
 	*b = parsed
 	return nil
 }

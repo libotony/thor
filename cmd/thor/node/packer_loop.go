@@ -13,6 +13,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/mclock"
 	"github.com/pkg/errors"
+	"github.com/vechain/thor/block"
 	"github.com/vechain/thor/packer"
 	"github.com/vechain/thor/thor"
 	"github.com/vechain/thor/tx"
@@ -115,7 +116,7 @@ func (n *Node) pack(flow *packer.Flow) error {
 		}
 	}()
 
-	return n.guardBlockProcessing(flow.ParentHeader().Number()+1, func(conflicts uint32) error {
+	return n.guardBlockProcessing(flow.Number(), func(conflicts uint32) error {
 		var (
 			startTime  = mclock.Now()
 			logEnabled = !n.skipLogs && !n.logDBFailed
@@ -135,9 +136,27 @@ func (n *Node) pack(flow *packer.Flow) error {
 			}
 		}
 
+		var vote *block.Vote
+		if flow.Number() >= n.forkConfig.FINALITY {
+			v, err := n.bft.GetVote(flow.ParentHeader().ID())
+			if err != nil {
+				return err
+			}
+			vote = &v
+		}
+
 		// pack the new block
-		newBlock, stage, receipts, err := flow.Pack(n.master.PrivateKey, conflicts)
+		newBlock, stage, receipts, err := flow.Pack(n.master.PrivateKey, conflicts, vote)
 		if err != nil {
+			return err
+		}
+
+		_, newCommitted, err := n.bft.Process(newBlock.Header())
+		if err != nil {
+			return err
+		}
+
+		if err := n.bft.AddVoted(flow.ParentHeader().ID()); err != nil {
 			return err
 		}
 		execElapsed := mclock.Now() - startTime
@@ -165,6 +184,12 @@ func (n *Node) pack(flow *packer.Flow) error {
 			if err := n.logWorker.Sync(); err != nil {
 				log.Warn("failed to write logs", "err", err)
 				n.logDBFailed = true
+			}
+		}
+
+		if newCommitted != nil {
+			if err := n.repo.SetCommitted(*newCommitted); err != nil {
+				return err
 			}
 		}
 
