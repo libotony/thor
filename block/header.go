@@ -210,12 +210,9 @@ func (h *Header) Alpha() []byte {
 	return h.body.Extension.Alpha
 }
 
+// Vote returns the vote in the header.
 func (h *Header) Vote() *Vote {
 	return h.body.Extension.Vote
-}
-
-func (h *Header) IsComVote() bool {
-	return false
 }
 
 // Beta verifies the VRF proof in header's signature and returns the beta.

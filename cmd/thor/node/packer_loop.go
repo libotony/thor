@@ -140,7 +140,7 @@ func (n *Node) pack(flow *packer.Flow) error {
 		if flow.Number() >= n.forkConfig.FINALITY {
 			v, err := n.bft.GetVote(flow.ParentHeader().ID())
 			if err != nil {
-				return err
+				return errors.Wrap(err, "failed to get vote")
 			}
 			vote = &v
 		}
@@ -148,16 +148,16 @@ func (n *Node) pack(flow *packer.Flow) error {
 		// pack the new block
 		newBlock, stage, receipts, err := flow.Pack(n.master.PrivateKey, conflicts, vote)
 		if err != nil {
-			return err
+			return errors.Wrap(err, "failed to pack block")
 		}
 
 		_, newCommitted, err := n.bft.Process(newBlock.Header())
 		if err != nil {
-			return err
+			return errors.Wrap(err, "failed to process block in bft")
 		}
 
-		if err := n.bft.AddVoted(flow.ParentHeader().ID()); err != nil {
-			return err
+		if err := n.bft.MarkVoted(flow.ParentHeader().ID()); err != nil {
+			return errors.Wrap(err, "failed to mark voted")
 		}
 		execElapsed := mclock.Now() - startTime
 

@@ -1,10 +1,10 @@
 package bft
 
 import (
-	"errors"
 	"sort"
 
 	lru "github.com/hashicorp/golang-lru"
+	"github.com/pkg/errors"
 	"github.com/vechain/thor/block"
 	"github.com/vechain/thor/builtin"
 	"github.com/vechain/thor/cache"
@@ -45,7 +45,7 @@ func NewEngine(repo *chain.Repository, mainDB *muxdb.MuxDB, forkConfig thor.Fork
 	store := mainDB.NewStore(storeName)
 
 	voted, err := loadVoted(store)
-	if err != nil && !store.IsNotFound(err) {
+	if err != nil {
 		return nil, err
 	}
 
@@ -113,7 +113,7 @@ func (engine *BFTEngine) Process(header *block.Header) (becomeNewBest bool, newC
 	return
 }
 
-func (engine *BFTEngine) AddVoted(parentID thor.Bytes32) error {
+func (engine *BFTEngine) MarkVoted(parentID thor.Bytes32) error {
 	checkpoint, err := engine.repo.NewChain(parentID).GetBlockID(block.Number(parentID) / thor.BFTRoundInterval * thor.BFTRoundInterval)
 	if err != nil {
 		return nil
@@ -132,6 +132,10 @@ func (engine *BFTEngine) GetVote(parentID thor.Bytes32) (block.Vote, error) {
 	st, err := engine.getState(parentID, engine.getBlockHeader)
 	if err != nil {
 		return block.WIT, err
+	}
+
+	if st.Weight == 0 {
+		return block.WIT, nil
 	}
 
 	committed := engine.repo.Committed()
@@ -160,7 +164,7 @@ func (engine *BFTEngine) GetVote(parentID thor.Bytes32) (block.Vote, error) {
 			}
 
 			if includes, err := engine.repo.NewChain(a).HasBlock(b); err != nil {
-				return block.WIT, nil
+				return block.WIT, err
 			} else if !includes && v >= weight-1 {
 				return block.WIT, nil
 			}
@@ -176,7 +180,7 @@ func (engine *BFTEngine) Close() {
 		committed := engine.repo.Committed()
 
 		for k, v := range engine.voted {
-			if block.Number(k) < block.Number(committed) {
+			if block.Number(k) > block.Number(committed) {
 				toSave[k] = v
 			}
 		}
@@ -200,6 +204,10 @@ func (engine *BFTEngine) getState(blockID thor.Bytes32, getHeader GetBlockHeader
 		return cached.(*BFTState), nil
 	}
 
+	if block.Number(blockID) == 0 {
+		return &BFTState{}, nil
+	}
+
 	var (
 		vs  *voteSet
 		end uint32
@@ -211,20 +219,20 @@ func (engine *BFTEngine) getState(blockID thor.Bytes32, getHeader GetBlockHeader
 	}
 
 	if entry := engine.caches.voteset.Remove(header.ParentID()); entry != nil {
-		vs = interface{}(entry).(*voteSet)
+		vs = interface{}(entry.Entry.Value).(*voteSet)
 		end = block.Number(header.ParentID())
 	} else {
 		var err error
 		vs, err = newVoteSet(engine, header.ParentID())
 		if err != nil {
-			return nil, err
+			return nil, errors.Wrap(err, "failed to create vote set")
 		}
 		end = vs.checkpoint
 	}
 
 	h := header
 	for {
-		if vs.isCommitted() {
+		if vs.isCommitted() || h.Vote() == nil {
 			break
 		}
 
@@ -232,7 +240,8 @@ func (engine *BFTEngine) getState(blockID thor.Bytes32, getHeader GetBlockHeader
 		if err != nil {
 			return nil, err
 		}
-		vs.addVote(signer, h.IsComVote(), h.ID())
+
+		vs.addVote(signer, *h.Vote() == block.COM, h.ID())
 
 		if h.Number() <= end {
 			break

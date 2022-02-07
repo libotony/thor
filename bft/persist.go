@@ -34,12 +34,16 @@ func saveVoted(putter kv.Putter, voted map[thor.Bytes32]uint32) error {
 }
 
 func loadVoted(getter kv.Getter) (map[thor.Bytes32]uint32, error) {
+	voted := make(map[thor.Bytes32]uint32)
+
 	b, err := getter.Get(votedKey)
 	if err != nil {
+		if getter.IsNotFound(err) {
+			return voted, nil
+		}
 		return nil, err
 	}
 
-	voted := make(map[thor.Bytes32]uint32)
 	err = json.Unmarshal(b, &voted)
 	if err != nil {
 		return nil, err
