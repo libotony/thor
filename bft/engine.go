@@ -35,12 +35,6 @@ type BFTEngine struct {
 	}
 }
 
-type BFTState struct {
-	Weight    uint32
-	Justified *thor.Bytes32
-	Committed *thor.Bytes32
-}
-
 func NewEngine(repo *chain.Repository, mainDB *muxdb.MuxDB, forkConfig thor.ForkConfig) (*BFTEngine, error) {
 	store := mainDB.NewStore(storeName)
 
@@ -102,7 +96,7 @@ func (engine *BFTEngine) Process(header *block.Header) (becomeNewBest bool, newC
 		becomeNewBest = header.BetterThan(best)
 	}
 
-	if st.Committed != nil && header.ID() == *st.Committed {
+	if st.CommittedAt != nil && header.ID() == *st.CommittedAt {
 		id, err := engine.findCheckpointByWeight(st.Weight-1, committed, header.ParentID())
 		if err != nil {
 			return false, nil, err
@@ -141,7 +135,7 @@ func (engine *BFTEngine) GetVote(parentID thor.Bytes32) (block.Vote, error) {
 	committed := engine.repo.Committed()
 	var latestJustified thor.Bytes32
 	weight := st.Weight
-	if st.Justified != nil {
+	if st.JustifiedAt != nil {
 		checkpoint, err := engine.repo.NewChain(parentID).GetBlockID(block.Number(parentID) / thor.BFTRoundInterval * thor.BFTRoundInterval)
 		if err != nil {
 			return block.WIT, err
@@ -199,13 +193,13 @@ func (engine *BFTEngine) getBlockHeader(id thor.Bytes32) (*block.Header, error) 
 	return sum.Header, nil
 }
 
-func (engine *BFTEngine) getState(blockID thor.Bytes32, getHeader GetBlockHeader) (*BFTState, error) {
+func (engine *BFTEngine) getState(blockID thor.Bytes32, getHeader GetBlockHeader) (*bftState, error) {
 	if cached, ok := engine.caches.state.Get(blockID); ok {
-		return cached.(*BFTState), nil
+		return cached.(*bftState), nil
 	}
 
 	if block.Number(blockID) == 0 {
-		return &BFTState{}, nil
+		return &bftState{}, nil
 	}
 
 	var (
