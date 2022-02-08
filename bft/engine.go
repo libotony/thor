@@ -96,7 +96,7 @@ func (engine *BFTEngine) Process(header *block.Header) (becomeNewBest bool, newC
 		becomeNewBest = header.BetterThan(best)
 	}
 
-	if st.CommittedAt != nil && header.ID() == *st.CommittedAt {
+	if st.CommittedAt != nil && header.ID() == *st.CommittedAt && st.Weight > 1 {
 		id, err := engine.findCheckpointByWeight(st.Weight-1, committed, header.ParentID())
 		if err != nil {
 			return false, nil, err
