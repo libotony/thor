@@ -104,6 +104,14 @@ func (engine *BFTEngine) Process(header *block.Header) (becomeNewBest bool, newC
 		newCommitted = &id
 	}
 
+	// save weight at the end of round
+	if (header.Number()+1)%thor.BFTRoundInterval == 0 {
+		if err := saveWeight(engine.store, header.ID(), st.Weight); err != nil {
+			return false, nil, err
+		}
+		engine.caches.weight.Add(header.ID(), st.Weight)
+	}
+
 	return
 }
 
@@ -212,7 +220,7 @@ func (engine *BFTEngine) getState(blockID thor.Bytes32, getHeader GetBlockHeader
 		return nil, err
 	}
 
-	if entry := engine.caches.voteset.Remove(header.ParentID()); entry != nil {
+	if entry := engine.caches.voteset.Remove(header.ParentID()); header.Number()%thor.BFTRoundInterval != 0 && entry != nil {
 		vs = interface{}(entry.Entry.Value).(*voteSet)
 		end = block.Number(header.ParentID())
 	} else {
@@ -248,14 +256,6 @@ func (engine *BFTEngine) getState(blockID thor.Bytes32, getHeader GetBlockHeader
 	}
 
 	st := vs.getState()
-
-	// save weight at the end of round
-	if (header.Number()+1)%thor.BFTRoundInterval == 0 {
-		if err := saveWeight(engine.store, header.ID(), st.Weight); err != nil {
-			return nil, err
-		}
-		engine.caches.weight.Add(header.ID(), st.Weight)
-	}
 
 	engine.caches.state.Add(header.ID(), st)
 	engine.caches.voteset.Set(header.ID(), vs, float64(header.Number()))
