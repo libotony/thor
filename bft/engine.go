@@ -96,7 +96,7 @@ func (engine *BFTEngine) Process(header *block.Header) (becomeNewBest bool, newC
 		becomeNewBest = header.BetterThan(best)
 	}
 
-	if st.CommittedAt != nil && header.ID() == *st.CommittedAt && st.Weight > 1 {
+	if st.CommitAt != nil && header.ID() == *st.CommitAt && st.Weight > 1 {
 		id, err := engine.findCheckpointByWeight(st.Weight-1, committed, header.ParentID())
 		if err != nil {
 			return false, nil, err
@@ -141,33 +141,35 @@ func (engine *BFTEngine) GetVote(parentID thor.Bytes32) (block.Vote, error) {
 	}
 
 	committed := engine.repo.Committed()
-	var latestJustified thor.Bytes32
-	weight := st.Weight
-	if st.JustifiedAt != nil {
+
+	var recentJC thor.Bytes32
+	var Weight = st.Weight
+	if st.JustifyAt != nil {
+		// if justied in this round, use this round's checkpoint
 		checkpoint, err := engine.repo.NewChain(parentID).GetBlockID(block.Number(parentID) / thor.BFTRoundInterval * thor.BFTRoundInterval)
 		if err != nil {
 			return block.WIT, err
 		}
-		latestJustified = checkpoint
+		recentJC = checkpoint
 	} else {
-		checkpoint, err := engine.findCheckpointByWeight(st.Weight, committed, parentID)
+		checkpoint, err := engine.findCheckpointByWeight(Weight, committed, parentID)
 		if err != nil {
 			return block.WIT, err
 		}
-		latestJustified = checkpoint
+		recentJC = checkpoint
 	}
 
 	// see https://github.com/vechain/VIPs
-	for k, v := range engine.voted {
-		if block.Number(k) > block.Number(committed) {
-			a, b := latestJustified, k
-			if block.Number(k) > block.Number(latestJustified) {
-				a, b = k, latestJustified
+	for blockID, w := range engine.voted {
+		if block.Number(blockID) >= block.Number(committed) {
+			a, b := recentJC, blockID
+			if block.Number(blockID) > block.Number(recentJC) {
+				a, b = blockID, recentJC
 			}
 
 			if includes, err := engine.repo.NewChain(a).HasBlock(b); err != nil {
 				return block.WIT, err
-			} else if !includes && v >= weight-1 {
+			} else if !includes && w >= Weight-1 {
 				return block.WIT, nil
 			}
 		}
@@ -182,7 +184,7 @@ func (engine *BFTEngine) Close() {
 		committed := engine.repo.Committed()
 
 		for k, v := range engine.voted {
-			if block.Number(k) > block.Number(committed) {
+			if block.Number(k) >= block.Number(committed) {
 				toSave[k] = v
 			}
 		}

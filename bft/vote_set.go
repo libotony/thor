@@ -10,16 +10,16 @@ type voteSet struct {
 	checkpoint   uint32
 	threshold    uint64
 
-	votes       map[thor.Address]bool
-	comVotes    uint64
-	justifiedAt *thor.Bytes32
-	committedAt *thor.Bytes32
+	votes     map[thor.Address]bool
+	comVotes  uint64
+	justifyAt *thor.Bytes32
+	commitAt  *thor.Bytes32
 }
 
 type bftState struct {
-	Weight      uint32
-	JustifiedAt *thor.Bytes32
-	CommittedAt *thor.Bytes32
+	Weight    uint32
+	JustifyAt *thor.Bytes32
+	CommitAt  *thor.Bytes32
 }
 
 func newVoteSet(engine *BFTEngine, parentID thor.Bytes32) (*voteSet, error) {
@@ -64,7 +64,7 @@ func newVoteSet(engine *BFTEngine, parentID thor.Bytes32) (*voteSet, error) {
 }
 
 func (vs *voteSet) isCommitted() bool {
-	return vs.committedAt != nil
+	return vs.commitAt != nil
 }
 
 func (vs *voteSet) addVote(signer thor.Address, isCom bool, blockID thor.Bytes32) {
@@ -82,24 +82,24 @@ func (vs *voteSet) addVote(signer thor.Address, isCom bool, blockID thor.Bytes32
 		vs.comVotes++
 	}
 
-	if vs.justifiedAt == nil && len(vs.votes) > int(vs.threshold) {
-		vs.justifiedAt = &blockID
+	if vs.justifyAt == nil && len(vs.votes) > int(vs.threshold) {
+		vs.justifyAt = &blockID
 	}
 
-	if vs.committedAt == nil && vs.comVotes > vs.threshold {
-		vs.committedAt = &blockID
+	if vs.commitAt == nil && vs.comVotes > vs.threshold {
+		vs.commitAt = &blockID
 	}
 }
 
 func (vs *voteSet) getState() *bftState {
 	weight := vs.parentWeight
-	if vs.justifiedAt != nil {
+	if vs.justifyAt != nil {
 		weight = weight + 1
 	}
 
 	return &bftState{
-		Weight:      weight,
-		JustifiedAt: vs.justifiedAt,
-		CommittedAt: vs.committedAt,
+		Weight:    weight,
+		JustifyAt: vs.justifyAt,
+		CommitAt:  vs.commitAt,
 	}
 }
