@@ -2,6 +2,7 @@ package bft
 
 import (
 	"sort"
+	"sync/atomic"
 
 	lru "github.com/hashicorp/golang-lru"
 	"github.com/pkg/errors"
@@ -17,7 +18,10 @@ import (
 
 const storeName = "bft.engine"
 
-var votedKey = []byte("packer-voted")
+var (
+	votedKey     = []byte("bft-voted")
+	committedKey = []byte("bft-committed")
+)
 
 type GetBlockHeader func(id thor.Bytes32) (*block.Header, error)
 
@@ -27,6 +31,7 @@ type BFTEngine struct {
 	stater     *state.Stater
 	forkConfig thor.ForkConfig
 	voted      map[thor.Bytes32]uint32
+	committed  atomic.Value
 	caches     struct {
 		state   *lru.Cache
 		weight  *lru.Cache
@@ -36,18 +41,10 @@ type BFTEngine struct {
 }
 
 func NewEngine(repo *chain.Repository, mainDB *muxdb.MuxDB, forkConfig thor.ForkConfig) (*BFTEngine, error) {
-	store := mainDB.NewStore(storeName)
-
-	voted, err := loadVoted(store)
-	if err != nil {
-		return nil, err
-	}
-
 	engine := BFTEngine{
 		repo:       repo,
-		store:      store,
+		store:      mainDB.NewStore(storeName),
 		stater:     state.NewStater(mainDB),
-		voted:      voted,
 		forkConfig: forkConfig,
 	}
 
@@ -56,7 +53,35 @@ func NewEngine(repo *chain.Repository, mainDB *muxdb.MuxDB, forkConfig thor.Fork
 	engine.caches.mbp, _ = lru.New(8)
 	engine.caches.voteset = cache.NewPrioCache(16)
 
+	voted, err := loadVoted(engine.store)
+	if err != nil {
+		return nil, err
+	}
+	engine.voted = voted
+
+	if val, err := engine.store.Get(committedKey); err != nil {
+		if !engine.store.IsNotFound(err) {
+			return nil, err
+		}
+		engine.committed.Store(engine.repo.GenesisBlock().Header().ID())
+	} else {
+		engine.committed.Store(thor.BytesToBytes32(val))
+	}
+
 	return &engine, nil
+}
+
+func (engine *BFTEngine) Committed() thor.Bytes32 {
+	return engine.committed.Load().(thor.Bytes32)
+}
+
+func (engine *BFTEngine) SetCommitted(id thor.Bytes32) error {
+	if err := engine.store.Put(committedKey, id[:]); err != nil {
+		return err
+	}
+
+	engine.committed.Store(id)
+	return nil
 }
 
 func (engine *BFTEngine) Process(header *block.Header) (becomeNewBest bool, newCommitted *thor.Bytes32, err error) {
@@ -65,7 +90,7 @@ func (engine *BFTEngine) Process(header *block.Header) (becomeNewBest bool, newC
 		return header.BetterThan(best), nil, nil
 	}
 
-	committed := engine.repo.Committed()
+	committed := engine.Committed()
 	if !committed.IsZero() {
 		if included, err := engine.repo.NewChain(header.ParentID()).HasBlock(committed); err != nil {
 			return false, nil, err
@@ -118,7 +143,7 @@ func (engine *BFTEngine) Process(header *block.Header) (becomeNewBest bool, newC
 func (engine *BFTEngine) MarkVoted(parentID thor.Bytes32) error {
 	checkpoint, err := engine.repo.NewChain(parentID).GetBlockID(block.Number(parentID) / thor.BFTRoundInterval * thor.BFTRoundInterval)
 	if err != nil {
-		return nil
+		return err
 	}
 
 	st, err := engine.getState(parentID, engine.getBlockHeader)
@@ -140,7 +165,7 @@ func (engine *BFTEngine) GetVote(parentID thor.Bytes32) (block.Vote, error) {
 		return block.WIT, nil
 	}
 
-	committed := engine.repo.Committed()
+	committed := engine.Committed()
 
 	var recentJC thor.Bytes32
 	var Weight = st.Weight
@@ -181,7 +206,7 @@ func (engine *BFTEngine) GetVote(parentID thor.Bytes32) (block.Vote, error) {
 func (engine *BFTEngine) Close() {
 	if len(engine.voted) > 0 {
 		toSave := make(map[thor.Bytes32]uint32)
-		committed := engine.repo.Committed()
+		committed := engine.Committed()
 
 		for k, v := range engine.voted {
 			if block.Number(k) >= block.Number(committed) {

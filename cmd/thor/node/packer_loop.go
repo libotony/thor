@@ -140,7 +140,7 @@ func (n *Node) pack(flow *packer.Flow) error {
 		if flow.Number() >= n.forkConfig.FINALITY {
 			v, err := n.bft.GetVote(flow.ParentHeader().ID())
 			if err != nil {
-				return errors.Wrap(err, "failed to get vote")
+				return errors.Wrap(err, "get vote")
 			}
 			vote = &v
 		}
@@ -153,11 +153,7 @@ func (n *Node) pack(flow *packer.Flow) error {
 
 		_, newCommitted, err := n.bft.Process(newBlock.Header())
 		if err != nil {
-			return errors.Wrap(err, "failed to process block in bft")
-		}
-
-		if err := n.bft.MarkVoted(flow.ParentHeader().ID()); err != nil {
-			return errors.Wrap(err, "failed to mark voted")
+			return errors.Wrap(err, "process block in bft engine")
 		}
 		execElapsed := mclock.Now() - startTime
 
@@ -188,9 +184,13 @@ func (n *Node) pack(flow *packer.Flow) error {
 		}
 
 		if newCommitted != nil {
-			if err := n.repo.SetCommitted(*newCommitted); err != nil {
+			if err := n.bft.SetCommitted(*newCommitted); err != nil {
 				return err
 			}
+		}
+
+		if err := n.bft.MarkVoted(flow.ParentHeader().ID()); err != nil {
+			return errors.Wrap(err, "mark voted")
 		}
 
 		if err := n.repo.SetBestBlockID(newBlock.Header().ID()); err != nil {

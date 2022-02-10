@@ -301,7 +301,7 @@ func (n *Node) processBlock(newBlock *block.Block, stats *blockStats) (bool, err
 
 		becomeNewBest, newCommitted, err := n.bft.Process(newBlock.Header())
 		if err != nil {
-			return err
+			return errors.Wrap(err, "process in bft engine")
 		}
 		logEnabled := becomeNewBest && !n.skipLogs && !n.logDBFailed
 		isTrunk = &becomeNewBest
@@ -321,17 +321,12 @@ func (n *Node) processBlock(newBlock *block.Block, stats *blockStats) (bool, err
 			}
 		}
 
-		if err != nil {
-			return errors.Wrap(err, "calc committed")
-		}
-		execElapsed := mclock.Now() - startTime
-
 		// commit produced states
 		if _, err := stage.Commit(); err != nil {
 			return errors.Wrap(err, "commit state")
 		}
 
-		// ad the new block into repository
+		// add the new block into repository
 		if err := n.repo.AddBlock(newBlock, receipts, conflicts); err != nil {
 			return errors.Wrap(err, "add block")
 		}
@@ -347,7 +342,7 @@ func (n *Node) processBlock(newBlock *block.Block, stats *blockStats) (bool, err
 		}
 
 		if newCommitted != nil {
-			if err := n.repo.SetCommitted(*newCommitted); err != nil {
+			if err := n.bft.SetCommitted(*newCommitted); err != nil {
 				return err
 			}
 		}
