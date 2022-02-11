@@ -26,8 +26,8 @@ func newVoteSet(engine *BFTEngine, parentID thor.Bytes32) (*voteSet, error) {
 	var parentWeight uint32 // parent round bft weight
 
 	blockNum := block.Number(parentID) + 1
-	absRound := blockNum/thor.BFTRoundInterval - engine.forkConfig.FINALITY/thor.BFTRoundInterval
-	checkpoint := blockNum / thor.BFTRoundInterval * thor.BFTRoundInterval
+	checkpoint := getCheckpoint(blockNum)
+	absRound := blockNum/thor.CheckpointInterval - engine.forkConfig.FINALITY/thor.CheckpointInterval
 
 	var lastOfParentRound uint32
 	if checkpoint > 0 {

@@ -151,7 +151,7 @@ func (n *Node) pack(flow *packer.Flow) error {
 			return errors.Wrap(err, "failed to pack block")
 		}
 
-		_, newCommitted, err := n.bft.Process(newBlock.Header())
+		_, finalize, err := n.bft.Process(newBlock.Header())
 		if err != nil {
 			return errors.Wrap(err, "process block in bft engine")
 		}
@@ -183,10 +183,8 @@ func (n *Node) pack(flow *packer.Flow) error {
 			}
 		}
 
-		if newCommitted != nil {
-			if err := n.bft.SetCommitted(*newCommitted); err != nil {
-				return err
-			}
+		if err := finalize(); err != nil {
+			return errors.Wrap(err, "finalize bft")
 		}
 
 		if err := n.bft.MarkVoted(flow.ParentHeader().ID()); err != nil {

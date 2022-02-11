@@ -299,7 +299,7 @@ func (n *Node) processBlock(newBlock *block.Block, stats *blockStats) (bool, err
 			oldBest   = n.repo.BestBlockSummary()
 		)
 
-		becomeNewBest, newCommitted, err := n.bft.Process(newBlock.Header())
+		becomeNewBest, finalize, err := n.bft.Process(newBlock.Header())
 		if err != nil {
 			return errors.Wrap(err, "process in bft engine")
 		}
@@ -341,11 +341,10 @@ func (n *Node) processBlock(newBlock *block.Block, stats *blockStats) (bool, err
 			}
 		}
 
-		if newCommitted != nil {
-			if err := n.bft.SetCommitted(*newCommitted); err != nil {
-				return err
-			}
+		if err := finalize(); err != nil {
+			return errors.Wrap(err, "finalize bft")
 		}
+
 		if becomeNewBest {
 			if err := n.repo.SetBestBlockID(newBlock.Header().ID()); err != nil {
 				return err
