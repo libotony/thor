@@ -1,3 +1,7 @@
+// Copyright (c) 2022 The VeChainThor developers
+
+// Distributed under the GNU Lesser General Public License v3.0 software license, see the accompanying
+// file LICENSE or <https://www.gnu.org/licenses/lgpl-3.0.html>
 package bft
 
 import (
@@ -5,6 +9,7 @@ import (
 	"github.com/vechain/thor/thor"
 )
 
+// voteSet tracks vote in a bft round
 type voteSet struct {
 	parentWeight uint32
 	checkpoint   uint32
@@ -16,6 +21,7 @@ type voteSet struct {
 	commitAt  *thor.Bytes32
 }
 
+// bftState is the state summary of a bft round for a given block.
 type bftState struct {
 	Weight    uint32
 	JustifyAt *thor.Bytes32
@@ -67,6 +73,7 @@ func (vs *voteSet) isCommitted() bool {
 	return vs.commitAt != nil
 }
 
+// addVote adds a new vote to the set.
 func (vs *voteSet) addVote(signer thor.Address, isCom bool, blockID thor.Bytes32) {
 	if vs.isCommitted() {
 		return

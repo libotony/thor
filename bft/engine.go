@@ -1,3 +1,7 @@
+// Copyright (c) 2022 The VeChainThor developers
+
+// Distributed under the GNU Lesser General Public License v3.0 software license, see the accompanying
+// file LICENSE or <https://www.gnu.org/licenses/lgpl-3.0.html>
 package bft
 
 import (
@@ -26,6 +30,7 @@ var (
 type GetBlockHeader func(id thor.Bytes32) (*block.Header, error)
 type Finalize func() error
 
+// BFTEngine tracks all votes in block, computes the finalized checkpoint.
 type BFTEngine struct {
 	repo       *chain.Repository
 	store      kv.Store
@@ -41,6 +46,7 @@ type BFTEngine struct {
 	}
 }
 
+// NewEngine creates a new bft engine.
 func NewEngine(repo *chain.Repository, mainDB *muxdb.MuxDB, forkConfig thor.ForkConfig) (*BFTEngine, error) {
 	engine := BFTEngine{
 		repo:       repo,
@@ -72,10 +78,13 @@ func NewEngine(repo *chain.Repository, mainDB *muxdb.MuxDB, forkConfig thor.Fork
 	return &engine, nil
 }
 
+// Committed returns the committed checkpoint, which is finalized.
 func (engine *BFTEngine) Committed() thor.Bytes32 {
 	return engine.committed.Load().(thor.Bytes32)
 }
 
+// Process processes block in bft engine and returns whether the block becomes new best.
+// Not thread-safe!
 func (engine *BFTEngine) Process(header *block.Header) (becomeNewBest bool, finalize Finalize, err error) {
 	finalize = func() error { return nil }
 
@@ -143,6 +152,8 @@ func (engine *BFTEngine) Process(header *block.Header) (becomeNewBest bool, fina
 	return
 }
 
+// MarkVoted marks the voted checkpoint.
+// Not thread-safe!
 func (engine *BFTEngine) MarkVoted(parentID thor.Bytes32) error {
 	checkpoint, err := engine.repo.NewChain(parentID).GetBlockID(getCheckpoint(block.Number(parentID)))
 	if err != nil {
@@ -158,8 +169,10 @@ func (engine *BFTEngine) MarkVoted(parentID thor.Bytes32) error {
 	return nil
 }
 
+// GetVote computes the vote for a given parent block ID.
+// Not thread-safe!
 func (engine *BFTEngine) GetVote(parentID thor.Bytes32) (block.Vote, error) {
-	st, err := engine.getState(parentID, engine.getBlockHeader)
+	st, err := engine.getState(parentID, engine.repo.GetBlockHeader)
 	if err != nil {
 		return block.WIT, err
 	}
@@ -207,6 +220,7 @@ func (engine *BFTEngine) GetVote(parentID thor.Bytes32) (block.Vote, error) {
 	return block.COM, nil
 }
 
+// Close closes bft engine.
 func (engine *BFTEngine) Close() {
 	if len(engine.voted) > 0 {
 		toSave := make(map[thor.Bytes32]uint32)
@@ -224,6 +238,7 @@ func (engine *BFTEngine) Close() {
 	}
 }
 
+// getState get the bft state regarding a given block id.
 func (engine *BFTEngine) getState(blockID thor.Bytes32, getHeader GetBlockHeader) (*bftState, error) {
 	if cached, ok := engine.caches.state.Get(blockID); ok {
 		return cached.(*bftState), nil
@@ -285,6 +300,7 @@ func (engine *BFTEngine) getState(blockID thor.Bytes32, getHeader GetBlockHeader
 	return st, nil
 }
 
+// findCheckpointByWeight finds the first checkpoint reaches the given weight.
 func (engine *BFTEngine) findCheckpointByWeight(target uint32, committed, parentID thor.Bytes32) (blockID thor.Bytes32, err error) {
 	defer func() {
 		if e := recover(); e != nil {
