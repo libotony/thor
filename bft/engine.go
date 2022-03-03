@@ -98,13 +98,13 @@ func (engine *BFTEngine) Process(header *block.Header) (becomeNewBest bool, fina
 		if id == header.ID() {
 			return header, nil
 		}
-		return engine.getBlockHeader(id)
+		return engine.repo.GetBlockHeader(id)
 	})
 	if err != nil {
 		return false, nil, err
 	}
 
-	bSt, err := engine.getState(best.ID(), engine.getBlockHeader)
+	bSt, err := engine.getState(best.ID(), engine.repo.GetBlockHeader)
 	if err != nil {
 		return false, nil, err
 	}
@@ -149,7 +149,7 @@ func (engine *BFTEngine) MarkVoted(parentID thor.Bytes32) error {
 		return err
 	}
 
-	st, err := engine.getState(parentID, engine.getBlockHeader)
+	st, err := engine.getState(parentID, engine.repo.GetBlockHeader)
 	if err != nil {
 		return err
 	}
@@ -222,14 +222,6 @@ func (engine *BFTEngine) Close() {
 			saveVoted(engine.store, toSave)
 		}
 	}
-}
-
-func (engine *BFTEngine) getBlockHeader(id thor.Bytes32) (*block.Header, error) {
-	sum, err := engine.repo.GetBlockSummary(id)
-	if err != nil {
-		return nil, err
-	}
-	return sum.Header, nil
 }
 
 func (engine *BFTEngine) getState(blockID thor.Bytes32, getHeader GetBlockHeader) (*bftState, error) {
