@@ -281,7 +281,7 @@ func (engine *BFTEngine) getState(blockID thor.Bytes32, getHeader GetBlockHeader
 			return nil, err
 		}
 
-		vs.addVote(signer, *h.Vote() == block.COM, h.ID())
+		vs.addVote(signer, *h.Vote(), h.ID())
 
 		if h.Number() <= end {
 			break

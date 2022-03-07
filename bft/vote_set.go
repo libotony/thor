@@ -74,12 +74,13 @@ func (vs *voteSet) isCommitted() bool {
 }
 
 // addVote adds a new vote to the set.
-func (vs *voteSet) addVote(signer thor.Address, isCom bool, blockID thor.Bytes32) {
+func (vs *voteSet) addVote(signer thor.Address, vote block.Vote, blockID thor.Bytes32) {
 	if vs.isCommitted() {
 		return
 	}
 
-	if ok, votedCom := vs.votes[signer]; !ok {
+	isCom := vote == block.COM
+	if votedCom, ok := vs.votes[signer]; !ok {
 		vs.votes[signer] = isCom
 		if isCom {
 			vs.comVotes++
