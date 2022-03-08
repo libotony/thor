@@ -177,7 +177,7 @@ func (r *Repository) SetSteadyBlockID(id thor.Bytes32) error {
 	return nil
 }
 
-func (r *Repository) saveBlock(block *block.Block, receipts tx.Receipts, indexRoot thor.Bytes32, conflicts, steadyNum uint32) (*BlockSummary, error) {
+func (r *Repository) saveBlock(block *block.Block, receipts tx.Receipts, conflicts, steadyNum uint32) (*BlockSummary, error) {
 	var (
 		header      = block.Header()
 		id          = header.ID()
