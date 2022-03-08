@@ -105,17 +105,15 @@ func newTestBft(forkCfg thor.ForkConfig) (*TestBFT, error) {
 	}, nil
 }
 
-func (test *TestBFT) newBlock(vote block.Vote, master genesis.DevAccount) (*block.Block, error) {
-	best := test.repo.BestBlockSummary()
-
+func (test *TestBFT) newBlock(parentSummary *chain.BlockSummary, master genesis.DevAccount, vote block.Vote, conflicts uint32) (*chain.BlockSummary, error) {
 	packer := packer.New(test.repo, test.stater, master.Address, &thor.Address{}, test.fc)
-	flow, err := packer.Mock(best, best.Header.Timestamp()+thor.BlockInterval, best.Header.GasLimit())
+	flow, err := packer.Mock(parentSummary, parentSummary.Header.Timestamp()+thor.BlockInterval, parentSummary.Header.GasLimit())
 	if err != nil {
 		return nil, err
 	}
 
 	v := vote
-	b, stg, _, err := flow.Pack(master.PrivateKey, 0, &v)
+	b, stg, _, err := flow.Pack(master.PrivateKey, conflicts, &v)
 	if err != nil {
 		return nil, err
 	}
@@ -124,36 +122,65 @@ func (test *TestBFT) newBlock(vote block.Vote, master genesis.DevAccount) (*bloc
 		return nil, err
 	}
 
-	return b, nil
+	_, finalize, err := test.engine.Process(b.Header())
+	if err != nil {
+		return nil, err
+	}
+
+	if err = test.repo.AddBlock(b, nil, conflicts); err != nil {
+		return nil, err
+	}
+
+	if err = finalize(); err != nil {
+		return nil, err
+	}
+
+	return test.repo.GetBlockSummary(b.Header().ID())
 }
 
 func (test *TestBFT) fastForward(cnt int) error {
-	parentNum := test.repo.BestBlockSummary().Header.Number()
-
+	parent := test.repo.BestBlockSummary()
 	for i := 1; i <= cnt; i++ {
-		blk, err := test.newBlock(block.COM, devAccounts[(int(parentNum)+i)%len(devAccounts)])
+		priv := devAccounts[(int(parent.Header.Number())+1)%len(devAccounts)]
+
+		var err error
+		parent, err = test.newBlock(parent, priv, block.COM, 0)
 		if err != nil {
-			return err
-		}
-
-		_, finalize, err := test.engine.Process(blk.Header())
-		if err != nil {
-			return err
-		}
-
-		if err = test.repo.AddBlock(blk, nil, 0); err != nil {
-			return err
-		}
-
-		if err = test.repo.SetBestBlockID(blk.Header().ID()); err != nil {
-			return err
-		}
-
-		if err = finalize(); err != nil {
 			return err
 		}
 	}
-	return nil
+
+	return test.repo.SetBestBlockID(parent.Header.ID())
+}
+
+func (test *TestBFT) fastForwardWithMinority(cnt int) error {
+	parent := test.repo.BestBlockSummary()
+	for i := 1; i <= cnt; i++ {
+		priv := devAccounts[(int(parent.Header.Number())+1)%(len(devAccounts)/3)]
+
+		var err error
+		parent, err = test.newBlock(parent, priv, block.COM, 0)
+		if err != nil {
+			return err
+		}
+	}
+
+	return test.repo.SetBestBlockID(parent.Header.ID())
+}
+
+func (test *TestBFT) buildBranch(cnt int) (*chain.Chain, error) {
+	parent := test.repo.BestBlockSummary()
+	for i := 1; i <= cnt; i++ {
+		// make a offset to pick a different master
+		priv := devAccounts[(int(parent.Header.Number())+1+4)%(len(devAccounts))]
+
+		var err error
+		parent, err = test.newBlock(parent, priv, block.COM, 1)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return test.repo.NewChain(parent.Header.ID()), nil
 }
 
 func TestNewEngine(t *testing.T) {
@@ -172,7 +199,7 @@ func TestProcessBlock(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err = testBFT.fastForward(thor.CheckpointInterval); err != nil {
+	if err = testBFT.fastForward(thor.CheckpointInterval - 1); err != nil {
 		t.Fatal(err)
 	}
 
@@ -183,16 +210,52 @@ func TestProcessBlock(t *testing.T) {
 		PrivateKey: priv,
 	}
 
-	blk, err := testBFT.newBlock(block.COM, master)
+	summary, err := testBFT.newBlock(testBFT.repo.BestBlockSummary(), master, block.COM, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
-	newBest, finalize, err := testBFT.engine.Process(blk.Header())
+	newBest, finalize, err := testBFT.engine.Process(summary.Header)
 
 	assert.Nil(t, err)
 	assert.True(t, newBest)
 
 	assert.Nil(t, finalize())
+}
+
+func TestNeverReachJustified(t *testing.T) {
+	testBFT, err := newTestBft(defaultFC)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	genesisID := testBFT.repo.GenesisBlock().Header().ID()
+	if err := testBFT.fastForwardWithMinority(thor.CheckpointInterval - 1); err != nil {
+		t.Fatal(err)
+	}
+
+	st, err := testBFT.engine.getState(testBFT.repo.BestBlockSummary().Header.ID(), testBFT.repo.GetBlockHeader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assert.Nil(t, st.JustifyAt)
+	assert.Nil(t, st.CommitAt)
+	assert.Equal(t, uint32(0), st.Weight)
+	assert.Equal(t, genesisID, testBFT.engine.Committed())
+
+	for i := 0; i < 3; i++ {
+		if err := testBFT.fastForwardWithMinority(thor.CheckpointInterval); err != nil {
+			t.Fatal(err)
+		}
+
+		st, err := testBFT.engine.getState(testBFT.repo.BestBlockSummary().Header.ID(), testBFT.repo.GetBlockHeader)
+		if err != nil {
+			t.Fatal(err)
+		}
+		assert.Nil(t, st.JustifyAt)
+		assert.Nil(t, st.CommitAt)
+		assert.Equal(t, uint32(0), st.Weight)
+		assert.Equal(t, genesisID, testBFT.engine.Committed())
+	}
 }
 
 func TestCommitted(t *testing.T) {
@@ -201,7 +264,7 @@ func TestCommitted(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err = testBFT.fastForward(thor.CheckpointInterval * 3); err != nil {
+	if err = testBFT.fastForward(thor.CheckpointInterval*3 - 1); err != nil {
 		t.Fatal(err)
 	}
 
@@ -217,10 +280,230 @@ func TestCommitted(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// should be justify and commit at (MaxBlockProposers*2/3 + 1
+	// should be justify and commit at (MaxBlockProposers*2/3) + 1
 	assert.Equal(t, uint32(1), st.Weight)
 	assert.Equal(t, blkID, *st.JustifyAt)
 	assert.Equal(t, blkID, *st.CommitAt)
+
+	blockNum = uint32(thor.CheckpointInterval*2 + MaxBlockProposers*2/3)
+
+	blkID, err = testBFT.repo.NewBestChain().GetBlockID(blockNum)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	st, err = testBFT.engine.getState(blkID, testBFT.repo.GetBlockHeader)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// should be justify and commit at (bft round start) + (MaxBlockProposers*2/3) + 1
+	assert.Equal(t, uint32(3), st.Weight)
+	assert.Equal(t, blkID, *st.JustifyAt)
+	assert.Equal(t, blkID, *st.CommitAt)
+
+	// chain stops the end of third bft round,should commit the second checkpoint
+	committed, err := testBFT.repo.NewBestChain().GetBlockID(thor.CheckpointInterval)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	assert.Equal(t, committed, testBFT.engine.Committed())
+}
+
+func TestGetVote(t *testing.T) {
+	tests := []struct {
+		name     string
+		testFunc func(*testing.T)
+	}{
+		{
+			"early stage, vote WIT", func(t *testing.T) {
+				testBFT, err := newTestBft(defaultFC)
+				if err != nil {
+					t.Fatal(err)
+				}
+
+				v, err := testBFT.engine.GetVote(testBFT.repo.BestBlockSummary().Header.ID())
+				if err != nil {
+					t.Fatal(err)
+				}
+				assert.Equal(t, block.WIT, v)
+			},
+		}, {
+			"never justified, vote WIT", func(t *testing.T) {
+				testBFT, err := newTestBft(defaultFC)
+				if err != nil {
+					t.Fatal(err)
+				}
+
+				testBFT.fastForwardWithMinority(thor.CheckpointInterval * 3)
+				v, err := testBFT.engine.GetVote(testBFT.repo.BestBlockSummary().Header.ID())
+				if err != nil {
+					t.Fatal(err)
+				}
+				assert.Equal(t, block.WIT, v)
+			},
+		}, {
+			"never voted other checkpoint, vote COM", func(t *testing.T) {
+				testBFT, err := newTestBft(defaultFC)
+				if err != nil {
+					t.Fatal(err)
+				}
+
+				testBFT.fastForward(thor.CheckpointInterval * 3)
+				v, err := testBFT.engine.GetVote(testBFT.repo.BestBlockSummary().Header.ID())
+				if err != nil {
+					t.Fatal(err)
+				}
+				assert.Equal(t, block.COM, v)
+			},
+		}, {
+			"voted other checkpoint but not conflict with recent justified, vote COM", func(t *testing.T) {
+				testBFT, err := newTestBft(defaultFC)
+				if err != nil {
+					t.Fatal(err)
+				}
+
+				if err = testBFT.fastForward(thor.CheckpointInterval*3 - 2); err != nil {
+					t.Fatal(err)
+				}
+
+				genesisID := testBFT.repo.GenesisBlock().Header().ID()
+				assert.NotEqual(t, genesisID, testBFT.engine.Committed())
+
+				if err := testBFT.fastForward(1); err != nil {
+					t.Fatal(err)
+				}
+
+				branch, err := testBFT.buildBranch(2)
+				if err != nil {
+					t.Fatal(err)
+				}
+
+				if err := testBFT.engine.MarkVoted(branch.HeadID()); err != nil {
+					t.Fatal(err)
+				}
+
+				if err := testBFT.fastForward(3); err != nil {
+					t.Fatal(err)
+				}
+
+				trunkCP, err := testBFT.repo.NewBestChain().GetBlockID(thor.CheckpointInterval * 3)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err := testBFT.engine.MarkVoted(trunkCP); err != nil {
+					t.Fatal(err)
+				}
+
+				// should be 2 checkpoints in voted
+				assert.Equal(t, 2, len(testBFT.engine.voted))
+
+				v, err := testBFT.engine.GetVote(testBFT.repo.BestBlockSummary().Header.ID())
+				if err != nil {
+					t.Fatal(err)
+				}
+
+				assert.Equal(t, block.COM, v)
+			},
+		}, {
+			"voted another non-justified checkpoint,conflict with most recent justified checkpoint, vote WIT", func(t *testing.T) {
+				testBFT, err := newTestBft(defaultFC)
+				if err != nil {
+					t.Fatal(err)
+				}
+
+				if err = testBFT.fastForward(thor.CheckpointInterval*3 - 1); err != nil {
+					t.Fatal(err)
+				}
+
+				genesisID := testBFT.repo.GenesisBlock().Header().ID()
+				assert.NotEqual(t, genesisID, testBFT.engine.Committed())
+
+				branch, err := testBFT.buildBranch(2)
+				if err != nil {
+					t.Fatal(err)
+				}
+
+				if err := testBFT.engine.MarkVoted(branch.HeadID()); err != nil {
+					t.Fatal(err)
+				}
+
+				if err := testBFT.fastForward(8); err != nil {
+					t.Fatal(err)
+				}
+
+				trunkCP, err := testBFT.repo.NewBestChain().GetBlockID(thor.CheckpointInterval * 3)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err := testBFT.engine.MarkVoted(trunkCP); err != nil {
+					t.Fatal(err)
+				}
+
+				// should be 2 checkpoints in voted
+				assert.Equal(t, 2, len(testBFT.engine.voted))
+
+				v, err := testBFT.engine.GetVote(testBFT.repo.BestBlockSummary().Header.ID())
+				if err != nil {
+					t.Fatal(err)
+				}
+
+				assert.Equal(t, block.WIT, v)
+			},
+		}, {
+			"voted another justified checkpoint,conflict with most recent justified checkpoint, vote WIT", func(t *testing.T) {
+				testBFT, err := newTestBft(defaultFC)
+				if err != nil {
+					t.Fatal(err)
+				}
+
+				if err = testBFT.fastForward(thor.CheckpointInterval*3 - 1); err != nil {
+					t.Fatal(err)
+				}
+
+				genesisID := testBFT.repo.GenesisBlock().Header().ID()
+				assert.NotEqual(t, genesisID, testBFT.engine.Committed())
+
+				branch, err := testBFT.buildBranch(8)
+				if err != nil {
+					t.Fatal(err)
+				}
+
+				if err := testBFT.engine.MarkVoted(branch.HeadID()); err != nil {
+					t.Fatal(err)
+				}
+
+				if err := testBFT.fastForward(8); err != nil {
+					t.Fatal(err)
+				}
+
+				trunkCP, err := testBFT.repo.NewBestChain().GetBlockID(thor.CheckpointInterval * 3)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err := testBFT.engine.MarkVoted(trunkCP); err != nil {
+					t.Fatal(err)
+				}
+
+				// should be 2 checkpoints in voted
+				assert.Equal(t, 2, len(testBFT.engine.voted))
+
+				v, err := testBFT.engine.GetVote(testBFT.repo.BestBlockSummary().Header.ID())
+				if err != nil {
+					t.Fatal(err)
+				}
+
+				assert.Equal(t, block.WIT, v)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.testFunc(t)
+		})
+	}
 }
 
 func TestVoteSet(t *testing.T) {

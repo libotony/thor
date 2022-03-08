@@ -201,7 +201,7 @@ func (engine *BFTEngine) GetVote(parentID thor.Bytes32) (block.Vote, error) {
 		recentJC = checkpoint
 	}
 
-	// see https://github.com/vechain/VIPs
+	// see https://github.com/vechain/VIPs/blob/master/vips/vip-220.md
 	for blockID, w := range engine.voted {
 		if block.Number(blockID) >= block.Number(committed) {
 			a, b := recentJC, blockID
