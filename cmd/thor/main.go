@@ -117,6 +117,17 @@ func main() {
 				},
 				Action: masterKeyAction,
 			},
+			{
+				Name:  "inspect-db",
+				Usage: "inspect db usage",
+				Flags: []cli.Flag{
+					networkFlag,
+					dataDirFlag,
+					disablePrunerFlag,
+					verbosityFlag,
+				},
+				Action: inspectDBAction,
+			},
 		},
 	}
 
@@ -398,4 +409,26 @@ func masterKeyAction(ctx *cli.Context) error {
 		return err
 	}
 	return nil
+}
+
+func inspectDBAction(ctx *cli.Context) error {
+	exitSignal := handleExitSignal()
+
+	initLogger(ctx)
+	gene, _, err := selectGenesis(ctx)
+	if err != nil {
+		return err
+	}
+	instanceDir, err := makeInstanceDir(ctx, gene)
+	if err != nil {
+		return err
+	}
+
+	mainDB, err := openMainDB(ctx, instanceDir)
+	if err != nil {
+		return err
+	}
+	defer func() { mainDB.Close() }()
+
+	return inspectMainDB(exitSignal, mainDB)
 }

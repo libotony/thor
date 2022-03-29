@@ -42,7 +42,7 @@ func TestCachedObject(t *testing.T) {
 	rand.Read(code)
 
 	codeHash := crypto.Keccak256(code)
-	db.NewStore(codeStoreName).Put(codeHash, code)
+	db.NewStore(CodeStoreName).Put(codeHash, code)
 
 	account := Account{
 		Balance:     &big.Int{},

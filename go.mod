@@ -25,9 +25,9 @@ require (
 	github.com/jackpal/go-nat-pmp v1.0.1 // indirect
 	github.com/mattn/go-colorable v0.0.9 // indirect
 	github.com/mattn/go-isatty v0.0.3
-	github.com/mattn/go-runewidth v0.0.4 // indirect
 	github.com/mattn/go-sqlite3 v1.14.9
 	github.com/mattn/go-tty v0.0.0-20180219170247-931426f7535a
+	github.com/olekukonko/tablewriter v0.0.5 // indirect
 	github.com/pborman/uuid v0.0.0-20170612153648-e790cca94e6c
 	github.com/pkg/errors v0.8.0
 	github.com/pmezard/go-difflib v1.0.0

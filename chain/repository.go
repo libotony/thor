@@ -20,9 +20,9 @@ import (
 )
 
 const (
-	dataStoreName    = "chain.data"
-	propStoreName    = "chain.props"
-	txIndexStoreName = "chain.txi"
+	DataStoreName    = "chain.data"
+	PropStoreName    = "chain.props"
+	TxIndexStoreName = "chain.txi"
 )
 
 var (
@@ -65,9 +65,9 @@ func NewRepository(db *muxdb.MuxDB, genesis *block.Block) (*Repository, error) {
 	genesisID := genesis.Header().ID()
 	repo := &Repository{
 		db:        db,
-		data:      db.NewStore(dataStoreName),
-		props:     db.NewStore(propStoreName),
-		txIndexer: db.NewStore(txIndexStoreName),
+		data:      db.NewStore(DataStoreName),
+		props:     db.NewStore(PropStoreName),
+		txIndexer: db.NewStore(TxIndexStoreName),
 		genesis:   genesis,
 		tag:       genesisID[31],
 	}
@@ -183,8 +183,8 @@ func (r *Repository) saveBlock(block *block.Block, receipts tx.Receipts, conflic
 		txs         = block.Transactions()
 		summary     = BlockSummary{header, []thor.Bytes32{}, uint64(block.Size()), conflicts, steadyNum}
 		bulk        = r.db.NewStore("").Bulk()
-		indexPutter = kv.Bucket(txIndexStoreName).NewPutter(bulk)
-		dataPutter  = kv.Bucket(dataStoreName).NewPutter(bulk)
+		indexPutter = kv.Bucket(TxIndexStoreName).NewPutter(bulk)
+		dataPutter  = kv.Bucket(DataStoreName).NewPutter(bulk)
 	)
 
 	if len(txs) > 0 {

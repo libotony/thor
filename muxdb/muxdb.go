@@ -23,10 +23,10 @@ import (
 )
 
 const (
-	trieHistSpace     = byte(0) // the key space for historical trie nodes.
-	trieDedupedSpace  = byte(1) // the key space for deduped trie nodes.
-	trieLeafBankSpace = byte(2) // the key space for the trie leaf bank.
-	namedStoreSpace   = byte(3) // the key space for named store.
+	TrieHistSpace     = byte(0) // the key space for historical trie nodes.
+	TrieDedupedSpace  = byte(1) // the key space for deduped trie nodes.
+	TrieLeafBankSpace = byte(2) // the key space for the trie leaf bank.
+	NamedStoreSpace   = byte(3) // the key space for named store.
 )
 
 const (
@@ -83,7 +83,7 @@ func Open(path string, options *Options) (*MuxDB, error) {
 	if options.TrieWillCleanHistory {
 		// this option gets disk space efficiently reclaimed.
 		// only set when pruner enabled.
-		ldbOpts.OverflowPrefix = []byte{trieHistSpace}
+		ldbOpts.OverflowPrefix = []byte{TrieHistSpace}
 	}
 
 	// open leveldb
@@ -98,7 +98,7 @@ func Open(path string, options *Options) (*MuxDB, error) {
 	// as engine
 	engine := engine.NewLevelEngine(ldb)
 
-	propStore := kv.Bucket(string(namedStoreSpace) + propStoreName).NewStore(engine)
+	propStore := kv.Bucket(string(NamedStoreSpace) + propStoreName).NewStore(engine)
 	// persists critical options to avoid corruption when tweaked.
 	cfg := config{
 		HistPtnFactor:    options.TrieHistPartitionFactor,
@@ -115,7 +115,7 @@ func Open(path string, options *Options) (*MuxDB, error) {
 
 	trieLeafBank := trie.NewLeafBank(
 		engine,
-		trieLeafBankSpace,
+		TrieLeafBankSpace,
 		options.TrieLeafBankSlotCapacity)
 
 	return &MuxDB{
@@ -124,8 +124,8 @@ func Open(path string, options *Options) (*MuxDB, error) {
 			Store:            engine,
 			Cache:            trieCache,
 			LeafBank:         trieLeafBank,
-			HistSpace:        trieHistSpace,
-			DedupedSpace:     trieDedupedSpace,
+			HistSpace:        TrieHistSpace,
+			DedupedSpace:     TrieDedupedSpace,
 			HistPtnFactor:    cfg.HistPtnFactor,
 			DedupedPtnFactor: cfg.DedupedPtnFactor,
 			CachedNodeTTL:    options.TrieCachedNodeTTL,
@@ -145,8 +145,8 @@ func NewMem() *MuxDB {
 			Store:            engine,
 			Cache:            nil,
 			LeafBank:         nil,
-			HistSpace:        trieHistSpace,
-			DedupedSpace:     trieDedupedSpace,
+			HistSpace:        TrieHistSpace,
+			DedupedSpace:     TrieDedupedSpace,
 			HistPtnFactor:    1,
 			DedupedPtnFactor: 1,
 			CachedNodeTTL:    32,
@@ -196,12 +196,17 @@ func (db *MuxDB) CleanTrieHistory(ctx context.Context, startCommitNum, limitComm
 
 // NewStore creates named kv-store.
 func (db *MuxDB) NewStore(name string) kv.Store {
-	return kv.Bucket(string(namedStoreSpace) + name).NewStore(db.engine)
+	return kv.Bucket(string(NamedStoreSpace) + name).NewStore(db.engine)
 }
 
 // IsNotFound returns if the error indicates key not found.
 func (db *MuxDB) IsNotFound(err error) bool {
 	return db.engine.IsNotFound(err)
+}
+
+// NewIterator creates a iterator over lvl engine.
+func (db *MuxDB) NewIterator(r kv.Range) kv.Iterator {
+	return db.engine.Iterate(r)
 }
 
 type config struct {

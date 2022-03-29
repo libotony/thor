@@ -93,7 +93,7 @@ func (co *cachedObject) GetCode() ([]byte, error) {
 			return code.([]byte), nil
 		}
 
-		code, err := co.db.NewStore(codeStoreName).Get(co.data.CodeHash)
+		code, err := co.db.NewStore(CodeStoreName).Get(co.data.CodeHash)
 		if err != nil {
 			return nil, err
 		}

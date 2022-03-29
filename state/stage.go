@@ -34,7 +34,7 @@ func (s *Stage) Commit() (root thor.Bytes32, err error) {
 	}()
 	// write codes
 	if len(s.codes) > 0 {
-		codeBulk := s.db.NewStore(codeStoreName).Bulk()
+		codeBulk := s.db.NewStore(CodeStoreName).Bulk()
 		for hash, code := range s.codes {
 			if err = codeBulk.Put(hash[:], code); err != nil {
 				return

@@ -23,7 +23,7 @@ const (
 	AccountTrieName       = "a"
 	StorageTrieNamePrefix = "s"
 
-	codeStoreName = "state.code"
+	CodeStoreName = "state.code"
 )
 
 // StorageTrieName converts the storage id into the name of storage trie.
