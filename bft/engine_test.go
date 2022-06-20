@@ -342,7 +342,7 @@ func TestReCreate(t *testing.T) {
 	}
 
 	votes := testBFT.engine.casts.Slice(testBFT.engine.Finalized())
-	assert.Equal(t, 2, len(votes))
+	assert.Equal(t, 1, len(votes))
 }
 
 func TestFinalized(t *testing.T) {
@@ -793,9 +793,64 @@ func TestJustifier(t *testing.T) {
 				// master votes COM
 				vs.AddBlock(blkID, master, block.COM)
 
-				// should be committed
+				// should not be committed
 				st = vs.Summarize()
-				assert.Equal(t, *st.CommitAt, blkID)
+				assert.Nil(t, st.CommitAt)
+
+				// another master votes WIT
+				blkID = RandomBytes32()
+				vs.AddBlock(blkID, RandomAddress(), block.COM)
+				st = vs.Summarize()
+				assert.Equal(t, blkID, *st.CommitAt)
+			},
+		}, {
+			"vote both WIT and COM in one round", func(t *testing.T) {
+				fc := defaultFC
+				testBft, err := newTestBft(fc)
+				if err != nil {
+					t.Fatal(err)
+				}
+				vs, err := newJustifier(testBft.engine, testBft.repo.BestBlockSummary().Header.ID())
+				if err != nil {
+					t.Fatal(err)
+				}
+
+				master := RandomAddress()
+				vs.AddBlock(RandomBytes32(), master, block.COM)
+				assert.Equal(t, block.COM, vs.votes[master])
+				assert.Equal(t, uint64(1), vs.comVotes)
+
+				vs.AddBlock(RandomBytes32(), master, block.WIT)
+				assert.Equal(t, block.WIT, vs.votes[master])
+				assert.Equal(t, uint64(0), vs.comVotes)
+
+				vs.AddBlock(RandomBytes32(), master, block.COM)
+				assert.Equal(t, block.WIT, vs.votes[master])
+				assert.Equal(t, uint64(0), vs.comVotes)
+
+				vs.AddBlock(RandomBytes32(), master, block.WIT)
+				assert.Equal(t, block.WIT, vs.votes[master])
+				assert.Equal(t, uint64(0), vs.comVotes)
+
+				vs, err = newJustifier(testBft.engine, testBft.repo.BestBlockSummary().Header.ID())
+				if err != nil {
+					t.Fatal(err)
+				}
+				vs.AddBlock(RandomBytes32(), master, block.WIT)
+				assert.Equal(t, block.WIT, vs.votes[master])
+				assert.Equal(t, uint64(0), vs.comVotes)
+
+				vs.AddBlock(RandomBytes32(), master, block.COM)
+				assert.Equal(t, block.WIT, vs.votes[master])
+				assert.Equal(t, uint64(0), vs.comVotes)
+
+				vs.AddBlock(RandomBytes32(), master, block.COM)
+				assert.Equal(t, block.WIT, vs.votes[master])
+				assert.Equal(t, uint64(0), vs.comVotes)
+
+				vs.AddBlock(RandomBytes32(), master, block.WIT)
+				assert.Equal(t, block.WIT, vs.votes[master])
+				assert.Equal(t, uint64(0), vs.comVotes)
 			},
 		},
 	}

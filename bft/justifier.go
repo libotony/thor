@@ -83,9 +83,12 @@ func (js *justifier) AddBlock(blockID thor.Bytes32, signer thor.Address, vote bl
 		if vote == block.COM {
 			js.comVotes++
 		}
-	} else if prev == block.WIT && vote == block.COM {
-		js.votes[signer] = vote
-		js.comVotes++
+	} else if prev != vote {
+		// if one votes both WIT and COM in one round, count as WIT
+		js.votes[signer] = block.WIT
+		if prev == block.COM {
+			js.comVotes--
+		}
 	}
 
 	if js.commitAt == nil && js.comVotes > js.threshold {
