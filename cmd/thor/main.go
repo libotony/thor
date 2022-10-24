@@ -91,6 +91,11 @@ func main() {
 				Name:  "solo",
 				Usage: "client runs in solo mode for test & dev",
 				Flags: []cli.Flag{
+					cli.StringFlag{
+						Name:   networkFlag.Name,
+						Usage:  "path to genesis file",
+						Hidden: true,
+					},
 					dataDirFlag,
 					cacheFlag,
 					apiAddrFlag,
@@ -241,9 +246,18 @@ func soloAction(ctx *cli.Context) error {
 	defer func() { log.Info("exited") }()
 
 	initLogger(ctx)
+
 	gene := genesis.NewDevnet()
-	// Solo forks from the start
+	// Solo default forks from start
 	forkConfig := thor.ForkConfig{}
+
+	if ctx.String(networkFlag.Name) != "" {
+		var err error
+		gene, forkConfig, err = selectGenesis(ctx)
+		if err != nil {
+			return err
+		}
+	}
 
 	var mainDB *muxdb.MuxDB
 	var logDB *logdb.LogDB

@@ -188,6 +188,32 @@ func readPasswordFromNewTTY(prompt string) (string, error) {
 	return pass, err
 }
 
+func parseCustomGenesis(path string) (*genesis.Genesis, thor.ForkConfig, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, thor.ForkConfig{}, errors.Wrap(err, "open genesis file")
+	}
+	defer file.Close()
+
+	decoder := json.NewDecoder(file)
+	decoder.DisallowUnknownFields()
+
+	var forkConfig = thor.NoFork
+	var gen genesis.CustomGenesis
+	gen.ForkConfig = &forkConfig
+
+	if err := decoder.Decode(&gen); err != nil {
+		return nil, thor.ForkConfig{}, errors.Wrap(err, "decode genesis file")
+	}
+
+	customGen, err := genesis.NewCustomNet(&gen)
+	if err != nil {
+		return nil, thor.ForkConfig{}, errors.Wrap(err, "build genesis")
+	}
+
+	return customGen, forkConfig, nil
+}
+
 func selectGenesis(ctx *cli.Context) (*genesis.Genesis, thor.ForkConfig, error) {
 	network := ctx.String(networkFlag.Name)
 	if network == "" {
@@ -203,29 +229,7 @@ func selectGenesis(ctx *cli.Context) (*genesis.Genesis, thor.ForkConfig, error) 
 		gene := genesis.NewMainnet()
 		return gene, thor.GetForkConfig(gene.ID()), nil
 	default:
-		file, err := os.Open(network)
-		if err != nil {
-			return nil, thor.ForkConfig{}, errors.Wrap(err, "open genesis file")
-		}
-		defer file.Close()
-
-		decoder := json.NewDecoder(file)
-		decoder.DisallowUnknownFields()
-
-		var forkConfig = thor.NoFork
-		var gen genesis.CustomGenesis
-		gen.ForkConfig = &forkConfig
-
-		if err := decoder.Decode(&gen); err != nil {
-			return nil, thor.ForkConfig{}, errors.Wrap(err, "decode genesis file")
-		}
-
-		customGen, err := genesis.NewCustomNet(&gen)
-		if err != nil {
-			return nil, thor.ForkConfig{}, errors.Wrap(err, "build genesis")
-		}
-
-		return customGen, forkConfig, nil
+		return parseCustomGenesis(network)
 	}
 }
 
