@@ -12,6 +12,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/mclock"
+	"github.com/ethereum/go-ethereum/event"
 	"github.com/inconshreveable/log15"
 	"github.com/pkg/errors"
 	"github.com/vechain/thor/block"
@@ -87,12 +88,28 @@ func (s *Solo) Run(ctx context.Context) error {
 }
 
 func (s *Solo) loop(ctx context.Context) {
+	ticker := time.NewTicker(time.Duration(1) * time.Second)
+	defer ticker.Stop()
+
+	var scope event.SubscriptionScope
+	defer scope.Close()
+
+	txEvCh := make(chan *txpool.TxEvent, 10)
+	scope.Track((s.txPool.SubscribeTxEvent(txEvCh)))
 	for {
 		select {
 		case <-ctx.Done():
 			log.Info("stopping interval packing service......")
 			return
-		case <-time.After(time.Duration(1) * time.Second):
+		case txEv := <-txEvCh:
+			if s.onDemand {
+				if txEv.Executable != nil && *txEv.Executable {
+					if err := s.packing(tx.Transactions{txEv.Tx}, true); err != nil {
+						log.Error("failed to pack block", "err", err)
+					}
+				}
+			}
+		case <-ticker.C:
 			if left := uint64(time.Now().Unix()) % thor.BlockInterval; left == 0 {
 				if err := s.packing(s.txPool.Executables(), false); err != nil {
 					log.Error("failed to pack block", "err", err)
