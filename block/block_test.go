@@ -94,3 +94,10 @@ func TestBlock(t *testing.T) {
 	assert.Equal(t, block.Header().ID(), bx.Header().ID())
 	assert.Equal(t, block.Header().TxsFeatures(), bx.Header().TxsFeatures())
 }
+
+func FuzzBlock(f *testing.F) {
+	f.Fuzz(func(t *testing.T, raw []byte) {
+		var blk Block
+		rlp.DecodeBytes(raw, &blk)
+	})
+}

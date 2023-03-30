@@ -7,9 +7,13 @@ DISCO_VERSION = $(shell cat cmd/disco/VERSION)
 
 PACKAGES = `go list ./... | grep -v '/vendor/'`
 
+REQUIRED_GO_MAJOR = 1
+REQUIRED_GO_MINOR = 16
 MAJOR = $(shell go version | cut -d' ' -f3 | cut -b 3- | cut -d. -f1)
 MINOR = $(shell go version | cut -d' ' -f3 | cut -b 3- | cut -d. -f2)
 export GO111MODULE=on
+
+FUZZTIME=5s
 
 .PHONY: thor disco all clean test
 
@@ -27,12 +31,12 @@ dep:| go_version_check
 	@go mod download
 
 go_version_check:
-	@if test $(MAJOR) -lt 1; then \
-		echo "Go 1.16 or higher required"; \
+	@if test $(MAJOR) -lt $(REQUIRED_GO_MAJOR); then \
+		echo "Go $(REQUIRED_GO_MAJOR).$(REQUIRED_GO_MINOR) or higher required"; \
 		exit 1; \
 	else \
-		if test $(MAJOR) -eq 1 -a $(MINOR) -lt 16; then \
-			echo "Go 1.16 or higher required"; \
+		if test $(MAJOR) -eq  $(REQUIRED_GO_MAJOR) -a $(MINOR) -lt $(REQUIRED_GO_MINOR); then \
+			echo "Go $(REQUIRED_GO_MAJOR).$(REQUIRED_GO_MINOR) or higher required"; \
 			exit 1; \
 		fi \
 	fi
@@ -47,3 +51,5 @@ $(CURDIR)/bin/disco
 test:| go_version_check
 	@go test -cover $(PACKAGES)
 
+fuzz:| go_version_check
+	@go test -fuzz=Fuzz -fuzztime=$(FUZZTIME) github.com/vechain/thor/block 
