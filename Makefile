@@ -51,5 +51,5 @@ $(CURDIR)/bin/disco
 test:| go_version_check
 	@go test -cover $(PACKAGES)
 
-fuzz:| go_version_check
-	@go test -fuzz=Fuzz -fuzztime=$(FUZZTIME) github.com/vechain/thor/block 
+fuzztest:| go_version_check
+	go test -fuzz=Fuzz -fuzztime=$(FUZZTIME) github.com/vechain/thor/fuzz/tests 
