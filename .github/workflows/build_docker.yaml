@@ -1,4 +1,4 @@
-name: Push docker images
+name: Publish docker image
 
 on:
   push:
@@ -6,11 +6,13 @@ on:
     - 'v*'
 
 jobs:
-  docker:
+  push_to_registries:
     runs-on: ubuntu-latest
     permissions:
       packages: write
       contents: read
+    env:
+      BUILDX_NO_DEFAULT_ATTESTATIONS: 1
 
     steps:
       - uses: actions/checkout@v3
@@ -48,6 +50,7 @@ jobs:
         uses: docker/build-push-action@v4
         with:
           context: .
+          platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
