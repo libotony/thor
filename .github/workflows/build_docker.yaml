@@ -11,8 +11,6 @@ jobs:
     permissions:
       packages: write
       contents: read
-    env:
-      BUILDX_NO_DEFAULT_ATTESTATIONS: 1
 
     steps:
       - uses: actions/checkout@v3
@@ -54,3 +52,5 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+        env:
+          BUILDX_NO_DEFAULT_ATTESTATIONS: 1
