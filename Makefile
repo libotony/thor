@@ -7,9 +7,13 @@ DISCO_VERSION = $(shell cat cmd/disco/VERSION)
 
 PACKAGES = `go list ./... | grep -v '/vendor/'`
 
+REQUIRED_GO_MAJOR = 1
+REQUIRED_GO_MINOR = 16
 MAJOR = $(shell go version | cut -d' ' -f3 | cut -b 3- | cut -d. -f1)
 MINOR = $(shell go version | cut -d' ' -f3 | cut -b 3- | cut -d. -f2)
 export GO111MODULE=on
+
+FUZZTIME=5s
 
 .PHONY: thor disco all clean test
 
@@ -27,12 +31,12 @@ dep:| go_version_check
 	@go mod download
 
 go_version_check:
-	@if test $(MAJOR) -lt 1; then \
-		echo "Go 1.16 or higher required"; \
+	@if test $(MAJOR) -lt $(REQUIRED_GO_MAJOR); then \
+		echo "Go $(REQUIRED_GO_MAJOR).$(REQUIRED_GO_MINOR) or higher required"; \
 		exit 1; \
 	else \
-		if test $(MAJOR) -eq 1 -a $(MINOR) -lt 16; then \
-			echo "Go 1.16 or higher required"; \
+		if test $(MAJOR) -eq  $(REQUIRED_GO_MAJOR) -a $(MINOR) -lt $(REQUIRED_GO_MINOR); then \
+			echo "Go $(REQUIRED_GO_MAJOR).$(REQUIRED_GO_MINOR) or higher required"; \
 			exit 1; \
 		fi \
 	fi
@@ -48,11 +52,11 @@ test:| go_version_check
 	@go test -cover $(PACKAGES)
 
 fuzz:| go_version_check
-	@go test -fuzz=FuzzBitmap -fuzztime=1800s github.com/vechain/thor/vm/
-	@go test -fuzz=FuzzContract -fuzztime=1800s github.com/vechain/thor/vm/
-	@go test -fuzz=FuzzReserved -fuzztime=1800s github.com/vechain/thor/tx/
-	@go test -fuzz=FuzzTransaction -fuzztime=1800s github.com/vechain/thor/tx/
-	@go test -fuzz=FuzzParseNode -fuzztime=1800s github.com/vechain/thor/p2psrv/discv5/
-	@go test -fuzz=FuzzPacket -fuzztime=1800s github.com/vechain/thor/p2psrv/discv5/
-	@go test -fuzz=FuzzBlock -fuzztime=1800s github.com/vechain/thor/block/
-	@go test -fuzz=FuzzHeader -fuzztime=1800s github.com/vechain/thor/block/
+	@go test -fuzz=FuzzBitmap -fuzztime=$(FUZZTIME) github.com/vechain/thor/vm/
+	@go test -fuzz=FuzzContract -fuzztime=$(FUZZTIME) github.com/vechain/thor/vm/
+	@go test -fuzz=FuzzReserved -fuzztime=$(FUZZTIME) github.com/vechain/thor/tx/
+	@go test -fuzz=FuzzTransaction -fuzztime=$(FUZZTIME) github.com/vechain/thor/tx/
+	@go test -fuzz=FuzzParseNode -fuzztime=$(FUZZTIME) github.com/vechain/thor/p2psrv/discv5/
+	@go test -fuzz=FuzzPacket -fuzztime=$(FUZZTIME) github.com/vechain/thor/p2psrv/discv5/
+	@go test -fuzz=FuzzBlock -fuzztime=$(FUZZTIME) github.com/vechain/thor/block/
+	@go test -fuzz=FuzzHeader -fuzztime=$(FUZZTIME) github.com/vechain/thor/block/
