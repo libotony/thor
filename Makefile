@@ -52,11 +52,9 @@ test:| go_version_check
 	@go test -cover $(PACKAGES)
 
 fuzz:| go_version_check
-	@go test -fuzz=FuzzBitmap -fuzztime=$(FUZZTIME) github.com/vechain/thor/vm/
-	@go test -fuzz=FuzzContract -fuzztime=$(FUZZTIME) github.com/vechain/thor/vm/
-	@go test -fuzz=FuzzReserved -fuzztime=$(FUZZTIME) github.com/vechain/thor/tx/
+	@go test -fuzz=FuzzBlock -fuzztime=$(FUZZTIME) github.com/vechain/thor/block/
 	@go test -fuzz=FuzzTransaction -fuzztime=$(FUZZTIME) github.com/vechain/thor/tx/
 	@go test -fuzz=FuzzParseNode -fuzztime=$(FUZZTIME) github.com/vechain/thor/p2psrv/discv5/
 	@go test -fuzz=FuzzPacket -fuzztime=$(FUZZTIME) github.com/vechain/thor/p2psrv/discv5/
-	@go test -fuzz=FuzzBlock -fuzztime=$(FUZZTIME) github.com/vechain/thor/block/
-	@go test -fuzz=FuzzHeader -fuzztime=$(FUZZTIME) github.com/vechain/thor/block/
+	@go test -fuzz=FuzzBitmap -fuzztime=$(FUZZTIME) github.com/vechain/thor/vm/
+	@go test -fuzz=FuzzContract -fuzztime=$(FUZZTIME) github.com/vechain/thor/vm/
