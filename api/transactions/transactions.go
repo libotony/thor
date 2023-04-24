@@ -150,7 +150,7 @@ func (t *Transactions) handleGetTransactionByID(w http.ResponseWriter, req *http
 	}
 	if _, err := t.repo.GetBlockSummary(head); err != nil {
 		if t.repo.IsNotFound(err) {
-			return utils.BadRequest(errors.WithMessage(err, "head"))
+			return utils.BadRequest(errors.New("head: not found"))
 		}
 	}
 
@@ -191,7 +191,7 @@ func (t *Transactions) handleGetTransactionReceiptByID(w http.ResponseWriter, re
 
 	if _, err := t.repo.GetBlockSummary(head); err != nil {
 		if t.repo.IsNotFound(err) {
-			return utils.BadRequest(errors.WithMessage(err, "head"))
+			return utils.BadRequest(errors.New("head: not found"))
 		}
 	}
 

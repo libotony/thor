@@ -323,7 +323,7 @@ func (a *Accounts) handleRevision(revision string) (*chain.BlockSummary, error) 
 		summary, err := a.repo.GetBlockSummary(blockID)
 		if err != nil {
 			if a.repo.IsNotFound(err) {
-				return nil, utils.BadRequest(errors.WithMessage(err, "revision"))
+				return nil, utils.BadRequest(errors.New("revision: not found"))
 			}
 			return nil, err
 		}
@@ -339,7 +339,7 @@ func (a *Accounts) handleRevision(revision string) (*chain.BlockSummary, error) 
 	summary, err := a.repo.NewBestChain().GetBlockSummary(uint32(n))
 	if err != nil {
 		if a.repo.IsNotFound(err) {
-			return nil, utils.BadRequest(errors.WithMessage(err, "revision"))
+			return nil, utils.BadRequest(errors.New("revision: not found"))
 		}
 		return nil, err
 	}
