@@ -323,7 +323,7 @@ func (p *TxPool) Executables() tx.Transactions {
 }
 
 // Fill fills txs into pool.
-func (p *TxPool) Fill(txs tx.Transactions, localSubmitted bool) {
+func (p *TxPool) Fill(txs tx.Transactions) {
 	txObjs := make([]*txObject, 0, len(txs))
 	for _, tx := range txs {
 		origin, _ := tx.Origin()
@@ -331,7 +331,7 @@ func (p *TxPool) Fill(txs tx.Transactions, localSubmitted bool) {
 			continue
 		}
 		// here we ignore errors
-		if txObj, err := resolveTx(tx, localSubmitted); err == nil {
+		if txObj, err := resolveTx(tx, false); err == nil {
 			txObjs = append(txObjs, txObj)
 		}
 	}
