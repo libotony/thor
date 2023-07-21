@@ -138,4 +138,9 @@ var (
 		Value: 16,
 		Usage: "set tx limit per account in pool",
 	}
+	verifyTracerFlag = cli.BoolFlag{
+		Name:   "verify-tracer",
+		Usage:  "verify tracer startup",
+		Hidden: true,
+	}
 )

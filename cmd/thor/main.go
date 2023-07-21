@@ -84,6 +84,7 @@ func main() {
 			pprofFlag,
 			verifyLogsFlag,
 			disablePrunerFlag,
+			verifyTracerFlag,
 		},
 		Action: defaultAction,
 		Commands: []cli.Command{
@@ -173,6 +174,12 @@ func defaultAction(ctx *cli.Context) error {
 
 	if !skipLogs {
 		if err := syncLogDB(exitSignal, repo, logDB, ctx.Bool(verifyLogsFlag.Name)); err != nil {
+			return err
+		}
+	}
+
+	if ctx.Bool(verifyTracerFlag.Name) {
+		if err := verifyTracer(exitSignal, repo, state.NewStater(mainDB), forkConfig, 0); err != nil {
 			return err
 		}
 	}
