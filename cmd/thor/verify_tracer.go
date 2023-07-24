@@ -149,6 +149,7 @@ func runTracer(b *block.Block, cons *consensus.Consensus, name string, config js
 				TxID:        tx.ID(),
 				TxIndex:     txIndex,
 				ClauseIndex: clauseCounter,
+				State:       rt.State(),
 			})
 			rt.SetVMConfig(vm.Config{Tracer: tracer, Debug: true})
 
