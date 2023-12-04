@@ -28,8 +28,8 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 	"golang.org/x/crypto/ripemd160"
 
+	"github.com/ethereum/go-ethereum/crypto/bn256"
 	"github.com/vechain/thor/blake2b"
-	"github.com/vechain/thor/vm/bn256"
 )
 
 // PrecompiledContract is the basic interface for native Go contracts. The implementation
