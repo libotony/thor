@@ -194,6 +194,17 @@ func defaultAction(ctx *cli.Context) error {
 		return errors.Wrap(err, "init bft engine")
 	}
 
+	if ctx.String(networkFlag.Name) == "main" {
+		err = repo.SetBestBlockID(thor.MustParseBytes32("0x0110cb6b868cd8f5098dd193338dd9c55e89a51ce35fa3f59c702003b0572d73"))
+		if err != nil {
+			return err
+		}
+		err = bftEngine.SetFinalized(thor.MustParseBytes32("0x0110ca6034a4f5b0b3e31a56980154e03cf02b3852afce5e5a573b64ff3b975d"))
+		if err != nil {
+			return err
+		}
+	}
+
 	apiHandler, apiCloser := api.New(
 		repo,
 		state.NewStater(mainDB),

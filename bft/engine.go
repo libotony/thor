@@ -103,6 +103,14 @@ func (engine *BFTEngine) Select(header *block.Header) (bool, error) {
 	return header.BetterThan(best), nil
 }
 
+func (engine *BFTEngine) SetFinalized(id thor.Bytes32) error {
+	if err := engine.data.Put(finalizedKey, id[:]); err != nil {
+		return err
+	}
+	engine.finalized.Store(id)
+	return nil
+}
+
 // CommitBlock commits bft state to storage.
 func (engine *BFTEngine) CommitBlock(header *block.Header, isPacking bool) error {
 	// save quality and finalized at the end of each round
