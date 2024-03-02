@@ -22,7 +22,6 @@ import (
 	"github.com/vechain/thor/api"
 	"github.com/vechain/thor/bft"
 	"github.com/vechain/thor/cmd/thor/node"
-	"github.com/vechain/thor/cmd/thor/optimizer"
 	"github.com/vechain/thor/cmd/thor/solo"
 	"github.com/vechain/thor/genesis"
 	"github.com/vechain/thor/logdb"
@@ -223,8 +222,8 @@ func defaultAction(ctx *cli.Context) error {
 	}
 	defer p2pcom.Stop()
 
-	optimizer := optimizer.New(mainDB, repo, !ctx.Bool(disablePrunerFlag.Name))
-	defer func() { log.Info("stopping optimizer..."); optimizer.Stop() }()
+	// optimizer := optimizer.New(mainDB, repo, !ctx.Bool(disablePrunerFlag.Name))
+	// defer func() { log.Info("stopping optimizer..."); optimizer.Stop() }()
 
 	return node.New(
 		master,
@@ -317,8 +316,8 @@ func soloAction(ctx *cli.Context) error {
 
 	printSoloStartupMessage(gene, repo, instanceDir, apiURL, forkConfig)
 
-	optimizer := optimizer.New(mainDB, repo, !ctx.Bool(disablePrunerFlag.Name))
-	defer func() { log.Info("stopping optimizer..."); optimizer.Stop() }()
+	// optimizer := optimizer.New(mainDB, repo, !ctx.Bool(disablePrunerFlag.Name))
+	// defer func() { log.Info("stopping optimizer..."); optimizer.Stop() }()
 
 	return solo.New(repo,
 		state.NewStater(mainDB),
