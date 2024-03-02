@@ -297,6 +297,9 @@ func (n *Node) guardBlockProcessing(blockNum uint32, process func(conflicts uint
 func (n *Node) processBlock(newBlock *block.Block, stats *blockStats) (bool, error) {
 	var isTrunk *bool
 
+	if newBlock.Header().ID() == thor.MustParseBytes32("0x0110d2be636a509025e47ff122d373878535a34a295ae765a1d5942b90f68836") || newBlock.Header().ID() == thor.MustParseBytes32("0x0110cb6caba7df25454d9ad5e1ae3528f456f9ff567026e5f60b9a42628e65d6") {
+		return false, errors.New("block rejected")
+	}
 	if err := n.guardBlockProcessing(newBlock.Header().Number(), func(conflicts uint32) error {
 		// Check whether the block was already there.
 		// It can be skipped if no conflicts.
