@@ -5,6 +5,7 @@
 package bft
 
 import (
+	"fmt"
 	"sort"
 	"sync/atomic"
 
@@ -144,6 +145,16 @@ func (engine *BFTEngine) CommitBlock(header *block.Header, isPacking bool) error
 		engine.casts.Mark(checkpoint, state.Quality)
 	}
 
+	return nil
+}
+
+func (engine *BFTEngine) GetState(header *block.Header) error {
+	st, err := engine.computeState(header)
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("Number: %d, ID:%s, Quality: %d, Justified: %t, Committed: %t", header.Number(), header.ID(), st.Quality, st.Justified, st.Committed)
 	return nil
 }
 
