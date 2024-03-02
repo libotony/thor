@@ -154,7 +154,7 @@ func (engine *BFTEngine) GetState(header *block.Header) error {
 		return err
 	}
 
-	fmt.Printf("Number: %d, ID:%s, Quality: %d, Justified: %t, Committed: %t", header.Number(), header.ID(), st.Quality, st.Justified, st.Committed)
+	fmt.Printf("Number: %d, ID:%s, Quality: %d, Justified: %t, Committed: %t\n", header.Number(), header.ID(), st.Quality, st.Justified, st.Committed)
 	return nil
 }
 

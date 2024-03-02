@@ -5,6 +5,8 @@
 package bft
 
 import (
+	"fmt"
+
 	"github.com/vechain/thor/block"
 	"github.com/vechain/thor/thor"
 )
@@ -68,6 +70,7 @@ func (engine *BFTEngine) newJustifier(parentID thor.Bytes32) (*justifier, error)
 
 // AddBlock adds a new block to the set.
 func (js *justifier) AddBlock(blockID thor.Bytes32, signer thor.Address, isCOM bool) {
+	fmt.Printf("BlockID: %s, Signer: %s, isCOM: %t\n", blockID, signer, isCOM)
 	if prev, ok := js.votes[signer]; !ok {
 		js.votes[signer] = isCOM
 		if isCOM {
