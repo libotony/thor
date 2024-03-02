@@ -21,6 +21,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/vechain/thor/api"
 	"github.com/vechain/thor/bft"
+	"github.com/vechain/thor/block"
 	"github.com/vechain/thor/cmd/thor/node"
 	"github.com/vechain/thor/cmd/thor/optimizer"
 	"github.com/vechain/thor/cmd/thor/solo"
@@ -192,6 +193,24 @@ func defaultAction(ctx *cli.Context) error {
 	bftEngine, err := bft.NewEngine(repo, mainDB, forkConfig, master.Address())
 	if err != nil {
 		return errors.Wrap(err, "init bft engine")
+	}
+
+	bestChain := repo.NewBestChain()
+	heads, err := repo.ScanHeads(block.Number(bftEngine.Finalized()))
+	if err != nil {
+		return err
+	}
+
+	for _, h := range heads {
+		has, err := bestChain.HasBlock(h)
+		if err != nil {
+			return err
+		}
+		if !has {
+			if err := repo.RemoveHead(h); err != nil {
+				return err
+			}
+		}
 	}
 
 	apiHandler, apiCloser := api.New(

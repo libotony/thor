@@ -417,3 +417,7 @@ func (r *Repository) IsNotFound(err error) bool {
 func (r *Repository) NewTicker() co.Waiter {
 	return r.tick.NewWaiter()
 }
+
+func (r *Repository) RemoveHead(id thor.Bytes32) error {
+	return r.head.Delete(id[:])
+}
