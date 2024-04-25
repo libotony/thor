@@ -10,7 +10,7 @@ jobs:
     name: Run Unit Tests
     uses: ./.github/workflows/test.yaml
     secrets:
-      CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+      secrets: inherit
 
   lint:
     name: Lint
