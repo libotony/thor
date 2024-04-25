@@ -45,6 +45,9 @@ Do note that our [Code of Conduct](./docs/CODE_OF_CONDUCT.md) applies to all vec
 
 ---
 
+
+
+
 ## Contributing
 
 Contributions to VechainThor are welcome and highly appreciated. However, before you jump right into it, we would like
