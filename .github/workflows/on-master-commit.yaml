@@ -9,8 +9,7 @@ jobs:
   run-unit-tests:
     name: Run Unit Tests
     uses: ./.github/workflows/test.yaml
-    secrets:
-      secrets: inherit
+    secrets: inherit
 
   lint:
     name: Lint
