@@ -305,6 +305,7 @@ func (s *Server) dialLoop() {
 					log.Debug("failed to dial node", "err", err)
 				}
 			}()
+			s.discoveredNodes.Remove(node.ID)
 
 			dialCount++
 		case <-s.done:
