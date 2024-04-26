@@ -200,7 +200,6 @@ func (s *Server) listenDiscV5() (err error) {
 	for _, node := range s.opts.BootstrapNodes {
 		s.bootstrapNodes = append(s.bootstrapNodes, discv5.NewNode(discv5.NodeID(node.ID), node.IP, node.UDP, node.TCP))
 	}
-	// known nodes can also work as bootstrap server
 	for _, node := range s.opts.KnownNodes {
 		s.bootstrapNodes = append(s.bootstrapNodes, discv5.NewNode(discv5.NodeID(node.ID), node.IP, node.UDP, node.TCP))
 	}
@@ -304,10 +303,6 @@ func (s *Server) dialLoop() {
 				if err := s.tryDial(node); err != nil {
 					s.dialingNodes.Remove(node.ID)
 					log.Debug("failed to dial node", "err", err)
-				}
-				// successfully connected to the node
-				if removed := s.discoveredNodes.Remove(node); !removed {
-					log.Error("unable to remove a discovered node - this should never happen")
 				}
 			}()
 
