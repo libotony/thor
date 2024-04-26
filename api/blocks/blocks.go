@@ -13,6 +13,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/pkg/errors"
 	"github.com/vechain/thor/v2/api/utils"
+	"github.com/vechain/thor/v2/bft"
 	"github.com/vechain/thor/v2/block"
 	"github.com/vechain/thor/v2/chain"
 	"github.com/vechain/thor/v2/thor"
@@ -20,10 +21,10 @@ import (
 
 type Blocks struct {
 	repo *chain.Repository
-	bft  BFTEngine
+	bft  bft.Finalizer
 }
 
-func New(repo *chain.Repository, bft BFTEngine) *Blocks {
+func New(repo *chain.Repository, bft bft.Finalizer) *Blocks {
 	return &Blocks{
 		repo,
 		bft,

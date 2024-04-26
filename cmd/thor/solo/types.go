@@ -6,6 +6,7 @@
 package solo
 
 import (
+	"github.com/vechain/thor/v2/bft"
 	"github.com/vechain/thor/v2/chain"
 	"github.com/vechain/thor/v2/comm"
 	"github.com/vechain/thor/v2/thor"
@@ -29,7 +30,7 @@ func (engine *BFTEngine) Finalized() thor.Bytes32 {
 	return engine.finalized
 }
 
-func NewBFTEngine(repo *chain.Repository) *BFTEngine {
+func NewBFTEngine(repo *chain.Repository) bft.Finalizer {
 	return &BFTEngine{
 		finalized: repo.GenesisBlock().Header().ID(),
 	}
