@@ -69,9 +69,9 @@ func BenchmarkFakeDB_NewestBlockID(t *testing.B) {
 		},
 	}
 
+	t.ResetTimer()
 	for _, tt := range tests {
 		t.Run(tt.name, func(b *testing.B) {
-			t.ResetTimer()
 			for i := 0; i < b.N; i++ {
 				want, err := tt.prepare()
 				require.NoError(t, err)
@@ -104,8 +104,8 @@ func BenchmarkFakeDB_WriteBlocks(t *testing.B) {
 				Build()
 			receipts := tx.Receipts{newReceipt(), newReceipt()}
 			require.NoError(t, w.Write(b, receipts))
-			require.NoError(t, w.Commit())
 		}
+		require.NoError(t, w.Commit())
 	}
 }
 
@@ -157,17 +157,18 @@ func BenchmarkTestDB_FilterEvents(b *testing.B) {
 		name string
 		arg  *logdb.EventFilter
 	}{
-		{"AddressCriteriaFilter", &logdb.EventFilter{CriteriaSet: addressFilterCriteria, Options: &logdb.Options{Offset: 0, Limit: 500000}}},
-		{"TopicCriteriaFilter", &logdb.EventFilter{CriteriaSet: topicFilterCriteria, Options: &logdb.Options{Offset: 0, Limit: 500000}}},
-		{"EventLimit", &logdb.EventFilter{Order: logdb.ASC, Options: &logdb.Options{Offset: 0, Limit: 500000}}},
-		{"EventLimitDesc", &logdb.EventFilter{Order: logdb.DESC, Options: &logdb.Options{Offset: 0, Limit: 500000}}},
-		{"EventRange", &logdb.EventFilter{Range: &logdb.Range{From: 500000, To: 1_000_000}}},
-		{"EventRangeDesc", &logdb.EventFilter{Range: &logdb.Range{From: 500000, To: 1_000_000}, Order: logdb.DESC}},
+		{"Empty Response", &logdb.EventFilter{CriteriaSet: []*logdb.EventCriteria{{Address: &thor.Address{0x1}}}, Options: &logdb.Options{Offset: 0, Limit: 500_000}}},
+		{"AddressCriteriaFilter", &logdb.EventFilter{CriteriaSet: addressFilterCriteria, Options: &logdb.Options{Offset: 0, Limit: 500_000}}},
+		{"TopicCriteriaFilter", &logdb.EventFilter{CriteriaSet: topicFilterCriteria, Options: &logdb.Options{Offset: 0, Limit: 500_000}}},
+		{"EventLimit", &logdb.EventFilter{Order: logdb.ASC, Options: &logdb.Options{Offset: 0, Limit: 500_000}}},
+		{"EventLimitDesc", &logdb.EventFilter{Order: logdb.DESC, Options: &logdb.Options{Offset: 0, Limit: 500_000}}},
+		{"EventRange", &logdb.EventFilter{Range: &logdb.Range{From: 500_000, To: 1_000_000}}},
+		{"EventRangeDesc", &logdb.EventFilter{Range: &logdb.Range{From: 500_000, To: 1_000_000}, Order: logdb.DESC}},
 	}
 
+	b.ResetTimer()
 	for _, tt := range tests {
 		b.Run(tt.name, func(b *testing.B) {
-			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
 				_, err = db.FilterEvents(context.Background(), tt.arg)
 				if err != nil {
@@ -198,15 +199,16 @@ func BenchmarkTestDB_FilterTransfers(b *testing.B) {
 		name string
 		arg  *logdb.TransferFilter
 	}{
+		{"Empty Response", &logdb.TransferFilter{CriteriaSet: []*logdb.TransferCriteria{{TxOrigin: &thor.Address{0x1}}}, Options: &logdb.Options{Offset: 0, Limit: 500_000}}},
 		{"TransferCriteria", &logdb.TransferFilter{CriteriaSet: transferCriteria, Options: &logdb.Options{Offset: 0, Limit: 500_000}}},
 		{"TransferCriteriaDesc", &logdb.TransferFilter{Order: logdb.DESC, CriteriaSet: transferCriteria, Options: &logdb.Options{Offset: 0, Limit: 500_000}}},
 		{"Ranged500K", &logdb.TransferFilter{Range: &logdb.Range{From: 500_000, To: 1_000_000}}},
 		{"Ranged500KDesc", &logdb.TransferFilter{Range: &logdb.Range{From: 500_000, To: 1_000_000}, Order: logdb.DESC}},
 	}
 
+	b.ResetTimer()
 	for _, tt := range tests {
 		b.Run(tt.name, func(b *testing.B) {
-			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
 				_, err = db.FilterTransfers(context.Background(), tt.arg)
 				if err != nil {
