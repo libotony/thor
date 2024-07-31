@@ -24,6 +24,7 @@ type ChainConfig struct {
 	params.ChainConfig
 	IstanbulBlock *big.Int // Istanbul switch block (nil = no fork, 0 = already on istanbul)
 	ShanghaiBlock *big.Int // Shanghai switch block (nil = no fork, 0 = already on shanghai)
+	CancunBlock   *big.Int // Cancun switch block (nil = no fork, 0 = already on cancun)
 }
 
 // IsIstanbul returns whether num is either equal to the Istanbul fork block or greater.
@@ -34,6 +35,11 @@ func (c *ChainConfig) IsIstanbul(num *big.Int) bool {
 // IsShanghai returns whether num is either equal to the Shanghai fork block or greater.
 func (c *ChainConfig) IsShanghai(num *big.Int) bool {
 	return isForked(c.ShanghaiBlock, num)
+}
+
+// IsCancun returns whether num is either equal to the Cancun fork block or greater.
+func (c *ChainConfig) IsCancun(num *big.Int) bool {
+	return isForked(c.CancunBlock, num)
 }
 
 // Rules wraps ChainConfig and is merely syntatic sugar or can be used for functions
@@ -47,6 +53,7 @@ type Rules struct {
 	IsByzantium                               bool
 	IsIstanbul                                bool
 	IsShanghai                                bool
+	IsCancun                                  bool
 }
 
 // Rules ensures c's ChainID is not nil.
@@ -64,5 +71,6 @@ func (c *ChainConfig) Rules(num *big.Int) Rules {
 		IsByzantium: c.IsByzantium(num),
 		IsIstanbul:  c.IsIstanbul((num)),
 		IsShanghai:  c.IsShanghai((num)),
+		IsCancun:    c.IsCancun((num)),
 	}
 }

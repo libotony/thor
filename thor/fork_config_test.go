@@ -20,6 +20,7 @@ func TestForkConfigString(t *testing.T) {
 		VIP214:    math.MaxUint32,
 		FINALITY:  math.MaxUint32,
 		ETH_SH:    math.MaxUint32,
+		ETH_CAN:   math.MaxUint32,
 	}
 
 	expectedStr := "VIP191: #1, BLOCKLIST: #2"

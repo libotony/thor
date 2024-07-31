@@ -20,6 +20,7 @@ type ForkConfig struct {
 	VIP214    uint32
 	FINALITY  uint32
 	ETH_SH    uint32
+	ETH_CAN   uint32
 }
 
 func (fc ForkConfig) String() string {
@@ -37,6 +38,7 @@ func (fc ForkConfig) String() string {
 	push("VIP214", fc.VIP214)
 	push("FINALITY", fc.FINALITY)
 	push("ETH_SH", fc.ETH_SH)
+	push("ETH_CAN", fc.ETH_CAN)
 
 	return strings.Join(strs, ", ")
 }
@@ -50,6 +52,7 @@ var NoFork = ForkConfig{
 	VIP214:    math.MaxUint32,
 	FINALITY:  math.MaxUint32,
 	ETH_SH:    math.MaxUint32,
+	ETH_CAN:   math.MaxUint32,
 }
 
 // for well-known networks
@@ -63,6 +66,7 @@ var forkConfigs = map[Bytes32]ForkConfig{
 		VIP214:    10653500,
 		FINALITY:  13815000, // ~ Thu, 17 Nov 2022 08:09:50 GMT
 		ETH_SH:    math.MaxUint32,
+		ETH_CAN:   math.MaxUint32,
 	},
 	// testnet
 	MustParseBytes32("0x000000000b2bce3c70bc649a02749e8687721b09ed2e15997f466536b20bb127"): {
@@ -73,6 +77,7 @@ var forkConfigs = map[Bytes32]ForkConfig{
 		VIP214:    10606800,
 		FINALITY:  13086360, // ~ Fri, 19 Aug 2022 08:00:00 GMT
 		ETH_SH:    math.MaxUint32,
+		ETH_CAN:   math.MaxUint32,
 	},
 }
 
