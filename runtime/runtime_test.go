@@ -7,6 +7,7 @@ package runtime_test
 
 import (
 	"encoding/hex"
+	"fmt"
 	"math"
 	"math/big"
 	"testing"
@@ -23,8 +24,11 @@ import (
 	"github.com/vechain/thor/v2/state"
 	"github.com/vechain/thor/v2/thor"
 	"github.com/vechain/thor/v2/tx"
+	"github.com/vechain/thor/v2/vm"
 	"github.com/vechain/thor/v2/xenv"
 )
+
+var forkFromStart = thor.ForkConfig{}
 
 func M(a ...interface{}) []interface{} {
 	return a
@@ -39,13 +43,15 @@ func TestEVMFunction(t *testing.T) {
 		method *abi.Method
 	}
 
-	tests := []struct {
+	type testcase = struct {
 		name       string
 		code       string
 		abi        string
 		methodName string
 		testFunc   func(*context, *testing.T)
-	}{
+	}
+
+	baseTests := []testcase{
 		{
 			name:       "Contract Suicide",
 			code:       "608060405260043610603f576000357c0100000000000000000000000000000000000000000000000000000000900463ffffffff168063085da1b3146044575b600080fd5b348015604f57600080fd5b5060566058565b005b3373ffffffffffffffffffffffffffffffffffffffff16ff00a165627a7a723058204cb70b653a3d1821e00e6ade869638e80fa99719931c9fa045cec2189d94086f0029",
@@ -127,7 +133,7 @@ func TestEVMFunction(t *testing.T) {
 					t.Fatal(err)
 				}
 
-				exec, _ := runtime.New(ctx.chain, ctx.state, &xenv.BlockContext{}, thor.ForkConfig{}).
+				exec, _ := runtime.New(ctx.chain, ctx.state, &xenv.BlockContext{}, forkFromStart).
 					PrepareClause(tx.NewClause(&target).WithData(methodData), 0, math.MaxUint64, &xenv.TransactionContext{})
 				out, _, err := exec()
 				assert.Nil(t, err)
@@ -156,13 +162,13 @@ func TestEVMFunction(t *testing.T) {
 					t.Fatal(err)
 				}
 
-				exec, _ := runtime.New(ctx.chain, ctx.state, &xenv.BlockContext{}, thor.ForkConfig{}).
+				exec, _ := runtime.New(ctx.chain, ctx.state, &xenv.BlockContext{}, forkFromStart).
 					PrepareClause(tx.NewClause(&target).WithData(methodData), 0, math.MaxUint64, &xenv.TransactionContext{})
 				out, _, err := exec()
 				assert.Nil(t, err)
 				assert.Nil(t, out.VMErr)
 
-				assert.True(t, new(big.Int).SetBytes(out.Data).Cmp(big.NewInt(100)) == 0)
+				assert.Equal(t, new(big.Int).SetBytes(out.Data).Uint64(), uint64(100))
 			},
 		}, {
 			name:       "Blake2F",
@@ -217,7 +223,7 @@ func TestEVMFunction(t *testing.T) {
 					t.Fatal(err)
 				}
 
-				exec, _ := runtime.New(ctx.chain, ctx.state, &xenv.BlockContext{}, thor.ForkConfig{}).
+				exec, _ := runtime.New(ctx.chain, ctx.state, &xenv.BlockContext{}, forkFromStart).
 					PrepareClause(tx.NewClause(&target).WithData(methodData), 0, math.MaxUint64, &xenv.TransactionContext{})
 				out, _, err := exec()
 				assert.Nil(t, err)
@@ -230,6 +236,9 @@ func TestEVMFunction(t *testing.T) {
 				assert.Equal(t, thor.MustParseBytes32("7d87c5392aab792dc252d5de4533cc9518d38aa8dbf1925ab92386edd4009923"), thor.Bytes32(hashes[1]))
 			},
 		},
+	}
+
+	shanghaiTests := []testcase{
 		{
 			name:       "pre ETH_SH deploy 0xEF started contract code",
 			code:       "",
@@ -256,7 +265,7 @@ func TestEVMFunction(t *testing.T) {
 				for _, calldata := range failingCalldata {
 					code, _ := hex.DecodeString(calldata)
 
-					exec, _ := runtime.New(ctx.chain, ctx.state, &xenv.BlockContext{}, thor.ForkConfig{}).
+					exec, _ := runtime.New(ctx.chain, ctx.state, &xenv.BlockContext{}, forkFromStart).
 						PrepareClause(tx.NewClause(nil).WithData(code), 0, math.MaxUint64, &xenv.TransactionContext{})
 					out, _, err := exec()
 
@@ -274,48 +283,7 @@ func TestEVMFunction(t *testing.T) {
 			testFunc: func(ctx *context, t *testing.T) {
 				code, _ := hex.DecodeString("60ee60005360016000f3")
 
-				exec, _ := runtime.New(ctx.chain, ctx.state, &xenv.BlockContext{}, thor.ForkConfig{}).
-					PrepareClause(tx.NewClause(nil).WithData(code), 0, math.MaxUint64, &xenv.TransactionContext{})
-				out, _, err := exec()
-
-				assert.Nil(t, err)
-				assert.Nil(t, out.VMErr)
-			},
-		},
-		{
-			name:       "pre ETH_SH PUSH0",
-			code:       "",
-			abi:        "",
-			methodName: "",
-			testFunc: func(ctx *context, t *testing.T) {
-				// pragma solidity >=0.7.0 <0.9.0;
-				// contract Simple {
-				//     constructor() {}
-				// }
-				code, _ := hex.DecodeString("6080604052348015600e575f80fd5b50603e80601a5f395ff3fe60806040525f80fdfea2646970667358221220268d147b82c3959e7339f440b5861d98384629b096f1eac3e2ce7c55ebdc2daf64736f6c63430008180033")
-
-				exec, _ := runtime.New(ctx.chain, ctx.state, &xenv.BlockContext{}, thor.NoFork).
-					PrepareClause(tx.NewClause(nil).WithData(code), 0, math.MaxUint64, &xenv.TransactionContext{})
-				out, _, err := exec()
-
-				assert.Nil(t, err)
-				assert.NotNil(t, out.VMErr)
-				assert.Equal(t, "invalid opcode 0x5f", out.VMErr.Error())
-			},
-		},
-		{
-			name:       "ETH_SH PUSH0",
-			code:       "",
-			abi:        "",
-			methodName: "",
-			testFunc: func(ctx *context, t *testing.T) {
-				// pragma solidity >=0.7.0 <0.9.0;
-				// contract Simple {
-				//     constructor() {}
-				// }
-				code, _ := hex.DecodeString("6080604052348015600e575f80fd5b50603e80601a5f395ff3fe60806040525f80fdfea2646970667358221220268d147b82c3959e7339f440b5861d98384629b096f1eac3e2ce7c55ebdc2daf64736f6c63430008180033")
-
-				exec, _ := runtime.New(ctx.chain, ctx.state, &xenv.BlockContext{}, thor.ForkConfig{}).
+				exec, _ := runtime.New(ctx.chain, ctx.state, &xenv.BlockContext{}, forkFromStart).
 					PrepareClause(tx.NewClause(nil).WithData(code), 0, math.MaxUint64, &xenv.TransactionContext{})
 				out, _, err := exec()
 
@@ -330,8 +298,8 @@ func TestEVMFunction(t *testing.T) {
 			methodName: "",
 			testFunc: func(ctx *context, t *testing.T) {
 				// 0x5f is PUSH0 opCode
-				codeData := []byte{0x5f, 0x00}
-				exec, _ := runtime.New(ctx.chain, ctx.state, &xenv.BlockContext{}, thor.ForkConfig{}).
+				codeData := []byte{0x5f}
+				exec, _ := runtime.New(ctx.chain, ctx.state, &xenv.BlockContext{}, forkFromStart).
 					PrepareClause(tx.NewClause(nil).WithData(codeData), 0, math.MaxUint64, &xenv.TransactionContext{})
 				out, _, err := exec()
 
@@ -341,33 +309,33 @@ func TestEVMFunction(t *testing.T) {
 			},
 		},
 		{
-			name:       "pre ETH_SH basefee",
-			code:       "4800",
+			name:       "ETH_SH BASEFEE gas cost",
+			code:       hex.EncodeToString([]byte{byte(vm.BASEFEE)}),
 			abi:        "",
 			methodName: "",
 			testFunc: func(ctx *context, t *testing.T) {
-				exec, _ := runtime.New(ctx.chain, ctx.state, &xenv.BlockContext{}, thor.NoFork).
-					PrepareClause(tx.NewClause(&target), 0, math.MaxUint64, &xenv.TransactionContext{})
-				out, _, err := exec()
-				assert.Nil(t, err)
-				assert.NotNil(t, out.VMErr)
-				assert.Equal(t, "invalid opcode 0x48", out.VMErr.Error())
-			},
-		},
-		{
-			name:       "ETH_SH basefee",
-			code:       "4800",
-			abi:        "",
-			methodName: "",
-			testFunc: func(ctx *context, t *testing.T) {
-				exec, _ := runtime.New(ctx.chain, ctx.state, &xenv.BlockContext{}, thor.ForkConfig{}).
+				exec, _ := runtime.New(ctx.chain, ctx.state, &xenv.BlockContext{}, forkFromStart).
 					PrepareClause(tx.NewClause(&target), 0, math.MaxUint64, &xenv.TransactionContext{})
 				out, _, err := exec()
 				assert.Nil(t, err)
 				assert.Nil(t, out.VMErr)
 
-				assert.True(t, new(big.Int).SetBytes(out.Data).Cmp(big.NewInt(0)) == 0)
 				assert.Equal(t, uint64(2), math.MaxUint64-out.LeftOverGas)
+			},
+		},
+		{
+			name:       "ETH_SH BASEFEE",
+			code:       hex.EncodeToString([]byte{byte(vm.BASEFEE), byte(vm.PUSH1), 0x80, byte(vm.MSTORE), byte(vm.PUSH1), 0x20, byte(vm.PUSH1), 0x80, byte(vm.RETURN)}),
+			abi:        "",
+			methodName: "",
+			testFunc: func(ctx *context, t *testing.T) {
+				exec, _ := runtime.New(ctx.chain, ctx.state, &xenv.BlockContext{}, forkFromStart).
+					PrepareClause(tx.NewClause(&target), 0, math.MaxUint64, &xenv.TransactionContext{})
+				out, _, err := exec()
+				assert.Nil(t, err)
+				assert.Nil(t, out.VMErr)
+
+				assert.Equal(t, new(big.Int).SetBytes(out.Data).Uint64(), uint64(0))
 			},
 		},
 		{
@@ -554,6 +522,100 @@ func TestEVMFunction(t *testing.T) {
 		},
 	}
 
+	cancunTests := []testcase{
+		{
+			name:       "TLOAD gas cost",
+			code:       hex.EncodeToString([]byte{byte(vm.PUSH0), byte(vm.TLOAD)}),
+			abi:        "",
+			methodName: "",
+			testFunc: func(ctx *context, t *testing.T) {
+				exec, _ := runtime.New(ctx.chain, ctx.state, &xenv.BlockContext{}, forkFromStart).
+					PrepareClause(tx.NewClause(&target), 0, math.MaxUint64, &xenv.TransactionContext{})
+				out, _, err := exec()
+				assert.Nil(t, err)
+				assert.Nil(t, out.VMErr)
+				assert.Equal(t, uint64(2+100), math.MaxUint64-out.LeftOverGas)
+			},
+		},
+		{
+			name:       "TSTORE gas cost",
+			code:       hex.EncodeToString([]byte{byte(vm.PUSH0), byte(vm.PUSH0), byte(vm.TSTORE)}),
+			abi:        "",
+			methodName: "",
+			testFunc: func(ctx *context, t *testing.T) {
+				exec, _ := runtime.New(ctx.chain, ctx.state, &xenv.BlockContext{}, forkFromStart).
+					PrepareClause(tx.NewClause(&target), 0, math.MaxUint64, &xenv.TransactionContext{})
+				out, _, err := exec()
+				assert.Nil(t, err)
+				assert.Nil(t, out.VMErr)
+				assert.Equal(t, uint64(2+2+100), math.MaxUint64-out.LeftOverGas)
+			},
+		},
+		{
+			name:       "TLOAD empty value",
+			code:       hex.EncodeToString([]byte{byte(vm.PUSH0), byte(vm.TLOAD), byte(vm.PUSH1), 0x80, byte(vm.MSTORE), byte(vm.PUSH1), 0x20, byte(vm.PUSH1), 0x80, byte(vm.RETURN)}),
+			abi:        "",
+			methodName: "",
+			testFunc: func(ctx *context, t *testing.T) {
+				exec, _ := runtime.New(ctx.chain, ctx.state, &xenv.BlockContext{}, forkFromStart).
+					PrepareClause(tx.NewClause(&target), 0, math.MaxUint64, &xenv.TransactionContext{})
+				out, _, err := exec()
+				assert.Nil(t, err)
+				assert.Nil(t, out.VMErr)
+				assert.Equal(t, thor.Bytes32{}.Bytes(), out.Data)
+			},
+		},
+		{
+			name: "TLOAD after TSTORE",
+			// tstore(0, 1153) tload(0)
+			code:       hex.EncodeToString([]byte{byte(vm.PUSH2), 0x04, 0x81, byte(vm.PUSH0), byte(vm.TSTORE), byte(vm.PUSH0), byte(vm.TLOAD), byte(vm.PUSH1), 0x80, byte(vm.MSTORE), byte(vm.PUSH1), 0x20, byte(vm.PUSH1), 0x80, byte(vm.RETURN)}),
+			abi:        "",
+			methodName: "",
+			testFunc: func(ctx *context, t *testing.T) {
+				exec, _ := runtime.New(ctx.chain, ctx.state, &xenv.BlockContext{}, forkFromStart).
+					PrepareClause(tx.NewClause(&target), 0, math.MaxUint64, &xenv.TransactionContext{})
+				out, _, err := exec()
+				assert.Nil(t, err)
+				assert.Nil(t, out.VMErr)
+				assert.Equal(t, new(big.Int).SetBytes(out.Data).Uint64(), uint64(1153))
+			},
+		},
+		{
+			name:       "transient storage should be cleared among clauses",
+			code:       "",
+			abi:        "",
+			methodName: "",
+			testFunc: func(ctx *context, t *testing.T) {
+				// tstore(1, 1153) tload(1)
+				code1 := []byte{byte(vm.PUSH2), 0x04, 0x81, byte(vm.PUSH1), 0x1, byte(vm.TSTORE), byte(vm.PUSH1), 0x1, byte(vm.TLOAD), byte(vm.PUSH1), 0x80, byte(vm.MSTORE), byte(vm.PUSH1), 0x20, byte(vm.PUSH1), 0x80, byte(vm.RETURN)}
+				// tload(1)
+				code2 := []byte{byte(vm.PUSH1), 0x1, byte(vm.TLOAD), byte(vm.PUSH1), 0x80, byte(vm.MSTORE), byte(vm.PUSH1), 0x20, byte(vm.PUSH1), 0x80, byte(vm.RETURN)}
+
+				ctx.state.SetCode(target, code1)
+				exec, _ := runtime.New(ctx.chain, ctx.state, &xenv.BlockContext{}, forkFromStart).
+					PrepareClause(tx.NewClause(&target), 0, math.MaxUint64, &xenv.TransactionContext{})
+				out, _, err := exec()
+				assert.Nil(t, err)
+				assert.Nil(t, out.VMErr)
+				assert.Equal(t, new(big.Int).SetBytes(out.Data).Uint64(), uint64(1153))
+
+				ctx.state.SetCode(target, code2)
+				exec, _ = runtime.New(ctx.chain, ctx.state, &xenv.BlockContext{}, forkFromStart).
+					PrepareClause(tx.NewClause(&target), 1, math.MaxUint64, &xenv.TransactionContext{})
+				out, _, err = exec()
+				assert.Nil(t, err)
+				assert.Nil(t, out.VMErr)
+				assert.Equal(t, new(big.Int).SetBytes(out.Data).Uint64(), uint64(0))
+			},
+		},
+	}
+
+	var tests = []testcase{}
+
+	tests = append(tests, baseTests...)
+	tests = append(tests, shanghaiTests...)
+	tests = append(tests, cancunTests...)
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			db := muxdb.NewMem()
@@ -584,6 +646,62 @@ func TestEVMFunction(t *testing.T) {
 			}
 
 			tt.testFunc(ctx, t)
+		})
+	}
+}
+
+func TestPreForkOpCode(t *testing.T) {
+	db := muxdb.NewMem()
+	g := genesis.NewDevnet()
+	stater := state.NewStater(db)
+	b0, _, _, _ := g.Build(stater)
+	repo, _ := chain.NewRepository(db, b0)
+
+	chain := repo.NewChain(b0.Header().ID())
+	state := stater.NewState(b0.Header().StateRoot(), 0, 0, 0)
+
+	tests := []struct {
+		name string
+		code []byte
+		op   vm.OpCode
+	}{
+		{
+			name: "BASEFEE",
+			code: []byte{byte(vm.BASEFEE)},
+			op:   vm.BASEFEE,
+		},
+		{
+			name: "PUSH0",
+			code: []byte{byte(vm.PUSH0)},
+			op:   vm.PUSH0,
+		},
+		{
+			name: "TLOAD",
+			code: []byte{byte(vm.PUSH1), 0x0, byte(vm.TLOAD)},
+			op:   vm.TLOAD,
+		},
+		{
+			name: "TSTORE",
+			code: []byte{byte(vm.PUSH1), 0x0, byte(vm.PUSH1), 0x0, byte(vm.TSTORE)},
+			op:   vm.TSTORE,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			exec, _ := runtime.New(chain, state, &xenv.BlockContext{}, thor.NoFork).
+				PrepareClause(tx.NewClause(nil).WithData(tt.code), 0, math.MaxUint64, &xenv.TransactionContext{})
+			out, _, err := exec()
+			assert.Nil(t, err)
+			assert.NotNil(t, out.VMErr)
+			assert.Equal(t, fmt.Sprintf("invalid opcode 0x%x", int(tt.op)), out.VMErr.Error())
+
+			// this one applies a fork config that forks from the start
+			exec, _ = runtime.New(chain, state, &xenv.BlockContext{}, forkFromStart).
+				PrepareClause(tx.NewClause(nil).WithData(tt.code), 0, math.MaxUint64, &xenv.TransactionContext{})
+			out, _, err = exec()
+			assert.Nil(t, err)
+			assert.Nil(t, out.VMErr, "after fork should not return error")
 		})
 	}
 }
