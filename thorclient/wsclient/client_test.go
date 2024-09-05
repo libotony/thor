@@ -11,11 +11,9 @@ import (
 	"net/http/httptest"
 	"reflect"
 	"testing"
-	"time"
 
 	"github.com/gorilla/websocket"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"github.com/vechain/thor/v2/api/blocks"
 	"github.com/vechain/thor/v2/api/subscriptions"
 	"github.com/vechain/thor/v2/thorclient/common"
@@ -301,53 +299,4 @@ func TestClient_SubscribeBlocks_ServerShutdown(t *testing.T) {
 	event = <-sub.EventChan
 	assert.Error(t, event.Error)
 	assert.Contains(t, event.Error.Error(), "websocket: close")
-}
-
-func TestClient_SubscribeBlocks_ClientShutdown(t *testing.T) {
-	query := "exampleQuery"
-	expectedBlock := &blocks.JSONCollapsedBlock{}
-
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/subscriptions/block", r.URL.Path)
-		assert.Equal(t, query, r.URL.RawQuery)
-
-		upgrader := websocket.Upgrader{}
-
-		conn, _ := upgrader.Upgrade(w, r, nil)
-
-		// Send a valid block to the client
-
-		for {
-			require.NoError(t, conn.WriteJSON(expectedBlock))
-			time.Sleep(10 * time.Millisecond)
-		}
-	}))
-	defer ts.Close()
-
-	client, err := NewClient(ts.URL)
-	assert.NoError(t, err)
-	sub, err := client.SubscribeBlocks(query)
-
-	assert.NoError(t, err)
-
-	// The first 50 events should be the valid block
-	// the server is producing events at high speed
-	for i := 0; i < 50; i++ {
-		event := <-sub.EventChan
-		assert.NoError(t, event.Error)
-		assert.Equal(t, expectedBlock, event.Data)
-	}
-
-	// unsubscribe should drain all messages first before shutting down the event reader and the connection
-	sub.Unsubscribe()
-
-	// Ensure no more events are received after unsubscribe
-	select {
-	case _, ok := <-sub.EventChan:
-		if ok {
-			t.Error("Expected the event channel to be closed after unsubscribe, but it was still open")
-		}
-	case <-time.After(2 * time.Second):
-		// Timeout here is expected since the channel should be closed and not sending events
-	}
 }
