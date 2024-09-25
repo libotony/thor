@@ -126,7 +126,7 @@ func GetSummaryAndState(rev *Revision, repo *chain.Repository, bft bft.Finalizer
 		mocked := builder.Build()
 
 		// state is also reused from the parent block
-		st := stater.NewState(best.Header.StateRoot(), best.Header.Number(), best.Conflicts, best.SteadyNum)
+		st := stater.NewState(best.Root())
 
 		// rebuild the block summary with the next header (mocked) AND the best block status
 		return &chain.BlockSummary{
@@ -134,7 +134,6 @@ func GetSummaryAndState(rev *Revision, repo *chain.Repository, bft bft.Finalizer
 			Txs:       best.Txs,
 			Size:      uint64(mocked.Size()),
 			Conflicts: best.Conflicts,
-			SteadyNum: best.SteadyNum,
 		}, st, nil
 	}
 	sum, err := GetSummary(rev, repo, bft)
@@ -142,6 +141,6 @@ func GetSummaryAndState(rev *Revision, repo *chain.Repository, bft bft.Finalizer
 		return nil, nil, err
 	}
 
-	st := stater.NewState(sum.Header.StateRoot(), sum.Header.Number(), sum.Conflicts, sum.SteadyNum)
+	st := stater.NewState(sum.Root())
 	return sum, st, nil
 }
