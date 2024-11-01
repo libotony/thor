@@ -48,7 +48,7 @@ func TestMetricsMiddleware(t *testing.T) {
 	repo, _ := chain.NewRepository(db, b)
 
 	// inject some invalid data to db
-	data := db.NewStore("chain.data")
+	data := db.NewStore("chain.hdr")
 	var blkID thor.Bytes32
 	rand.Read(blkID[:])
 	data.Put(blkID[:], []byte("invalid data"))
