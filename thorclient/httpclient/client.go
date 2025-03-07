@@ -17,6 +17,7 @@ import (
 	"github.com/vechain/thor/v2/api/accounts"
 	"github.com/vechain/thor/v2/api/blocks"
 	"github.com/vechain/thor/v2/api/events"
+	"github.com/vechain/thor/v2/api/fees"
 	"github.com/vechain/thor/v2/api/node"
 	"github.com/vechain/thor/v2/api/transactions"
 	"github.com/vechain/thor/v2/api/transfers"
@@ -288,6 +289,36 @@ func (c *Client) GetPeers() ([]*node.PeerStats, error) {
 	}
 
 	return peers, nil
+}
+
+// GetFeesHistory retrieves the fees history based on the block count and newest block.
+func (c *Client) GetFeesHistory(blockCount uint32, newestBlock string) (*fees.FeesHistory, error) {
+	body, err := c.httpGET(c.url + "/fees/history?blockCount=" + fmt.Sprint(blockCount) + "&newestBlock=" + newestBlock)
+	if err != nil {
+		return nil, fmt.Errorf("unable to get the fees history - %w", err)
+	}
+
+	var history fees.FeesHistory
+	if err = json.Unmarshal(body, &history); err != nil {
+		return nil, fmt.Errorf("unable to unmarshal the fees history - %w", err)
+	}
+
+	return &history, nil
+}
+
+// GetFeesPriority retrieves the suggested maxPriorityFeePerGas for a transaction to be included in the next blocks.
+func (c *Client) GetFeesPriority() (*fees.FeesPriority, error) {
+	body, err := c.httpGET(c.url + "/fees/priority")
+	if err != nil {
+		return nil, fmt.Errorf("unable to get the fees priority - %w", err)
+	}
+
+	var priority fees.FeesPriority
+	if err = json.Unmarshal(body, &priority); err != nil {
+		return nil, fmt.Errorf("unable to unmarshal the fees priority - %w", err)
+	}
+
+	return &priority, nil
 }
 
 // RawHTTPPost sends a raw HTTP POST request to the specified URL with the provided data.

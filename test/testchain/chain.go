@@ -8,6 +8,7 @@ package testchain
 import (
 	"errors"
 	"fmt"
+	"math"
 	"math/rand/v2"
 	"slices"
 	"time"
@@ -62,10 +63,29 @@ func New(
 	}
 }
 
-// NewIntegrationTestChain is a convenience function that creates a Chain for testing.
+var DefaultForkConfig = thor.ForkConfig{
+	BLOCKLIST: 0,
+	VIP191:    1,
+	VIP214:    2,
+	ETH_CONST: math.MaxUint32,
+	ETH_IST:   math.MaxUint32,
+	FINALITY:  math.MaxUint32,
+	GALACTICA: math.MaxUint32,
+}
+
+// NewDefault is a wrapper function that creates a Chain for testing with the default fork config.
+func NewDefault() (*Chain, error) {
+	return newIntegrationTestChain(DefaultForkConfig)
+}
+
+// NewWithFork is a wrapper function that creates a Chain for testing with custom forkConfig.
+func NewWithFork(forkConfig thor.ForkConfig) (*Chain, error) {
+	return newIntegrationTestChain(forkConfig)
+}
+
+// newIntegrationTestChain is a convenience function that creates a Chain for testing.
 // It uses an in-memory database, development network genesis, and a solo BFT engine.
-func NewIntegrationTestChain() (*Chain, error) {
-	forkConfig := thor.SoloFork // using SoloFork prevents tests depending on IDs of the genesis block from failing
+func newIntegrationTestChain(forkConfig thor.ForkConfig) (*Chain, error) {
 	// Initialize the database
 	db := muxdb.NewMem()
 
@@ -142,7 +162,7 @@ func (c *Chain) MintClauses(account genesis.DevAccount, clauses []*tx.Clause) er
 		builer.Clause(clause)
 	}
 
-	tx := builer.Build()
+	tx, _ := builer.Build()
 	signature, err := crypto.Sign(tx.SigningHash().Bytes(), account.PrivateKey)
 	if err != nil {
 		return fmt.Errorf("unable to sign tx: %w", err)

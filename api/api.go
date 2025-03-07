@@ -18,6 +18,7 @@ import (
 	"github.com/vechain/thor/v2/api/debug"
 	"github.com/vechain/thor/v2/api/doc"
 	"github.com/vechain/thor/v2/api/events"
+	"github.com/vechain/thor/v2/api/fees"
 	"github.com/vechain/thor/v2/api/node"
 	"github.com/vechain/thor/v2/api/subscriptions"
 	"github.com/vechain/thor/v2/api/transactions"
@@ -46,6 +47,7 @@ type Config struct {
 	AllowedTracers    []string
 	SoloMode          bool
 	EnableDeprecated  bool
+	Fees              fees.Config
 }
 
 // New return api router
@@ -96,6 +98,8 @@ func New(
 		Mount(router, "/node")
 	subs := subscriptions.New(repo, origins, config.BacktraceLimit, txPool, config.EnableDeprecated)
 	subs.Mount(router, "/subscriptions")
+
+	fees.New(repo, bft, stater, config.Fees).Mount(router, "/fees")
 
 	if config.PprofOn {
 		router.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)

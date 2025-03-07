@@ -22,14 +22,15 @@ import (
 	"github.com/vechain/thor/v2/muxdb"
 	"github.com/vechain/thor/v2/packer"
 	"github.com/vechain/thor/v2/state"
+	"github.com/vechain/thor/v2/test/testchain"
 	"github.com/vechain/thor/v2/thor"
 	"github.com/vechain/thor/v2/tx"
 	"github.com/vechain/thor/v2/vrf"
 )
 
-func txBuilder(tag byte) *tx.Builder {
+func txBuilder(tag byte, txType tx.TxType) *tx.Builder {
 	address := thor.BytesToAddress([]byte("addr"))
-	return new(tx.Builder).
+	return tx.NewTxBuilder(txType).
 		GasPriceCoef(1).
 		Gas(1000000).
 		Expiration(100).
@@ -39,7 +40,7 @@ func txBuilder(tag byte) *tx.Builder {
 }
 
 func txSign(builder *tx.Builder) *tx.Transaction {
-	transaction := builder.Build()
+	transaction := builder.MustBuild()
 	sig, _ := crypto.Sign(transaction.SigningHash().Bytes(), genesis.DevAccounts()[0].PrivateKey)
 	return transaction.WithSignature(sig)
 }
@@ -84,10 +85,8 @@ func newTestConsensus() (*testConsensus, error) {
 		return nil, err
 	}
 
-	forkConfig := thor.NoFork
-	forkConfig.VIP191 = 1
-	forkConfig.BLOCKLIST = 0
-	forkConfig.VIP214 = 2
+	forkConfig := testchain.DefaultForkConfig
+	forkConfig.GALACTICA = 5
 
 	proposer := genesis.DevAccounts()[0]
 	p := packer.New(repo, stater, proposer.Address, &proposer.Address, forkConfig)
@@ -99,7 +98,7 @@ func newTestConsensus() (*testConsensus, error) {
 
 	addr := thor.BytesToAddress([]byte("to"))
 	cla := tx.NewClause(&addr).WithValue(big.NewInt(10000))
-	txBuilder := txBuilder(repo.ChainTag()).Clause(cla)
+	txBuilder := txBuilder(repo.ChainTag(), tx.TypeLegacy).Clause(cla)
 	transaction := txSign(txBuilder)
 
 	err = flow.Adopt(transaction)
@@ -441,6 +440,17 @@ func TestValidateBlockHeader(t *testing.T) {
 				assert.Equal(t, expected, err)
 			},
 		},
+		{
+			"Illegal BaseFee before galactica", func(t *testing.T) {
+				builder := tc.builder(tc.original.Header())
+				blk, err := tc.sign(builder.BaseFee(big.NewInt(10000)))
+				assert.NoError(t, err)
+
+				err = tc.consent(blk)
+				expected := consensusError("invalid block: baseFee should not set before fork GALACTICA")
+				assert.Equal(t, expected, err)
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -462,8 +472,8 @@ func TestVerifyBlock(t *testing.T) {
 	}{
 		{
 			"TxDepBroken", func(t *testing.T) {
-				txID := txSign(txBuilder(tc.tag)).ID()
-				tx := txSign(txBuilder(tc.tag).DependsOn(&txID))
+				txID := txSign(txBuilder(tc.tag, tx.TypeLegacy)).ID()
+				tx := txSign(txBuilder(tc.tag, tx.TypeLegacy).DependsOn(&txID))
 
 				blk, err := tc.sign(tc.builder(tc.original.Header()).Transaction(tx))
 				if err != nil {
@@ -477,7 +487,7 @@ func TestVerifyBlock(t *testing.T) {
 		},
 		{
 			"TxAlreadyExists", func(t *testing.T) {
-				tx := txSign(txBuilder(tc.tag))
+				tx := txSign(txBuilder(tc.tag, tx.TypeLegacy))
 				blk, err := tc.sign(tc.builder(tc.original.Header()).Transaction(tx).Transaction(tx))
 				if err != nil {
 					t.Fatal(err)
@@ -562,7 +572,7 @@ func TestVerifyBlock(t *testing.T) {
 	}
 }
 
-func TestValidateBlockBody(t *testing.T) {
+func TestConsent(t *testing.T) {
 	tc, err := newTestConsensus()
 	if err != nil {
 		t.Fatal(err)
@@ -574,7 +584,7 @@ func TestValidateBlockBody(t *testing.T) {
 	}{
 		{
 			"ErrTxsRootMismatch", func(t *testing.T) {
-				transaction := txSign(txBuilder(tc.tag))
+				transaction := txSign(txBuilder(tc.tag, tx.TypeLegacy))
 				transactions := tx.Transactions{transaction}
 				blk := block.Compose(tc.original.Header(), transactions)
 				expected := consensusError(
@@ -590,7 +600,7 @@ func TestValidateBlockBody(t *testing.T) {
 		},
 		{
 			"ErrChainTagMismatch", func(t *testing.T) {
-				blk, err := tc.sign(tc.builder(tc.original.Header()).Transaction(txSign(txBuilder(tc.tag + 1))))
+				blk, err := tc.sign(tc.builder(tc.original.Header()).Transaction(txSign(txBuilder(tc.tag+1, tx.TypeLegacy))))
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -609,7 +619,7 @@ func TestValidateBlockBody(t *testing.T) {
 			"ErrRefFutureBlock", func(t *testing.T) {
 				blk, err := tc.sign(
 					tc.builder(tc.original.Header()).Transaction(
-						txSign(txBuilder(tc.tag).BlockRef(tx.NewBlockRef(100))),
+						txSign(txBuilder(tc.tag, tx.TypeLegacy).BlockRef(tx.NewBlockRef(100))),
 					))
 				if err != nil {
 					t.Fatal(err)
@@ -622,8 +632,7 @@ func TestValidateBlockBody(t *testing.T) {
 		{
 			"TxOriginBlocked", func(t *testing.T) {
 				thor.MockBlocklist([]string{genesis.DevAccounts()[9].Address.String()})
-				trx := txBuilder(tc.tag).Build()
-				trx = tx.MustSign(trx, genesis.DevAccounts()[9].PrivateKey)
+				trx := tx.MustSign(txBuilder(tc.tag, tx.TypeLegacy).MustBuild(), genesis.DevAccounts()[9].PrivateKey)
 
 				blk, err := tc.sign(
 					tc.builder(tc.original.Header()).Transaction(trx),
@@ -640,7 +649,7 @@ func TestValidateBlockBody(t *testing.T) {
 		},
 		{
 			"TxSignerUnavailable", func(t *testing.T) {
-				tx := txBuilder(tc.tag).Build()
+				tx := txBuilder(tc.tag, tx.TypeLegacy).MustBuild()
 				var sig [65]byte
 				tx = tx.WithSignature(sig[:])
 
@@ -659,7 +668,7 @@ func TestValidateBlockBody(t *testing.T) {
 		},
 		{
 			"UnsupportedFeatures", func(t *testing.T) {
-				tx := txBuilder(tc.tag).Features(tx.Features(2)).Build()
+				tx := txBuilder(tc.tag, tx.TypeLegacy).Features(tx.Features(2)).MustBuild()
 				sig, _ := crypto.Sign(tx.SigningHash().Bytes(), genesis.DevAccounts()[2].PrivateKey)
 				tx = tx.WithSignature(sig)
 
@@ -676,7 +685,7 @@ func TestValidateBlockBody(t *testing.T) {
 		},
 		{
 			"TxExpired", func(t *testing.T) {
-				tx := txSign(txBuilder(tc.tag).BlockRef(tx.NewBlockRef(0)).Expiration(0))
+				tx := txSign(txBuilder(tc.tag, tx.TypeLegacy).BlockRef(tx.NewBlockRef(0)).Expiration(0))
 				blk, err := tc.sign(tc.builder(tc.original.Header()).Transaction(tx).Transaction(tx))
 				if err != nil {
 					t.Fatal(err)
@@ -696,7 +705,7 @@ func TestValidateBlockBody(t *testing.T) {
 		},
 		{
 			"ZeroGasTx", func(t *testing.T) {
-				txBuilder := new(tx.Builder).
+				txBuilder := tx.NewTxBuilder(tx.TypeLegacy).
 					GasPriceCoef(0).
 					Gas(0).
 					Expiration(100).

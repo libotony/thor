@@ -58,7 +58,7 @@ var (
 	apiBacktraceLimitFlag = cli.Uint64Flag{
 		Name:  "api-backtrace-limit",
 		Value: 1000,
-		Usage: "limit the distance between 'position' and best block for subscriptions APIs",
+		Usage: "limit the distance between 'position' and best block for subscriptions and fees APIs",
 	}
 	apiAllowCustomTracerFlag = cli.BoolFlag{
 		Name:  "api-allow-custom-tracer",
@@ -77,6 +77,13 @@ var (
 		Name:  "enable-api-logs",
 		Usage: "enables API requests logging",
 	}
+	// priority fees API flags
+	apiPriorityFeesPercentageFlag = cli.Uint64Flag{
+		Name:  "api-priority-fees-percentage",
+		Value: 5,
+		Usage: "percentage of the block base fee for priority fees calculation",
+	}
+
 	verbosityFlag = cli.Uint64Flag{
 		Name:  "verbosity",
 		Value: log.LegacyLevelInfo,

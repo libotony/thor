@@ -40,6 +40,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/vechain/thor/v2/api"
 	"github.com/vechain/thor/v2/api/doc"
+	"github.com/vechain/thor/v2/api/fees"
 	"github.com/vechain/thor/v2/chain"
 	"github.com/vechain/thor/v2/cmd/thor/node"
 	"github.com/vechain/thor/v2/cmd/thor/p2p"
@@ -278,11 +279,16 @@ func parseGenesisFile(filePath string) (*genesis.Genesis, thor.ForkConfig, error
 
 func makeAPIConfig(ctx *cli.Context, logAPIRequests *atomic.Bool, soloMode bool) api.Config {
 	return api.Config{
-		AllowedOrigins:    ctx.String(apiCorsFlag.Name),
-		BacktraceLimit:    uint32(ctx.Uint64(apiBacktraceLimitFlag.Name)),
-		CallGasLimit:      ctx.Uint64(apiCallGasLimitFlag.Name),
-		PprofOn:           ctx.Bool(pprofFlag.Name),
-		SkipLogs:          ctx.Bool(skipLogsFlag.Name),
+		AllowedOrigins: ctx.String(apiCorsFlag.Name),
+		BacktraceLimit: uint32(ctx.Uint64(apiBacktraceLimitFlag.Name)),
+		CallGasLimit:   ctx.Uint64(apiCallGasLimitFlag.Name),
+		PprofOn:        ctx.Bool(pprofFlag.Name),
+		SkipLogs:       ctx.Bool(skipLogsFlag.Name),
+		Fees: fees.Config{
+			APIBacktraceLimit:          int(ctx.Uint64(apiBacktraceLimitFlag.Name)),
+			FixedCacheSize:             1024,
+			PriorityIncreasePercentage: int(ctx.Uint64(apiPriorityFeesPercentageFlag.Name)),
+		},
 		AllowCustomTracer: ctx.Bool(apiAllowCustomTracerFlag.Name),
 		EnableReqLogger:   logAPIRequests,
 		EnableMetrics:     ctx.Bool(enableMetricsFlag.Name),
@@ -425,8 +431,10 @@ func initChainRepository(gene *genesis.Genesis, mainDB *muxdb.MuxDB, logDB *logd
 	}
 	w := logDB.NewWriter()
 	if err := w.Write(genesisBlock, tx.Receipts{{
-		Outputs: []*tx.Output{
-			{Events: genesisEvents, Transfers: genesisTransfers},
+		ReceiptBody: tx.ReceiptBody{
+			Outputs: []*tx.Output{
+				{Events: genesisEvents, Transfers: genesisTransfers},
+			},
 		},
 	}}); err != nil {
 		return nil, errors.Wrap(err, "write genesis logs")

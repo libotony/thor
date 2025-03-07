@@ -7,6 +7,8 @@ package httpclient
 
 import (
 	"encoding/json"
+	"fmt"
+	"math/big"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
@@ -19,6 +21,7 @@ import (
 	"github.com/vechain/thor/v2/api/accounts"
 	"github.com/vechain/thor/v2/api/blocks"
 	"github.com/vechain/thor/v2/api/events"
+	"github.com/vechain/thor/v2/api/fees"
 	"github.com/vechain/thor/v2/api/node"
 	"github.com/vechain/thor/v2/api/transactions"
 	"github.com/vechain/thor/v2/api/transfers"
@@ -326,6 +329,50 @@ func TestClient_GetRawTransaction(t *testing.T) {
 
 	assert.NoError(t, err)
 	assert.Equal(t, expectedTx, tx)
+}
+
+func TestClient_GetFeesHistory(t *testing.T) {
+	blockCount := uint32(5)
+	newestBlock := "best"
+	expectedFeesHistory := &fees.FeesHistory{
+		OldestBlock:   thor.Bytes32{0x01},
+		BaseFees:      []*hexutil.Big{(*hexutil.Big)(big.NewInt(0x01))},
+		GasUsedRatios: []float64{0.0021},
+	}
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "/fees/history?blockCount="+fmt.Sprint(blockCount)+"&newestBlock="+newestBlock, r.URL.Path+"?"+r.URL.RawQuery)
+
+		feesHistoryBytes, _ := json.Marshal(expectedFeesHistory)
+		w.Write(feesHistoryBytes)
+	}))
+	defer ts.Close()
+
+	client := New(ts.URL)
+	feesHistory, err := client.GetFeesHistory(blockCount, newestBlock)
+
+	assert.NoError(t, err)
+	assert.Equal(t, expectedFeesHistory, feesHistory)
+}
+
+func TestClient_GetFeesPriority(t *testing.T) {
+	expectedFeesPriority := &fees.FeesPriority{
+		MaxPriorityFeePerGas: (*hexutil.Big)(big.NewInt(0x20)),
+	}
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "/fees/priority", r.URL.Path)
+
+		feesPriorityBytes, _ := json.Marshal(expectedFeesPriority)
+		w.Write(feesPriorityBytes)
+	}))
+	defer ts.Close()
+
+	client := New(ts.URL)
+	feesPriority, err := client.GetFeesPriority()
+
+	assert.NoError(t, err)
+	assert.Equal(t, expectedFeesPriority, feesPriority)
 }
 
 func TestClient_RawHTTPPost(t *testing.T) {

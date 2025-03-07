@@ -6,7 +6,6 @@
 package packer_test
 
 import (
-	"fmt"
 	"math"
 	"math/big"
 	"testing"
@@ -51,10 +50,10 @@ func (ti *txIterator) Next() *tx.Transaction {
 
 	data, _ := method.EncodeInput(a1.Address, big.NewInt(1))
 
-	trx := new(tx.Builder).
+	trx := tx.NewTxBuilder(tx.TypeLegacy).
 		ChainTag(ti.chainTag).
 		Clause(tx.NewClause(&builtin.Energy.Address).WithData(data)).
-		Gas(300000).GasPriceCoef(0).Nonce(nonce).Expiration(math.MaxUint32).Build()
+		Gas(300000).GasPriceCoef(0).Nonce(nonce).Expiration(math.MaxUint32).MustBuild()
 	trx = tx.MustSign(trx, a0.PrivateKey)
 	nonce++
 
@@ -112,8 +111,9 @@ func TestP(t *testing.T) {
 	}
 
 	best := repo.BestBlockSummary()
-	fmt.Println(best.Header.Number(), best.Header.GasUsed())
-	//	fmt.Println(best)
+	assert.NotNil(t, best)
+	assert.True(t, best.Header.Number() > 0)
+	assert.True(t, best.Header.GasUsed() > 0)
 }
 
 func TestForkVIP191(t *testing.T) {
@@ -196,6 +196,7 @@ func TestBlocklist(t *testing.T) {
 		VIP191:    math.MaxUint32,
 		ETH_CONST: math.MaxUint32,
 		BLOCKLIST: 0,
+		GALACTICA: math.MaxUint32,
 	}
 
 	thor.MockBlocklist([]string{a0.Address.String()})
@@ -207,10 +208,10 @@ func TestBlocklist(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	tx0 := new(tx.Builder).
+	tx0 := tx.NewTxBuilder(tx.TypeLegacy).
 		ChainTag(repo.ChainTag()).
 		Clause(tx.NewClause(&a1.Address)).
-		Gas(300000).GasPriceCoef(0).Nonce(0).Expiration(math.MaxUint32).Build()
+		Gas(300000).GasPriceCoef(0).Nonce(0).Expiration(math.MaxUint32).MustBuild()
 	sig0, _ := crypto.Sign(tx0.SigningHash().Bytes(), a0.PrivateKey)
 	tx0 = tx0.WithSignature(sig0)
 

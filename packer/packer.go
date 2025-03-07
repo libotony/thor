@@ -6,9 +6,12 @@
 package packer
 
 import (
+	"math/big"
+
 	"github.com/vechain/thor/v2/block"
 	"github.com/vechain/thor/v2/builtin"
 	"github.com/vechain/thor/v2/chain"
+	"github.com/vechain/thor/v2/consensus/fork"
 	"github.com/vechain/thor/v2/poa"
 	"github.com/vechain/thor/v2/runtime"
 	"github.com/vechain/thor/v2/state"
@@ -121,6 +124,12 @@ func (p *Packer) Schedule(parent *chain.BlockSummary, nowTimestamp uint64) (flow
 		}
 	}
 
+	var baseFee *big.Int
+
+	if parent.Header.Number()+1 >= p.forkConfig.GALACTICA {
+		baseFee = fork.CalcBaseFee(&p.forkConfig, parent.Header)
+	}
+
 	rt := runtime.New(
 		p.repo.NewChain(parent.Header.ID()),
 		state,
@@ -131,6 +140,7 @@ func (p *Packer) Schedule(parent *chain.BlockSummary, nowTimestamp uint64) (flow
 			Time:        newBlockTime,
 			GasLimit:    p.gasLimit(parent.Header.GasLimit()),
 			TotalScore:  parent.Header.TotalScore() + score,
+			BaseFee:     baseFee,
 		},
 		p.forkConfig)
 
@@ -153,6 +163,11 @@ func (p *Packer) Mock(parent *chain.BlockSummary, targetTime uint64, gasLimit ui
 		gl = p.gasLimit(parent.Header.GasLimit())
 	}
 
+	var baseFee *big.Int
+	if parent.Header.Number()+1 >= p.forkConfig.GALACTICA {
+		baseFee = fork.CalcBaseFee(&p.forkConfig, parent.Header)
+	}
+
 	rt := runtime.New(
 		p.repo.NewChain(parent.Header.ID()),
 		state,
@@ -163,6 +178,7 @@ func (p *Packer) Mock(parent *chain.BlockSummary, targetTime uint64, gasLimit ui
 			Time:        targetTime,
 			GasLimit:    gl,
 			TotalScore:  parent.Header.TotalScore() + 1,
+			BaseFee:     baseFee,
 		},
 		p.forkConfig)
 

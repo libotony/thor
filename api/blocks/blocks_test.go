@@ -16,6 +16,7 @@ import (
 	"strings"
 	"testing"
 
+	hexMath "github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/assert"
@@ -136,7 +137,7 @@ func testGetRawBlock(t *testing.T) {
 }
 
 func testGetBlockByHeight(t *testing.T) {
-	res, statusCode, err := tclient.RawHTTPClient().RawHTTPGet("/blocks/1")
+	res, statusCode, err := tclient.RawHTTPClient().RawHTTPGet("/blocks/2")
 	require.NoError(t, err)
 	rb := new(blocks.JSONCollapsedBlock)
 	if err := json.Unmarshal(res, &rb); err != nil {
@@ -225,31 +226,49 @@ func testGetBlockWithRevisionNumberTooHigh(t *testing.T) {
 }
 
 func initBlockServer(t *testing.T) {
-	thorChain, err := testchain.NewIntegrationTestChain()
+	forks := thor.ForkConfig{
+		BLOCKLIST: 0,
+		VIP191:    1,
+		GALACTICA: 1,
+		VIP214:    2,
+	}
+	thorChain, err := testchain.NewWithFork(forks)
 	require.NoError(t, err)
 
 	addr := thor.BytesToAddress([]byte("to"))
 	cla := tx.NewClause(&addr).WithValue(big.NewInt(10000))
-	trx := tx.MustSign(
-		new(tx.Builder).
-			ChainTag(thorChain.Repo().ChainTag()).
-			GasPriceCoef(1).
-			Expiration(10).
-			Gas(21000).
-			Nonce(1).
-			Clause(cla).
-			BlockRef(tx.NewBlockRef(0)).
-			Build(),
-		genesis.DevAccounts()[0].PrivateKey,
-	)
+	legacyTx := tx.NewTxBuilder(tx.TypeLegacy).
+		ChainTag(thorChain.Repo().ChainTag()).
+		GasPriceCoef(1).
+		Expiration(10).
+		Gas(21000).
+		Nonce(1).
+		Clause(cla).
+		BlockRef(tx.NewBlockRef(0)).
+		MustBuild()
+	legacyTx = tx.MustSign(legacyTx, genesis.DevAccounts()[0].PrivateKey)
+	require.NoError(t, thorChain.MintTransactions(genesis.DevAccounts()[0], legacyTx))
 
-	require.NoError(t, thorChain.MintTransactions(genesis.DevAccounts()[0], trx))
+	dynFeeTx := tx.NewTxBuilder(tx.TypeDynamicFee).
+		ChainTag(thorChain.Repo().ChainTag()).
+		MaxFeePerGas(big.NewInt(thor.InitialBaseFee)).
+		MaxPriorityFeePerGas(big.NewInt(100)).
+		Expiration(10).
+		Gas(21000).
+		Nonce(2).
+		Clause(cla).
+		BlockRef(tx.NewBlockRef(0)).
+		MustBuild()
+	dynFeeTx = tx.MustSign(dynFeeTx, genesis.DevAccounts()[0].PrivateKey)
+
+	require.NoError(t, thorChain.MintTransactions(genesis.DevAccounts()[0], dynFeeTx))
 
 	allBlocks, err := thorChain.GetAllBlocks()
 	require.NoError(t, err)
 
 	genesisBlock = allBlocks[0]
-	blk = allBlocks[1]
+	// taking best block to include also galactica block
+	blk = allBlocks[len(allBlocks)-1]
 
 	router := mux.NewRouter()
 	blocks.New(thorChain.Repo(), thorChain.Engine()).Mount(router, "/blocks")
@@ -272,6 +291,7 @@ func checkCollapsedBlock(t *testing.T, expBl *block.Block, actBl *blocks.JSONCol
 	for i, tx := range expBl.Transactions() {
 		assert.Equal(t, tx.ID(), actBl.Transactions[i], "txid should be equal")
 	}
+	assert.Equal(t, (*hexMath.HexOrDecimal256)(header.BaseFee()), actBl.BaseFee, "BaseFee should be equal")
 }
 
 func checkExpandedBlock(t *testing.T, expBl *block.Block, actBl *blocks.JSONExpandedBlock) {
@@ -290,4 +310,5 @@ func checkExpandedBlock(t *testing.T, expBl *block.Block, actBl *blocks.JSONExpa
 	for i, tx := range expBl.Transactions() {
 		assert.Equal(t, tx.ID(), actBl.Transactions[i].ID, "txid should be equal")
 	}
+	assert.Equal(t, (*hexMath.HexOrDecimal256)(header.BaseFee()), actBl.BaseFee, "BaseFee should be equal")
 }
