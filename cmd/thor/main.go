@@ -47,7 +47,7 @@ var (
 	copyrightYear        string
 	defaultTxPoolOptions = txpool.Options{
 		Limit:           10000,
-		LimitPerAccount: 16,
+		LimitPerAccount: 128,
 		MaxLifetime:     20 * time.Minute,
 	}
 )
@@ -83,6 +83,7 @@ func main() {
 			apiEnableDeprecatedFlag,
 			enableAPILogsFlag,
 			apiLogsLimitFlag,
+			apiPriorityFeesPercentageFlag,
 			verbosityFlag,
 			jsonLogsFlag,
 			maxPeersFlag,
@@ -100,6 +101,7 @@ func main() {
 			enableAdminFlag,
 			txPoolLimitPerAccountFlag,
 			allowedTracersFlag,
+			minEffectivePriorityFeeFlag,
 		},
 		Action: defaultAction,
 		Commands: []cli.Command{
@@ -119,6 +121,7 @@ func main() {
 					apiEnableDeprecatedFlag,
 					enableAPILogsFlag,
 					apiLogsLimitFlag,
+					apiPriorityFeesPercentageFlag,
 					onDemandFlag,
 					blockInterval,
 					persistFlag,
@@ -136,6 +139,7 @@ func main() {
 					adminAddrFlag,
 					enableAdminFlag,
 					allowedTracersFlag,
+					minEffectivePriorityFeeFlag,
 				},
 				Action: soloAction,
 			},
@@ -230,7 +234,7 @@ func defaultAction(ctx *cli.Context) error {
 	if err != nil {
 		return errors.Wrap(err, "parse txpool-limit-per-account flag")
 	}
-	txPool := txpool.New(repo, state.NewStater(mainDB), txpoolOpt)
+	txPool := txpool.New(repo, state.NewStater(mainDB), txpoolOpt, &forkConfig)
 	defer func() { log.Info("closing tx pool..."); txPool.Close() }()
 
 	p2pCommunicator, err := newP2PCommunicator(ctx, repo, txPool, instanceDir)
@@ -291,6 +295,17 @@ func defaultAction(ctx *cli.Context) error {
 		defer func() { log.Info("stopping pruner..."); pruner.Stop() }()
 	}
 
+	minTxPriorityFee := ctx.Uint64(minEffectivePriorityFeeFlag.Name)
+	if minTxPriorityFee > 0 {
+		log.Info(fmt.Sprintf("the minimum effective priority fee required in transactions is %d wei", minTxPriorityFee))
+	}
+
+	options := node.Options{
+		SkipLogs:         skipLogs,
+		MinTxPriorityFee: minTxPriorityFee,
+		TargetGasLimit:   ctx.Uint64(targetGasLimitFlag.Name),
+	}
+
 	return node.New(
 		master,
 		repo,
@@ -300,9 +315,8 @@ func defaultAction(ctx *cli.Context) error {
 		txPool,
 		filepath.Join(instanceDir, "tx.stash"),
 		p2pCommunicator.Communicator(),
-		ctx.Uint64(targetGasLimitFlag.Name),
-		skipLogs,
 		forkConfig,
+		options,
 	).Run(exitSignal)
 }
 
@@ -420,7 +434,7 @@ func soloAction(ctx *cli.Context) error {
 		return errors.Wrap(err, "parse txpool-limit-per-account flag")
 	}
 
-	txPool := txpool.New(repo, state.NewStater(mainDB), txPoolOption)
+	txPool := txpool.New(repo, state.NewStater(mainDB), txPoolOption, &forkConfig)
 	defer func() { log.Info("closing tx pool..."); txPool.Close() }()
 
 	bftEngine := solo.NewBFTEngine(repo)
@@ -458,15 +472,25 @@ func soloAction(ctx *cli.Context) error {
 		defer func() { log.Info("stopping pruner..."); pruner.Stop() }()
 	}
 
+	minTxPriorityFee := ctx.Uint64(minEffectivePriorityFeeFlag.Name)
+	if minTxPriorityFee > 0 {
+		log.Info(fmt.Sprintf("the minimum effective priority fee required in transactions is %d wei", minTxPriorityFee))
+	}
+
+	options := solo.Options{
+		GasLimit:         ctx.Uint64(gasLimitFlag.Name),
+		SkipLogs:         skipLogs,
+		MinTxPriorityFee: minTxPriorityFee,
+		OnDemand:         onDemandBlockProduction,
+		BlockInterval:    blockProductionInterval,
+	}
+
 	return solo.New(repo,
 		state.NewStater(mainDB),
 		logDB,
 		txPool,
-		ctx.Uint64(gasLimitFlag.Name),
-		onDemandBlockProduction,
-		skipLogs,
-		blockProductionInterval,
-		forkConfig).Run(exitSignal)
+		forkConfig,
+		options).Run(exitSignal)
 }
 
 func masterKeyAction(ctx *cli.Context) error {

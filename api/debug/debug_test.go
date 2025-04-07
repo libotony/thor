@@ -533,14 +533,20 @@ func testStorageRangeDefaultOption(t *testing.T) {
 }
 
 func initDebugServer(t *testing.T) {
-	thorChain, err := testchain.NewIntegrationTestChain()
+	forkConfig := thor.ForkConfig{
+		BLOCKLIST: 0,
+		VIP191:    1,
+		GALACTICA: 1,
+		VIP214:    2,
+	}
+	thorChain, err := testchain.NewWithFork(forkConfig)
 	require.NoError(t, err)
 
 	addr := thor.BytesToAddress([]byte("to"))
 
 	// Adding an empty clause transaction to the block to cover the case of
 	// scanning multiple txs before getting the right one
-	noClausesTx := new(tx.Builder).
+	noClausesTx := tx.NewBuilder(tx.TypeLegacy).
 		ChainTag(thorChain.Repo().ChainTag()).
 		Expiration(10).
 		Gas(21000).
@@ -549,7 +555,7 @@ func initDebugServer(t *testing.T) {
 
 	cla := tx.NewClause(&addr).WithValue(big.NewInt(10000))
 	cla2 := tx.NewClause(&addr).WithValue(big.NewInt(10000))
-	transaction = new(tx.Builder).
+	transaction = tx.NewBuilder(tx.TypeLegacy).
 		ChainTag(thorChain.Repo().ChainTag()).
 		GasPriceCoef(1).
 		Expiration(10).
@@ -560,15 +566,28 @@ func initDebugServer(t *testing.T) {
 		BlockRef(tx.NewBlockRef(0)).
 		Build()
 	transaction = tx.MustSign(transaction, genesis.DevAccounts()[0].PrivateKey)
-
 	require.NoError(t, thorChain.MintTransactions(genesis.DevAccounts()[0], transaction, noClausesTx))
-	require.NoError(t, thorChain.MintTransactions(genesis.DevAccounts()[0]))
+
+	dynFeeTx := tx.NewBuilder(tx.TypeDynamicFee).
+		ChainTag(thorChain.Repo().ChainTag()).
+		Expiration(10).
+		Gas(21000).
+		MaxFeePerGas(big.NewInt(1000)).
+		MaxPriorityFeePerGas(big.NewInt(100000)).
+		Nonce(1).
+		Clause(cla).
+		BlockRef(tx.NewBlockRef(0)).
+		Build()
+	dynFeeTx = tx.MustSign(
+		dynFeeTx,
+		genesis.DevAccounts()[0].PrivateKey,
+	)
+	require.NoError(t, thorChain.MintTransactions(genesis.DevAccounts()[0]), dynFeeTx)
 
 	allBlocks, err := thorChain.GetAllBlocks()
 	require.NoError(t, err)
 	blk = allBlocks[1]
 
-	forkConfig := thor.GetForkConfig(blk.Header().ID())
 	router := mux.NewRouter()
 	debug = New(thorChain.Repo(), thorChain.Stater(), forkConfig, 21000, true, thorChain.Engine(), []string{"all"}, false)
 	debug.Mount(router, "/debug")

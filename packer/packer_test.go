@@ -6,7 +6,6 @@
 package packer_test
 
 import (
-	"fmt"
 	"math"
 	"math/big"
 	"testing"
@@ -51,7 +50,7 @@ func (ti *txIterator) Next() *tx.Transaction {
 
 	data, _ := method.EncodeInput(a1.Address, big.NewInt(1))
 
-	trx := new(tx.Builder).
+	trx := tx.NewBuilder(tx.TypeLegacy).
 		ChainTag(ti.chainTag).
 		Clause(tx.NewClause(&builtin.Energy.Address).WithData(data)).
 		Gas(300000).GasPriceCoef(0).Nonce(nonce).Expiration(math.MaxUint32).Build()
@@ -85,7 +84,7 @@ func TestP(t *testing.T) {
 
 	for {
 		best := repo.BestBlockSummary()
-		p := packer.New(repo, stater, a1.Address, &a1.Address, thor.NoFork)
+		p := packer.New(repo, stater, a1.Address, &a1.Address, thor.NoFork, 0)
 		flow, err := p.Schedule(best, uint64(time.Now().Unix()))
 		if err != nil {
 			t.Fatal(err)
@@ -112,8 +111,9 @@ func TestP(t *testing.T) {
 	}
 
 	best := repo.BestBlockSummary()
-	fmt.Println(best.Header.Number(), best.Header.GasUsed())
-	//	fmt.Println(best)
+	assert.NotNil(t, best)
+	assert.True(t, best.Header.Number() > 0)
+	assert.True(t, best.Header.GasUsed() > 0)
 }
 
 func TestForkVIP191(t *testing.T) {
@@ -151,7 +151,7 @@ func TestForkVIP191(t *testing.T) {
 	fc.VIP191 = 1
 
 	best := repo.BestBlockSummary()
-	p := packer.New(repo, stater, a1.Address, &a1.Address, fc)
+	p := packer.New(repo, stater, a1.Address, &a1.Address, fc, 0)
 	flow, err := p.Schedule(best, uint64(time.Now().Unix()))
 	if err != nil {
 		t.Fatal(err)
@@ -196,18 +196,19 @@ func TestBlocklist(t *testing.T) {
 		VIP191:    math.MaxUint32,
 		ETH_CONST: math.MaxUint32,
 		BLOCKLIST: 0,
+		GALACTICA: math.MaxUint32,
 	}
 
 	thor.MockBlocklist([]string{a0.Address.String()})
 
 	best := repo.BestBlockSummary()
-	p := packer.New(repo, stater, a0.Address, &a0.Address, forkConfig)
+	p := packer.New(repo, stater, a0.Address, &a0.Address, forkConfig, 0)
 	flow, err := p.Schedule(best, uint64(time.Now().Unix()))
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	tx0 := new(tx.Builder).
+	tx0 := tx.NewBuilder(tx.TypeLegacy).
 		ChainTag(repo.ChainTag()).
 		Clause(tx.NewClause(&a1.Address)).
 		Gas(300000).GasPriceCoef(0).Nonce(0).Expiration(math.MaxUint32).Build()
@@ -237,7 +238,7 @@ func TestMock(t *testing.T) {
 
 	a0 := genesis.DevAccounts()[0]
 
-	p := packer.New(repo, stater, a0.Address, &a0.Address, thor.NoFork)
+	p := packer.New(repo, stater, a0.Address, &a0.Address, thor.NoFork, 0)
 
 	best := repo.BestBlockSummary()
 
@@ -264,7 +265,7 @@ func TestSetGasLimit(t *testing.T) {
 
 	a0 := genesis.DevAccounts()[0]
 
-	p := packer.New(repo, stater, a0.Address, &a0.Address, thor.NoFork)
+	p := packer.New(repo, stater, a0.Address, &a0.Address, thor.NoFork, 0)
 
 	// This is just for code coverage purposes. There is no getter function for targetGasLimit to test the function.
 	p.SetTargetGasLimit(0xFFFF)

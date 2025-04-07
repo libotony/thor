@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/pkg/errors"
 	"github.com/vechain/thor/v2/builtin"
+	"github.com/vechain/thor/v2/consensus/fork"
 	"github.com/vechain/thor/v2/state"
 	"github.com/vechain/thor/v2/thor"
 	"github.com/vechain/thor/v2/tx"
@@ -92,7 +93,7 @@ func (r *ResolvedTransaction) CommonTo() *thor.Address {
 }
 
 // BuyGas consumes energy to buy gas, to prepare for execution.
-func (r *ResolvedTransaction) BuyGas(state *state.State, blockTime uint64) (
+func (r *ResolvedTransaction) BuyGas(state *state.State, blockTime uint64, galacticaItems *fork.GalacticaItems) (
 	baseGasPrice *big.Int,
 	gasPrice *big.Int,
 	payer thor.Address,
@@ -103,7 +104,7 @@ func (r *ResolvedTransaction) BuyGas(state *state.State, blockTime uint64) (
 	if baseGasPrice, err = builtin.Params.Native(state).Get(thor.KeyBaseGasPrice); err != nil {
 		return
 	}
-	gasPrice = r.tx.GasPrice(baseGasPrice)
+	gasPrice = fork.GalacticaGasPrice(r.tx, baseGasPrice, galacticaItems)
 
 	energy := builtin.Energy.Native(state, blockTime)
 	doReturnGas := func(rgas uint64) (*big.Int, error) {
@@ -205,12 +206,13 @@ func (r *ResolvedTransaction) ToContext(
 		return nil, err
 	}
 	return &xenv.TransactionContext{
-		ID:         r.tx.ID(),
-		Origin:     r.Origin,
-		GasPayer:   gasPayer,
-		GasPrice:   gasPrice,
-		ProvedWork: provedWork,
-		BlockRef:   r.tx.BlockRef(),
-		Expiration: r.tx.Expiration(),
+		ID:          r.tx.ID(),
+		Origin:      r.Origin,
+		GasPayer:    gasPayer,
+		GasPrice:    gasPrice,
+		ProvedWork:  provedWork,
+		BlockRef:    r.tx.BlockRef(),
+		Expiration:  r.tx.Expiration(),
+		ClauseCount: uint32(len(r.Clauses)),
 	}, nil
 }

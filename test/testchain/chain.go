@@ -8,6 +8,7 @@ package testchain
 import (
 	"errors"
 	"fmt"
+	"math"
 	"math/rand/v2"
 	"slices"
 	"time"
@@ -62,10 +63,29 @@ func New(
 	}
 }
 
-// NewIntegrationTestChain is a convenience function that creates a Chain for testing.
+var DefaultForkConfig = thor.ForkConfig{
+	BLOCKLIST: 0,
+	VIP191:    1,
+	VIP214:    2,
+	ETH_CONST: math.MaxUint32,
+	ETH_IST:   math.MaxUint32,
+	FINALITY:  math.MaxUint32,
+	GALACTICA: math.MaxUint32,
+}
+
+// NewDefault is a wrapper function that creates a Chain for testing with the default fork config.
+func NewDefault() (*Chain, error) {
+	return NewIntegrationTestChain(genesis.DevConfig{ForkConfig: DefaultForkConfig})
+}
+
+// NewWithFork is a wrapper function that creates a Chain for testing with custom forkConfig.
+func NewWithFork(forkConfig thor.ForkConfig) (*Chain, error) {
+	return NewIntegrationTestChain(genesis.DevConfig{ForkConfig: forkConfig})
+}
+
+// newIntegrationTestChain is a convenience function that creates a Chain for testing.
 // It uses an in-memory database, development network genesis, and a solo BFT engine.
-func NewIntegrationTestChain() (*Chain, error) {
-	forkConfig := thor.SoloFork // using SoloFork prevents tests depending on IDs of the genesis block from failing
+func NewIntegrationTestChain(config genesis.DevConfig) (*Chain, error) {
 	// Initialize the database
 	db := muxdb.NewMem()
 
@@ -73,7 +93,7 @@ func NewIntegrationTestChain() (*Chain, error) {
 	stater := state.NewStater(db)
 
 	// Initialize the genesis and retrieve the genesis block
-	gene := genesis.NewDevnetWithConfig(forkConfig)
+	gene := genesis.NewDevnetWithConfig(config)
 	geneBlk, _, _, err := gene.Build(stater)
 	if err != nil {
 		return nil, err
@@ -99,7 +119,7 @@ func NewIntegrationTestChain() (*Chain, error) {
 		stater,
 		geneBlk,
 		logDb,
-		forkConfig,
+		config.ForkConfig,
 	), nil
 }
 
@@ -156,7 +176,7 @@ func (c *Chain) MintClauses(account genesis.DevAccount, clauses []*tx.Clause) er
 // It schedules a new block, adopts transactions, packs them into a block, and commits it to the chain.
 func (c *Chain) MintBlock(account genesis.DevAccount, transactions ...*tx.Transaction) error {
 	// Create a new block packer with the current chain state and account information.
-	blkPacker := packer.New(c.Repo(), c.Stater(), account.Address, &genesis.DevAccounts()[0].Address, c.forkConfig)
+	blkPacker := packer.New(c.Repo(), c.Stater(), account.Address, &genesis.DevAccounts()[0].Address, c.forkConfig, 0)
 
 	// Create a new block
 	blkFlow, err := blkPacker.Mock(

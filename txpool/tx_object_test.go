@@ -29,47 +29,36 @@ func newChainRepo(db *muxdb.MuxDB) *chain.Repository {
 	return repo
 }
 
-func newTx(chainTag byte, clauses []*tx.Clause, gas uint64, blockRef tx.BlockRef, expiration uint32, dependsOn *thor.Bytes32, features tx.Features, from genesis.DevAccount) *tx.Transaction {
-	builder := new(tx.Builder).ChainTag(chainTag)
-	for _, c := range clauses {
-		builder.Clause(c)
-	}
-
-	return tx.MustSign(builder.BlockRef(blockRef).
-		Expiration(expiration).
-		Nonce(rand.Uint64()). //#nosec G404
-		DependsOn(dependsOn).
-		Features(features).
-		Gas(gas).
-		Build(),
-		from.PrivateKey,
-	)
+func newTx(txType tx.Type, chainTag byte, clauses []*tx.Clause, gas uint64, blockRef tx.BlockRef, expiration uint32, dependsOn *thor.Bytes32, features tx.Features, from genesis.DevAccount) *tx.Transaction {
+	trx := txBuilder(txType, chainTag, clauses, gas, blockRef, expiration, dependsOn, features).Build()
+	return tx.MustSign(trx, from.PrivateKey)
 }
 
-func newDelegatedTx(chainTag byte, clauses []*tx.Clause, gas uint64, blockRef tx.BlockRef, expiration uint32, dependsOn *thor.Bytes32, from genesis.DevAccount, delegator genesis.DevAccount) *tx.Transaction {
-	builder := new(tx.Builder).ChainTag(chainTag)
-	for _, c := range clauses {
-		builder.Clause(c)
-	}
-
+func newDelegatedTx(txType tx.Type, chainTag byte, clauses []*tx.Clause, gas uint64, blockRef tx.BlockRef, expiration uint32, dependsOn *thor.Bytes32, from genesis.DevAccount, delegator genesis.DevAccount) *tx.Transaction {
 	var features tx.Features
 	features.SetDelegated(true)
 
-	trx := builder.BlockRef(blockRef).
-		Expiration(expiration).
-		Nonce(rand.Uint64()). //#nosec G404
-		DependsOn(dependsOn).
-		Features(features).
-		Gas(gas).
-		Build()
-
-	trx = tx.MustSignDelegated(
-		trx,
+	return tx.MustSignDelegated(
+		txBuilder(txType, chainTag, clauses, gas, blockRef, expiration, dependsOn, features).Build(),
 		from.PrivateKey,
 		delegator.PrivateKey,
 	)
+}
 
-	return trx
+func txBuilder(txType tx.Type, chainTag byte, clauses []*tx.Clause, gas uint64, blockRef tx.BlockRef, expiration uint32, dependsOn *thor.Bytes32, features tx.Features) *tx.Builder {
+	builder := tx.NewBuilder(txType).ChainTag(chainTag)
+	for _, c := range clauses {
+		builder.Clause(c)
+	}
+
+	return builder.BlockRef(blockRef).
+		Expiration(expiration).
+		Nonce(rand.Uint64()). //#nosec G404
+		DependsOn(dependsOn).
+		MaxFeePerGas(big.NewInt(thor.InitialBaseFee)).
+		MaxPriorityFeePerGas(big.NewInt(10000)).
+		Features(features).
+		Gas(gas)
 }
 
 func SetupTest() (genesis.DevAccount, *chain.Repository, *block.Block, *state.State) {
@@ -93,7 +82,8 @@ func TestExecutableWithError(t *testing.T) {
 		expected    bool
 		expectedErr string
 	}{
-		{newTx(0, nil, 21000, tx.BlockRef{0}, 100, nil, tx.Features(0), acc), false, ""},
+		{newTx(tx.TypeLegacy, 0, nil, 21000, tx.BlockRef{0}, 100, nil, tx.Features(0), acc), false, ""},
+		{newTx(tx.TypeDynamicFee, 0, nil, 21000, tx.BlockRef{0}, 100, nil, tx.Features(0), acc), false, ""},
 	}
 
 	for _, tt := range tests {
@@ -103,7 +93,7 @@ func TestExecutableWithError(t *testing.T) {
 		// pass custom headID
 		chain := repo.NewChain(thor.Bytes32{0})
 
-		exe, err := txObj.Executable(chain, st, b1.Header())
+		exe, err := txObj.Executable(chain, st, b1.Header(), &thor.NoFork)
 		if tt.expectedErr != "" {
 			assert.Equal(t, tt.expectedErr, err.Error())
 		} else {
@@ -115,25 +105,33 @@ func TestExecutableWithError(t *testing.T) {
 
 func TestSort(t *testing.T) {
 	objs := []*txObject{
-		{overallGasPrice: big.NewInt(10)},
-		{overallGasPrice: big.NewInt(20)},
-		{overallGasPrice: big.NewInt(30)},
+		{priorityGasPrice: big.NewInt(0)},
+		{priorityGasPrice: big.NewInt(10)},
+		{priorityGasPrice: big.NewInt(20)},
+		{priorityGasPrice: big.NewInt(30)},
 	}
 	sortTxObjsByOverallGasPriceDesc(objs)
 
-	assert.Equal(t, big.NewInt(30), objs[0].overallGasPrice)
-	assert.Equal(t, big.NewInt(20), objs[1].overallGasPrice)
-	assert.Equal(t, big.NewInt(10), objs[2].overallGasPrice)
+	assert.Equal(t, big.NewInt(30), objs[0].priorityGasPrice)
+	assert.Equal(t, big.NewInt(20), objs[1].priorityGasPrice)
+	assert.Equal(t, big.NewInt(10), objs[2].priorityGasPrice)
+	assert.Equal(t, big.NewInt(0), objs[3].priorityGasPrice)
 }
 
 func TestResolve(t *testing.T) {
 	acc := genesis.DevAccounts()[0]
-	tx := newTx(0, nil, 21000, tx.BlockRef{}, 100, nil, tx.Features(0), acc)
+	trx := newTx(tx.TypeLegacy, 0, nil, 21000, tx.BlockRef{}, 100, nil, tx.Features(0), acc)
 
-	txObj, err := resolveTx(tx, false)
+	txObj, err := resolveTx(trx, false)
 	assert.Nil(t, err)
-	assert.Equal(t, tx, txObj.Transaction)
+	assert.Equal(t, trx, txObj.Transaction)
 
+	assert.Equal(t, acc.Address, txObj.Origin())
+
+	trx = newTx(tx.TypeDynamicFee, 0, nil, 21000, tx.BlockRef{}, 100, nil, tx.Features(0), acc)
+	txObj, err = resolveTx(trx, false)
+	assert.Nil(t, err)
+	assert.Equal(t, trx, txObj.Transaction)
 	assert.Equal(t, acc.Address, txObj.Origin())
 }
 
@@ -152,18 +150,25 @@ func TestExecutable(t *testing.T) {
 		expected    bool
 		expectedErr string
 	}{
-		{newTx(0, nil, 21000, tx.BlockRef{}, 100, nil, tx.Features(0), acc), true, ""},
-		{newTx(0, nil, math.MaxUint64, tx.BlockRef{}, 100, nil, tx.Features(0), acc), false, "gas too large"},
-		{newTx(0, nil, 21000, tx.BlockRef{1}, 100, nil, tx.Features(0), acc), true, "block ref out of schedule"},
-		{newTx(0, nil, 21000, tx.BlockRef{0}, 0, nil, tx.Features(0), acc), true, "expired"},
-		{newTx(0, nil, 21000, tx.BlockRef{0}, 100, &thor.Bytes32{}, tx.Features(0), acc), false, ""},
+		{newTx(tx.TypeLegacy, 0, nil, 21000, tx.BlockRef{}, 100, nil, tx.Features(0), acc), true, ""},
+		{newTx(tx.TypeLegacy, 0, nil, b1.Header().GasLimit(), tx.BlockRef{}, 100, nil, tx.Features(0), acc), true, ""},
+		{newTx(tx.TypeLegacy, 0, nil, b1.Header().GasLimit()+1, tx.BlockRef{}, 100, nil, tx.Features(0), acc), false, "gas too large"},
+		{newTx(tx.TypeLegacy, 0, nil, math.MaxUint64, tx.BlockRef{}, 100, nil, tx.Features(0), acc), false, "gas too large"},
+		{newTx(tx.TypeLegacy, 0, nil, 21000, tx.BlockRef{1}, 100, nil, tx.Features(0), acc), true, "block ref out of schedule"},
+		{newTx(tx.TypeLegacy, 0, nil, 21000, tx.BlockRef{0}, 0, nil, tx.Features(0), acc), true, "expired"},
+		{newTx(tx.TypeLegacy, 0, nil, 21000, tx.BlockRef{0}, 100, &thor.Bytes32{}, tx.Features(0), acc), false, ""},
+		{newTx(tx.TypeDynamicFee, 0, nil, 21000, tx.BlockRef{}, 100, nil, tx.Features(0), acc), true, ""},
+		{newTx(tx.TypeDynamicFee, 0, nil, math.MaxUint64, tx.BlockRef{}, 100, nil, tx.Features(0), acc), false, "gas too large"},
+		{newTx(tx.TypeDynamicFee, 0, nil, 21000, tx.BlockRef{1}, 100, nil, tx.Features(0), acc), true, "block ref out of schedule"},
+		{newTx(tx.TypeDynamicFee, 0, nil, 21000, tx.BlockRef{0}, 0, nil, tx.Features(0), acc), true, "expired"},
+		{newTx(tx.TypeDynamicFee, 0, nil, 21000, tx.BlockRef{0}, 100, &thor.Bytes32{}, tx.Features(0), acc), false, ""},
 	}
 
 	for _, tt := range tests {
 		txObj, err := resolveTx(tt.tx, false)
 		assert.Nil(t, err)
 
-		exe, err := txObj.Executable(repo.NewChain(b1.Header().ID()), st, b1.Header())
+		exe, err := txObj.Executable(repo.NewChain(b1.Header().ID()), st, b1.Header(), &thor.NoFork)
 		if tt.expectedErr != "" {
 			assert.Equal(t, tt.expectedErr, err.Error())
 		} else {

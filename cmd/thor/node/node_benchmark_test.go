@@ -207,9 +207,12 @@ func benchmarkBlockProcess(b *testing.B, db *muxdb.MuxDB, accounts []genesis.Dev
 		nil,
 		"",
 		nil,
-		10_000_000,
-		true,
 		thor.NoFork,
+		Options{
+			SkipLogs:         true,
+			MinTxPriorityFee: 0,
+			TargetGasLimit:   10_000_000,
+		},
 	)
 
 	stats := &blockStats{}
@@ -262,7 +265,7 @@ func createOneClausePerTx(signerPK *ecdsa.PrivateKey, thorChain *testchain.Chain
 	for gasUsed < 9_500_000 {
 		toAddr := datagen.RandAddress()
 		cla := tx.NewClause(&toAddr).WithValue(big.NewInt(10000))
-		transaction := new(tx.Builder).
+		transaction := tx.NewBuilder(tx.TypeLegacy).
 			ChainTag(thorChain.Repo().ChainTag()).
 			GasPriceCoef(1).
 			Expiration(math.MaxUint32 - 1).
@@ -289,7 +292,7 @@ func createManyClausesPerTx(signerPK *ecdsa.PrivateKey, thorChain *testchain.Cha
 	gasUsed := uint64(0)
 	txGas := uint64(42_000)
 
-	transactionBuilder := new(tx.Builder).
+	transactionBuilder := tx.NewBuilder(tx.TypeLegacy).
 		ChainTag(thorChain.Repo().ChainTag()).
 		GasPriceCoef(1).
 		Expiration(math.MaxUint32 - 1).
@@ -315,7 +318,7 @@ func createManyClausesPerTx(signerPK *ecdsa.PrivateKey, thorChain *testchain.Cha
 }
 
 func packTxsIntoBlock(thorChain *testchain.Chain, proposerAccount *genesis.DevAccount, parentBlk *block.Block, transactions tx.Transactions) (*block.Block, error) {
-	p := packer.New(thorChain.Repo(), thorChain.Stater(), proposerAccount.Address, &proposerAccount.Address, thorChain.GetForkConfig())
+	p := packer.New(thorChain.Repo(), thorChain.Stater(), proposerAccount.Address, &proposerAccount.Address, thorChain.GetForkConfig(), 0)
 
 	parentSum, err := thorChain.Repo().GetBlockSummary(parentBlk.Header().ID())
 	if err != nil {
@@ -351,11 +354,6 @@ func packTxsIntoBlock(thorChain *testchain.Chain, proposerAccount *genesis.DevAc
 }
 
 func createChain(db *muxdb.MuxDB, accounts []genesis.DevAccount) (*testchain.Chain, error) {
-	forkConfig := thor.NoFork
-	forkConfig.VIP191 = 1
-	forkConfig.BLOCKLIST = 0
-	forkConfig.VIP214 = 2
-
 	// Create the state manager (Stater) with the initialized database.
 	stater := state.NewStater(db)
 
@@ -382,7 +380,7 @@ func createChain(db *muxdb.MuxDB, accounts []genesis.DevAccount) (*testchain.Cha
 		LaunchTime: 1526400000,
 		GasLimit:   thor.InitialGasLimit,
 		ExtraData:  "",
-		ForkConfig: &forkConfig,
+		ForkConfig: &testchain.DefaultForkConfig,
 		Authority:  authAccs,
 		Accounts:   stateAccs,
 		Params: genesis.Params{
