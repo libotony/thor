@@ -108,9 +108,10 @@ func TestGetSummary(t *testing.T) {
 		FINALITY:  0,
 		GALACTICA: 100,
 	}
-	thorChain, err := testchain.NewWithFork(forks)
+	thorChain, err := testchain.NewWithFork(&forks)
 	require.NoError(t, err)
 
+	customRevision := thorChain.Repo().BestBlockSummary().Header.ID()
 	// Test cases
 	testCases := []struct {
 		name     string
@@ -138,8 +139,8 @@ func TestGetSummary(t *testing.T) {
 			err:      nil,
 		},
 		{
-			name:     "0x00000000c05a20fbca2bf6ae3affba6af4a74b800b585bf7a4988aba7aea69f6",
-			revision: &Revision{thor.MustParseBytes32("0x00000000c05a20fbca2bf6ae3affba6af4a74b800b585bf7a4988aba7aea69f6")},
+			name:     "customRevision",
+			revision: &Revision{customRevision},
 			err:      nil,
 		},
 		{
@@ -168,12 +169,12 @@ func TestGetSummaryAndState(t *testing.T) {
 
 	b := thorChain.GenesisBlock()
 
-	summary, _, err := GetSummaryAndState(&Revision{revBest}, thorChain.Repo(), thorChain.Engine(), thorChain.Stater())
+	summary, _, err := GetSummaryAndState(&Revision{revBest}, thorChain.Repo(), thorChain.Engine(), thorChain.Stater(), &thor.ForkConfig{})
 	assert.Nil(t, err)
 	assert.Equal(t, summary.Header.Number(), b.Header().Number())
 	assert.Equal(t, summary.Header.Timestamp(), b.Header().Timestamp())
 
-	summary, _, err = GetSummaryAndState(&Revision{revNext}, thorChain.Repo(), thorChain.Engine(), thorChain.Stater())
+	summary, _, err = GetSummaryAndState(&Revision{revNext}, thorChain.Repo(), thorChain.Engine(), thorChain.Stater(), &thor.ForkConfig{})
 	assert.Nil(t, err)
 	assert.Equal(t, summary.Header.Number(), b.Header().Number()+1)
 	assert.Equal(t, summary.Header.Timestamp(), b.Header().Timestamp()+thor.BlockInterval)

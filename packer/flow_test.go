@@ -61,7 +61,7 @@ func TestAdopt(t *testing.T) {
 	clause := tx.NewClause(&addr).WithValue(big.NewInt(10000))
 
 	// Create and adopt two transactions
-	pkr := packer.New(repo, stater, genesis.DevAccounts()[0].Address, &genesis.DevAccounts()[0].Address, thor.NoFork, 0)
+	pkr := packer.New(repo, stater, genesis.DevAccounts()[0].Address, &genesis.DevAccounts()[0].Address, &thor.NoFork, 0)
 	sum, err := repo.GetBlockSummary(b.Header().ID())
 	if err != nil {
 		t.Fatal("Error getting block summary:", err)
@@ -117,7 +117,7 @@ func TestAdoptTypedTxs(t *testing.T) {
 	clause := tx.NewClause(&addr).WithValue(big.NewInt(10000))
 
 	// Create and adopt two transactions
-	pkr := packer.New(repo, stater, genesis.DevAccounts()[0].Address, &genesis.DevAccounts()[0].Address, thor.ForkConfig{GALACTICA: 1}, 0)
+	pkr := packer.New(repo, stater, genesis.DevAccounts()[0].Address, &genesis.DevAccounts()[0].Address, &thor.ForkConfig{GALACTICA: 1}, 0)
 	sum, err := repo.GetBlockSummary(b.Header().ID())
 	if err != nil {
 		t.Fatal("Error getting block summary:", err)
@@ -167,7 +167,7 @@ func TestPack(t *testing.T) {
 	forkConfig.FINALITY = 0
 
 	proposer := genesis.DevAccounts()[0]
-	p := packer.New(repo, stater, proposer.Address, &proposer.Address, forkConfig, 0)
+	p := packer.New(repo, stater, proposer.Address, &proposer.Address, &forkConfig, 0)
 	parentSum, _ := repo.GetBlockSummary(parent.Header().ID())
 	flow, _ := p.Schedule(parentSum, parent.Header().Timestamp()+100*thor.BlockInterval)
 
@@ -199,7 +199,7 @@ func TestPackAfterGalacticaFork(t *testing.T) {
 	forkConfig.GALACTICA = 2
 
 	proposer := genesis.DevAccounts()[0]
-	p := packer.New(repo, stater, proposer.Address, &proposer.Address, forkConfig, 0)
+	p := packer.New(repo, stater, proposer.Address, &proposer.Address, &forkConfig, 0)
 	parentSum, _ := repo.GetBlockSummary(parent.Header().ID())
 	flow, _ := p.Schedule(parentSum, parent.Header().Timestamp()+100*thor.BlockInterval)
 
@@ -240,6 +240,7 @@ func TestAdoptErr(t *testing.T) {
 	g := new(genesis.Builder).
 		GasLimit(0).
 		Timestamp(launchTime).
+		ForkConfig(&thor.NoFork).
 		State(func(state *state.State) error {
 			bal, _ := new(big.Int).SetString("1000000000000000000000000000", 10)
 			state.SetCode(builtin.Authority.Address, builtin.Authority.RuntimeBytecodes())
@@ -261,7 +262,7 @@ func TestAdoptErr(t *testing.T) {
 	addr := thor.BytesToAddress([]byte("to"))
 	clause := tx.NewClause(&addr).WithValue(big.NewInt(10000))
 
-	pkr := packer.New(repo, stater, genesis.DevAccounts()[0].Address, &genesis.DevAccounts()[0].Address, thor.NoFork, 0)
+	pkr := packer.New(repo, stater, genesis.DevAccounts()[0].Address, &genesis.DevAccounts()[0].Address, &thor.SoloFork, 0)
 	sum, _ := repo.GetBlockSummary(b.Header().ID())
 
 	flow, _ := pkr.Schedule(sum, uint64(time.Now().Unix()))
@@ -286,11 +287,45 @@ func TestAdoptErr(t *testing.T) {
 	if err := flow.Adopt(tx3); err.Error() != expectedErrorMessage {
 		t.Fatalf("Expected error message: '%s', but got: '%s'", expectedErrorMessage, err.Error())
 	}
+
+	thor.MockBlocklist([]string{genesis.DevAccounts()[9].Address.String()})
+	// Test origin blacklisted
+	builder := new(tx.Builder).
+		ChainTag(repo.ChainTag()).
+		GasPriceCoef(1).
+		Expiration(0).
+		Gas(10e18).
+		Nonce(nonce).
+		Clause(clause).
+		BlockRef(tx.NewBlockRef(1))
+	tx4 := tx.MustSign(builder.Build(), genesis.DevAccounts()[9].PrivateKey)
+
+	expectedErrorMessage = "bad tx: tx origin blocked"
+	if err := flow.Adopt(tx4); err.Error() != expectedErrorMessage {
+		t.Fatalf("Expected error message: '%s', but got: '%s'", expectedErrorMessage, err.Error())
+	}
+
+	// Test delegator blacklisted
+	builder = new(tx.Builder).
+		ChainTag(repo.ChainTag()).
+		GasPriceCoef(1).
+		Expiration(0).
+		Gas(10e18).
+		Nonce(nonce).
+		Clause(clause).
+		Features(tx.Features(0x01)).
+		BlockRef(tx.NewBlockRef(1))
+	tx5 := tx.MustSignDelegated(builder.Build(), genesis.DevAccounts()[8].PrivateKey, genesis.DevAccounts()[9].PrivateKey)
+
+	expectedErrorMessage = "bad tx: tx delegator blocked"
+	if err := flow.Adopt(tx5); err.Error() != expectedErrorMessage {
+		t.Fatalf("Expected error message: '%s', but got: '%s'", expectedErrorMessage, err.Error())
+	}
 }
 
 func TestAdoptErrorAfterGalactica(t *testing.T) {
 	forks := thor.ForkConfig{GALACTICA: 2}
-	chain, err := testchain.NewWithFork(forks)
+	chain, err := testchain.NewWithFork(&forks)
 	assert.NoError(t, err)
 
 	// Try to adopt a dyn fee tx before galactica fork activates - FAILS
@@ -344,7 +379,7 @@ func TestAdoptErrorAfterGalactica(t *testing.T) {
 }
 
 func TestAdoptAfterGalacticaLowerBaseFeeThreshold(t *testing.T) {
-	chain, err := testchain.NewWithFork(thor.ForkConfig{GALACTICA: 1})
+	chain, err := testchain.NewWithFork(&thor.ForkConfig{GALACTICA: 1})
 	assert.NoError(t, err)
 
 	tr := tx.NewBuilder(tx.TypeLegacy).ChainTag(chain.Repo().ChainTag()).Gas(21000).Expiration(100).Build()
@@ -367,7 +402,7 @@ func TestAdoptAfterGalacticaLowerBaseFeeThreshold(t *testing.T) {
 
 func TestAdoptAfterGalacticaEffectivePriorityFee(t *testing.T) {
 	config := genesis.DevConfig{
-		ForkConfig:      thor.ForkConfig{GALACTICA: 1},
+		ForkConfig:      &thor.ForkConfig{GALACTICA: 1},
 		KeyBaseGasPrice: new(big.Int).Add(big.NewInt(1), big.NewInt(thor.InitialBaseFee)),
 	}
 	chain, err := testchain.NewIntegrationTestChain(config)

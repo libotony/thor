@@ -85,7 +85,7 @@ func TestValidateBlockBody(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			c := New(repo, stater, *tt.forkConfig)
+			c := New(repo, stater, tt.forkConfig)
 
 			err := c.validateBlockBody(tt.getBlock())
 			assert.Equal(t, tt.expectedError, err)
@@ -116,7 +116,7 @@ func TestValidateBlock(t *testing.T) {
 				tr := tx.NewBuilder(tx.TypeDynamicFee).ChainTag(repo.ChainTag()).BlockRef(tx.NewBlockRef(10)).MaxFeePerGas(new(big.Int).Sub(baseFee, common.Big1)).Build()
 				blk := new(block.Builder).BaseFee(baseFee).Transaction(tr).Build()
 
-				c := New(repo, stater, thor.ForkConfig{GALACTICA: 0})
+				c := New(repo, stater, &thor.ForkConfig{GALACTICA: 0})
 				s, r, err := c.verifyBlock(blk, state, 0)
 				assert.Nil(t, s)
 				assert.Nil(t, r)
@@ -137,7 +137,7 @@ func TestValidateBlock(t *testing.T) {
 					StateRoot(thor.BytesToBytes32(hexutil.MustDecode("0xfd52b74feb856784be141440cc8d68d8a518aaa5e845ceed2ed8322f99c11352"))).
 					Build()
 
-				c := New(repo, stater, thor.ForkConfig{GALACTICA: 0})
+				c := New(repo, stater, &thor.ForkConfig{GALACTICA: 0})
 				s, r, err := c.verifyBlock(blk, state, 0)
 				assert.Nil(t, s)
 				assert.Nil(t, r)

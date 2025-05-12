@@ -128,6 +128,14 @@ func (f *Flow) Adopt(t *tx.Transaction) error {
 		return badTxError{"tx origin blocked"}
 	}
 
+	delegator, err := t.Delegator()
+	if err != nil {
+		return badTxError{"delegator cannot be extracted"}
+	}
+	if f.Number() >= f.packer.forkConfig.BLOCKLIST && delegator != nil && thor.IsOriginBlocked(*delegator) {
+		return badTxError{"tx delegator blocked"}
+	}
+
 	if err := t.TestFeatures(f.features); err != nil {
 		return badTxError{err.Error()}
 	}
@@ -232,7 +240,7 @@ func (f *Flow) Pack(privateKey *ecdsa.PrivateKey, newBlockConflicts uint32, shou
 	}
 
 	if f.Number() >= f.packer.forkConfig.GALACTICA {
-		builder.BaseFee(fork.CalcBaseFee(&f.packer.forkConfig, f.parentHeader))
+		builder.BaseFee(fork.CalcBaseFee(f.packer.forkConfig, f.parentHeader))
 	}
 
 	if f.Number() < f.packer.forkConfig.VIP214 {

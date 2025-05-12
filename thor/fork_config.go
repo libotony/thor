@@ -66,7 +66,7 @@ var SoloFork = ForkConfig{
 }
 
 // for well-known networks
-var forkConfigs = map[Bytes32]ForkConfig{
+var forkConfigs = map[Bytes32]*ForkConfig{
 	// mainnet
 	MustParseBytes32("0x00000000851caf3cfdb6e899cf5958bfb1ac3413d346d43539627e6be7ec1b4a"): {
 		VIP191:    3_337_300,
@@ -90,6 +90,6 @@ var forkConfigs = map[Bytes32]ForkConfig{
 }
 
 // GetForkConfig get fork config for given genesis ID.
-func GetForkConfig(genesisID Bytes32) ForkConfig {
+func GetForkConfig(genesisID Bytes32) *ForkConfig {
 	return forkConfigs[genesisID]
 }

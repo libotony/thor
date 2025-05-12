@@ -430,7 +430,7 @@ func createChain(db *muxdb.MuxDB, accounts []genesis.DevAccount) (*testchain.Cha
 		stater,
 		geneBlk,
 		logDb,
-		thor.NoFork,
+		&testchain.DefaultForkConfig,
 	), nil
 }
 

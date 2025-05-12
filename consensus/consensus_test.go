@@ -51,7 +51,7 @@ type testConsensus struct {
 	pk         *ecdsa.PrivateKey
 	parent     *block.Block
 	original   *block.Block
-	forkConfig thor.ForkConfig
+	forkConfig *thor.ForkConfig
 	tag        byte
 }
 
@@ -62,6 +62,7 @@ func newTestConsensus() (*testConsensus, error) {
 	gen := new(genesis.Builder).
 		GasLimit(thor.InitialGasLimit).
 		Timestamp(launchTime).
+		ForkConfig(&thor.NoFork).
 		State(func(state *state.State) error {
 			bal, _ := new(big.Int).SetString("1000000000000000000000000000", 10)
 			state.SetCode(builtin.Authority.Address, builtin.Authority.RuntimeBytecodes())
@@ -89,7 +90,7 @@ func newTestConsensus() (*testConsensus, error) {
 	forkConfig.GALACTICA = 5
 
 	proposer := genesis.DevAccounts()[0]
-	p := packer.New(repo, stater, proposer.Address, &proposer.Address, forkConfig, 0)
+	p := packer.New(repo, stater, proposer.Address, &proposer.Address, &forkConfig, 0)
 	parentSum, _ := repo.GetBlockSummary(parent.Header().ID())
 	flow, err := p.Schedule(parentSum, parent.Header().Timestamp()+100*thor.BlockInterval)
 	if err != nil {
@@ -111,7 +112,7 @@ func newTestConsensus() (*testConsensus, error) {
 		return nil, err
 	}
 
-	con := New(repo, stater, forkConfig)
+	con := New(repo, stater, &forkConfig)
 
 	if _, _, err := con.Process(parentSum, b1, flow.When(), 0); err != nil {
 		return nil, err
@@ -126,7 +127,7 @@ func newTestConsensus() (*testConsensus, error) {
 	}
 
 	proposer2 := genesis.DevAccounts()[1]
-	p2 := packer.New(repo, stater, proposer2.Address, &proposer2.Address, forkConfig, 0)
+	p2 := packer.New(repo, stater, proposer2.Address, &proposer2.Address, &forkConfig, 0)
 	b1sum, _ := repo.GetBlockSummary(b1.Header().ID())
 	flow2, err := p2.Schedule(b1sum, b1.Header().Timestamp()+100*thor.BlockInterval)
 	if err != nil {
@@ -148,7 +149,7 @@ func newTestConsensus() (*testConsensus, error) {
 		pk:         proposer.PrivateKey,
 		parent:     b1,
 		original:   b2,
-		forkConfig: forkConfig,
+		forkConfig: &forkConfig,
 		tag:        repo.ChainTag(),
 	}, nil
 }
@@ -228,7 +229,7 @@ func TestNewConsensus(t *testing.T) {
 	// Mock dependencies
 	mockRepo := &chain.Repository{}
 	mockStater := &state.Stater{}
-	mockForkConfig := thor.ForkConfig{}
+	mockForkConfig := &thor.ForkConfig{}
 
 	// Create a new consensus instance
 	consensus := New(mockRepo, mockStater, mockForkConfig)
@@ -465,10 +466,10 @@ func TestValidateBlockHeaderWithBadBaseFee(t *testing.T) {
 	forkConfig.GALACTICA = 1
 	forkConfig.VIP214 = 2
 
-	chain, err := testchain.NewWithFork(forkConfig)
+	chain, err := testchain.NewWithFork(&forkConfig)
 	assert.NoError(t, err)
 
-	con := New(chain.Repo(), chain.Stater(), forkConfig)
+	con := New(chain.Repo(), chain.Stater(), &forkConfig)
 
 	best, err := chain.BestBlock()
 	assert.NoError(t, err)
@@ -672,6 +673,25 @@ func TestConsent(t *testing.T) {
 				err = tc.consent(blk)
 				expected := consensusError(
 					fmt.Sprintf("tx origin blocked got packed: %v", genesis.DevAccounts()[9].Address),
+				)
+				assert.Equal(t, expected, err)
+			},
+		},
+		{
+			"TxDelegatorBlocked", func(t *testing.T) {
+				thor.MockBlocklist([]string{genesis.DevAccounts()[9].Address.String()})
+				builder := txBuilder(tc.tag, tx.TypeLegacy)
+				builder = builder.Features(tx.Features(0x01))
+				trx := tx.MustSignDelegated(builder.Build(), genesis.DevAccounts()[8].PrivateKey, genesis.DevAccounts()[9].PrivateKey)
+				blk, err := tc.sign(
+					tc.builder(tc.original.Header()).Transaction(trx),
+				)
+				if err != nil {
+					t.Fatal(err)
+				}
+				err = tc.consent(blk)
+				expected := consensusError(
+					fmt.Sprintf("tx delegator blocked got packed: %v", genesis.DevAccounts()[9].Address),
 				)
 				assert.Equal(t, expected, err)
 			},

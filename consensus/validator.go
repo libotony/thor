@@ -163,7 +163,7 @@ func (c *Consensus) validateBlockHeader(header *block.Header, parent *block.Head
 			return consensusError(fmt.Sprintf("block gas limit invalid: parent %v, current %v", parent.GasLimit(), header.GasLimit()))
 		}
 	} else {
-		if err := fork.VerifyGalacticaHeader(&c.forkConfig, parent, header); err != nil {
+		if err := fork.VerifyGalacticaHeader(c.forkConfig, parent, header); err != nil {
 			return consensusError(fmt.Sprintf("block header invalid: %v", err))
 		}
 	}
@@ -246,6 +246,14 @@ func (c *Consensus) validateBlockBody(blk *block.Block) error {
 
 		if header.Number() >= c.forkConfig.BLOCKLIST && thor.IsOriginBlocked(origin) {
 			return consensusError(fmt.Sprintf("tx origin blocked got packed: %v", origin))
+		}
+
+		delegator, err := tr.Delegator()
+		if err != nil {
+			return consensusError(fmt.Sprintf("tx delegator unavailable: %v", err))
+		}
+		if header.Number() >= c.forkConfig.BLOCKLIST && delegator != nil && thor.IsOriginBlocked(*delegator) {
+			return consensusError(fmt.Sprintf("tx delegator blocked got packed: %v", delegator))
 		}
 
 		switch {

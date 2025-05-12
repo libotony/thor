@@ -19,7 +19,7 @@ import (
 
 // Config for the devnet network, to be extended by our needs
 type DevConfig struct {
-	ForkConfig      thor.ForkConfig
+	ForkConfig      *thor.ForkConfig
 	KeyBaseGasPrice *big.Int
 }
 
@@ -64,12 +64,15 @@ func DevAccounts() []DevAccount {
 
 // NewDevnet create genesis for solo mode.
 func NewDevnet() *Genesis {
-	return NewDevnetWithConfig(DevConfig{ForkConfig: thor.SoloFork})
+	return NewDevnetWithConfig(DevConfig{ForkConfig: &thor.SoloFork})
 }
 
 func NewDevnetWithConfig(config DevConfig) *Genesis {
 	launchTime := uint64(1526400000) // 'Wed May 16 2018 00:00:00 GMT+0800 (CST)'
+	return NewDevnetWithConfigAndLaunchtime(config, launchTime)
+}
 
+func NewDevnetWithConfigAndLaunchtime(config DevConfig, launchTime uint64) *Genesis {
 	executor := DevAccounts()[0].Address
 	soloBlockSigner := DevAccounts()[0]
 	if config.KeyBaseGasPrice == nil {

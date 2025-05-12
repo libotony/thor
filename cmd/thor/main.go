@@ -68,6 +68,7 @@ func main() {
 		Copyright: fmt.Sprintf("2018-%s VeChain Foundation <https://vechain.org/>", copyrightYear),
 		Flags: []cli.Flag{
 			networkFlag,
+			apiTxpoolFlag,
 			configDirFlag,
 			masterKeyStdinFlag,
 			dataDirFlag,
@@ -112,6 +113,7 @@ func main() {
 					genesisFlag,
 					dataDirFlag,
 					cacheFlag,
+					apiTxpoolFlag,
 					apiAddrFlag,
 					apiCorsFlag,
 					apiTimeoutFlag,
@@ -234,7 +236,7 @@ func defaultAction(ctx *cli.Context) error {
 	if err != nil {
 		return errors.Wrap(err, "parse txpool-limit-per-account flag")
 	}
-	txPool := txpool.New(repo, state.NewStater(mainDB), txpoolOpt, &forkConfig)
+	txPool := txpool.New(repo, state.NewStater(mainDB), txpoolOpt, forkConfig)
 	defer func() { log.Info("closing tx pool..."); txPool.Close() }()
 
 	p2pCommunicator, err := newP2PCommunicator(ctx, repo, txPool, instanceDir)
@@ -352,13 +354,13 @@ func soloAction(ctx *cli.Context) error {
 
 	var (
 		gene       *genesis.Genesis
-		forkConfig thor.ForkConfig
+		forkConfig *thor.ForkConfig
 	)
 
 	flagGenesis := ctx.String(genesisFlag.Name)
 	if flagGenesis == "" {
 		gene = genesis.NewDevnet()
-		forkConfig = thor.SoloFork
+		forkConfig = &thor.SoloFork
 	} else {
 		gene, forkConfig, err = parseGenesisFile(flagGenesis)
 		if err != nil {
@@ -434,7 +436,7 @@ func soloAction(ctx *cli.Context) error {
 		return errors.Wrap(err, "parse txpool-limit-per-account flag")
 	}
 
-	txPool := txpool.New(repo, state.NewStater(mainDB), txPoolOption, &forkConfig)
+	txPool := txpool.New(repo, state.NewStater(mainDB), txPoolOption, forkConfig)
 	defer func() { log.Info("closing tx pool..."); txPool.Close() }()
 
 	apiHandler, apiCloser := api.New(

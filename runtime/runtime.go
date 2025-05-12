@@ -88,7 +88,7 @@ type Runtime struct {
 	state       *state.State
 	ctx         *xenv.BlockContext
 	chainConfig vm.ChainConfig
-	forkConfig  thor.ForkConfig
+	forkConfig  *thor.ForkConfig
 }
 
 // New create a Runtime object.
@@ -96,7 +96,7 @@ func New(
 	chain *chain.Chain,
 	state *state.State,
 	ctx *xenv.BlockContext,
-	forkConfig thor.ForkConfig,
+	forkConfig *thor.ForkConfig,
 ) *Runtime {
 	currentChainConfig := baseChainConfig
 	currentChainConfig.ConstantinopleBlock = big.NewInt(int64(forkConfig.ETH_CONST))

@@ -47,6 +47,7 @@ type Config struct {
 	AllowedTracers    []string
 	SoloMode          bool
 	EnableDeprecated  bool
+	EnableTxpool      bool
 	Fees              fees.Config
 }
 
@@ -58,7 +59,7 @@ func New(
 	logDB *logdb.LogDB,
 	bft bft.Committer,
 	nw node.Network,
-	forkConfig thor.ForkConfig,
+	forkConfig *thor.ForkConfig,
 	config Config,
 ) (http.HandlerFunc, func()) {
 	origins := strings.Split(strings.TrimSpace(config.AllowedOrigins), ",")
@@ -94,12 +95,12 @@ func New(
 		Mount(router, "/transactions")
 	debug.New(repo, stater, forkConfig, config.CallGasLimit, config.AllowCustomTracer, bft, config.AllowedTracers, config.SoloMode).
 		Mount(router, "/debug")
-	node.New(nw).
+	node.New(nw, txPool, config.EnableTxpool).
 		Mount(router, "/node")
 	subs := subscriptions.New(repo, origins, config.BacktraceLimit, txPool, config.EnableDeprecated)
 	subs.Mount(router, "/subscriptions")
 
-	fees.New(repo, bft, stater, config.Fees).Mount(router, "/fees")
+	fees.New(repo, bft, forkConfig, stater, config.Fees).Mount(router, "/fees")
 
 	if config.PprofOn {
 		router.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)

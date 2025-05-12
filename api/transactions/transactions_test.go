@@ -16,6 +16,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/common/math"
+	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -35,6 +36,7 @@ var (
 	mempoolTx *tx.Transaction
 	tclient   *thorclient.Client
 	chainTag  byte
+	thorChain *testchain.Chain
 )
 
 func TestTransaction(t *testing.T) {
@@ -45,10 +47,10 @@ func TestTransaction(t *testing.T) {
 	tclient = thorclient.New(ts.URL)
 	for name, tt := range map[string]func(*testing.T){
 		"sendLegacyTx":                             sendLegacyTx,
+		"sendImpossibleBlockRefExpiryTx":           sendImpossibleBlockRefExpiryTx,
 		"sendTxWithBadFormat":                      sendTxWithBadFormat,
 		"sendTxThatCannotBeAcceptedInLocalMempool": sendTxThatCannotBeAcceptedInLocalMempool,
-
-		"sendDynamicFeeTx": sendDynamicFeeTx,
+		"sendDynamicFeeTx":                         sendDynamicFeeTx,
 	} {
 		t.Run(name, tt)
 	}
@@ -177,7 +179,7 @@ func sendDynamicFeeTx(t *testing.T) {
 		ChainTag(chainTag).
 		Expiration(expiration).
 		Gas(gas).
-		MaxFeePerGas(big.NewInt(10_000)).
+		MaxFeePerGas(big.NewInt(thor.InitialBaseFee)).
 		MaxPriorityFeePerGas(big.NewInt(10)).
 		Build()
 	trx = tx.MustSign(
@@ -196,6 +198,30 @@ func sendDynamicFeeTx(t *testing.T) {
 		t.Fatal(err)
 	}
 	assert.Equal(t, trx.ID().String(), txObj["id"], "should be the same transaction id")
+}
+
+func sendImpossibleBlockRefExpiryTx(t *testing.T) {
+	var blockRef = tx.NewBlockRef(thorChain.Repo().BestBlockSummary().Header.Number())
+	var expiration = uint32(0)
+	var gas = uint64(21000)
+
+	trx := tx.MustSign(
+		new(tx.Builder).
+			BlockRef(blockRef).
+			ChainTag(chainTag).
+			Expiration(expiration).
+			Gas(gas).
+			Build(),
+		genesis.DevAccounts()[0].PrivateKey,
+	)
+
+	rlpTx, err := rlp.EncodeToBytes(trx)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	res := httpPostAndCheckResponseStatus(t, "/transactions", transactions.RawTx{Raw: hexutil.Encode(rlpTx)}, 403)
+	assert.Equal(t, "tx rejected: expired\n", string(res), "should be expired")
 }
 
 func getTxWithBadID(t *testing.T) {
@@ -336,7 +362,8 @@ func initTransactionServer(t *testing.T) {
 	forkConfig := testchain.DefaultForkConfig
 	forkConfig.GALACTICA = 2
 
-	thorChain, err := testchain.NewWithFork(forkConfig)
+	var err error
+	thorChain, err = testchain.NewWithFork(&forkConfig)
 	require.NoError(t, err)
 
 	chainTag = thorChain.Repo().ChainTag()

@@ -31,7 +31,7 @@ func newSolo() *Solo {
 	repo, _ := chain.NewRepository(db, b)
 	mempool := txpool.New(repo, stater, txpool.Options{Limit: 10000, LimitPerAccount: 16, MaxLifetime: 10 * time.Minute}, &thor.NoFork)
 
-	return New(repo, stater, logDb, mempool, thor.ForkConfig{GALACTICA: math.MaxUint32}, Options{
+	return New(repo, stater, logDb, mempool, &thor.ForkConfig{GALACTICA: math.MaxUint32}, Options{
 		GasLimit:         0,
 		SkipLogs:         false,
 		MinTxPriorityFee: 0,

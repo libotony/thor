@@ -61,7 +61,7 @@ func New(
 	stater *state.Stater,
 	logDB *logdb.LogDB,
 	txPool *txpool.TxPool,
-	forkConfig thor.ForkConfig,
+	forkConfig *thor.ForkConfig,
 	options Options,
 ) *Solo {
 	return &Solo{

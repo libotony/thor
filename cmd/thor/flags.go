@@ -83,6 +83,10 @@ var (
 		Value: 5,
 		Usage: "percentage of the block base fee for priority fees calculation",
 	}
+	apiTxpoolFlag = cli.BoolFlag{
+		Name:  "api-enable-txpool",
+		Usage: "enable txpool REST API endpoints",
+	}
 
 	verbosityFlag = cli.Uint64Flag{
 		Name:  "verbosity",

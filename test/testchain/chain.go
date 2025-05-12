@@ -37,7 +37,7 @@ type Chain struct {
 	stater       *state.Stater
 	genesisBlock *block.Block
 	logDB        *logdb.LogDB
-	forkConfig   thor.ForkConfig
+	forkConfig   *thor.ForkConfig
 }
 
 func New(
@@ -48,7 +48,7 @@ func New(
 	stater *state.Stater,
 	genesisBlock *block.Block,
 	logDB *logdb.LogDB,
-	forkConfig thor.ForkConfig,
+	forkConfig *thor.ForkConfig,
 ) *Chain {
 	return &Chain{
 		db:           db,
@@ -74,11 +74,11 @@ var DefaultForkConfig = thor.ForkConfig{
 
 // NewDefault is a wrapper function that creates a Chain for testing with the default fork config.
 func NewDefault() (*Chain, error) {
-	return NewIntegrationTestChain(genesis.DevConfig{ForkConfig: DefaultForkConfig})
+	return NewIntegrationTestChain(genesis.DevConfig{ForkConfig: &DefaultForkConfig})
 }
 
 // NewWithFork is a wrapper function that creates a Chain for testing with custom forkConfig.
-func NewWithFork(forkConfig thor.ForkConfig) (*Chain, error) {
+func NewWithFork(forkConfig *thor.ForkConfig) (*Chain, error) {
 	return NewIntegrationTestChain(genesis.DevConfig{ForkConfig: forkConfig})
 }
 
@@ -92,7 +92,7 @@ func NewIntegrationTestChain(config genesis.DevConfig) (*Chain, error) {
 	stater := state.NewStater(db)
 
 	// Initialize the genesis and retrieve the genesis block
-	gene := genesis.NewDevnetWithConfig(config)
+	gene := genesis.NewDevnetWithConfigAndLaunchtime(config, uint64(time.Now().Unix()))
 	geneBlk, _, _, err := gene.Build(stater)
 	if err != nil {
 		return nil, err
@@ -257,7 +257,7 @@ func (c *Chain) BestBlock() (*block.Block, error) {
 }
 
 // GetForkConfig returns the current fork configuration based on the ID of the genesis block.
-func (c *Chain) GetForkConfig() thor.ForkConfig {
+func (c *Chain) GetForkConfig() *thor.ForkConfig {
 	return c.forkConfig
 }
 

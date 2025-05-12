@@ -41,7 +41,7 @@ const LIMIT_PER_ACCOUNT = 2
 var devAccounts = genesis.DevAccounts()
 
 func newPool(limit int, limitPerAccount int, forkConfig *thor.ForkConfig) *TxPool {
-	tchain, _ := testchain.NewWithFork(thor.SoloFork)
+	tchain, _ := testchain.NewWithFork(forkConfig)
 	return New(tchain.Repo(), tchain.Stater(), Options{
 		Limit:           limit,
 		LimitPerAccount: limitPerAccount,
@@ -58,6 +58,7 @@ func newPoolWithMaxLifetime(limit int, limitPerAccount int, BlocklistCacheFilePa
 	gene := new(genesis.Builder).
 		GasLimit(thor.InitialGasLimit).
 		Timestamp(timestamp).
+		ForkConfig(&thor.NoFork).
 		State(func(state *state.State) error {
 			bal, _ := new(big.Int).SetString("1000000000000000000000000000", 10)
 			for _, acc := range devAccounts {
@@ -686,7 +687,7 @@ func TestFillPoolWithMixedTxs(t *testing.T) {
 }
 
 func TestAdd(t *testing.T) {
-	pool := newPool(LIMIT, LIMIT_PER_ACCOUNT, &thor.ForkConfig{})
+	pool := newPool(LIMIT, LIMIT_PER_ACCOUNT, &thor.SoloFork)
 	defer pool.Close()
 	st := pool.stater.NewState(trie.Root{Hash: pool.repo.GenesisBlock().Header().StateRoot()})
 	stage, _ := st.Stage(trie.Version{Major: 1})
@@ -765,7 +766,7 @@ func TestAdd(t *testing.T) {
 }
 
 func TestBeforeVIP191Add(t *testing.T) {
-	tchain, err := testchain.NewWithFork(thor.SoloFork)
+	tchain, err := testchain.NewWithFork(&thor.SoloFork)
 	assert.Nil(t, err)
 	acc := devAccounts[0]
 
@@ -1203,6 +1204,7 @@ func TestAddOverPendingCost(t *testing.T) {
 	db := muxdb.NewMem()
 	builder := new(genesis.Builder).
 		GasLimit(thor.InitialGasLimit).
+		ForkConfig(&thor.NoFork).
 		Timestamp(now).
 		State(func(state *state.State) error {
 			if err := state.SetCode(builtin.Params.Address, builtin.Params.RuntimeBytecodes()); err != nil {
@@ -1292,6 +1294,7 @@ func TestAddOverPendingCostDynamicFee(t *testing.T) {
 	builder := new(genesis.Builder).
 		GasLimit(thor.InitialGasLimit).
 		Timestamp(now).
+		ForkConfig(&thor.ForkConfig{}).
 		State(func(state *state.State) error {
 			if err := state.SetCode(builtin.Params.Address, builtin.Params.RuntimeBytecodes()); err != nil {
 				return err

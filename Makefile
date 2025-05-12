@@ -9,12 +9,14 @@ DISCO_VERSION = $(shell cat cmd/disco/VERSION)
 PACKAGES = `go list ./... | grep -v '/vendor/'`
 FUZZTIME=1m
 
+REQUIRED_GO_MAJOR = 1
+REQUIRED_GO_MINOR = 24
 MAJOR = $(shell go version | cut -d' ' -f3 | cut -b 3- | cut -d. -f1)
 MINOR = $(shell go version | cut -d' ' -f3 | cut -b 3- | cut -d. -f2)
 export GO111MODULE=on
 
 .DEFAULT_GOAL := thor
-.PHONY: thor disco all clean test
+.PHONY: thor disco all clean test install-hooks
 
 help:
 	@egrep -h '\s#@\s' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?#@ "}; {printf "\033[36m  %-30s\033[0m %s\n", $$1, $$2}'
@@ -33,12 +35,12 @@ dep:| go_version_check
 	@go mod download
 
 go_version_check:
-	@if test $(MAJOR) -lt 1; then \
-		echo "Go 1.23 or higher required"; \
+	@if test $(MAJOR) -lt $(REQUIRED_GO_MAJOR); then \
+		echo "Go $(REQUIRED_GO_MAJOR).$(REQUIRED_GO_MINOR) or higher required"; \
 		exit 1; \
 	else \
-		if test $(MAJOR) -eq 1 -a $(MINOR) -lt 22; then \
-			echo "Go 1.23 or higher required"; \
+		if test $(MAJOR) -eq $(REQUIRED_GO_MAJOR) -a $(MINOR) -lt $(REQUIRED_GO_MINOR); then \
+			echo "Go $(REQUIRED_GO_MAJOR).$(REQUIRED_GO_MINOR) or higher required"; \
 			exit 1; \
 		fi \
 	fi
@@ -83,6 +85,13 @@ license-check: #@ Check license headers
 	@FILE_COUNT=$$(find . -type f -name '*.go' | wc -l); \
 	echo "Checking license headers for all .go... $$FILE_COUNT files found"; \
 	docker run -it --rm -v $$(pwd):/github/workspace apache/skywalking-eyes header check
+
+install-hooks: #@ Install Git pre-commit hook
+	@echo "▶ Installing Git hooks…"
+	@mkdir -p .git/hooks
+	@ln -sf $(CURDIR)/.git-hooks/pre-commit .git/hooks/pre-commit
+	@chmod +x .git-hooks/pre-commit .git/hooks/pre-commit
+	@echo "✅ Installed .git-hooks/pre-commit → .git/hooks/pre-commit"
 
 .DEFAULT:
 	@$(MAKE) help

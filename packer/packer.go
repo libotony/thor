@@ -27,7 +27,7 @@ type Packer struct {
 	nodeMaster       thor.Address
 	beneficiary      *thor.Address
 	targetGasLimit   uint64
-	forkConfig       thor.ForkConfig
+	forkConfig       *thor.ForkConfig
 	seeder           *poa.Seeder
 	minTxPriorityFee *big.Int
 }
@@ -39,7 +39,7 @@ func New(
 	stater *state.Stater,
 	nodeMaster thor.Address,
 	beneficiary *thor.Address,
-	forkConfig thor.ForkConfig,
+	forkConfig *thor.ForkConfig,
 	minTxPriorityFee uint64,
 ) *Packer {
 	return &Packer{
@@ -130,7 +130,7 @@ func (p *Packer) Schedule(parent *chain.BlockSummary, nowTimestamp uint64) (flow
 	var baseFee *big.Int
 
 	if parent.Header.Number()+1 >= p.forkConfig.GALACTICA {
-		baseFee = fork.CalcBaseFee(&p.forkConfig, parent.Header)
+		baseFee = fork.CalcBaseFee(p.forkConfig, parent.Header)
 	}
 
 	rt := runtime.New(
@@ -168,7 +168,7 @@ func (p *Packer) Mock(parent *chain.BlockSummary, targetTime uint64, gasLimit ui
 
 	var baseFee *big.Int
 	if parent.Header.Number()+1 >= p.forkConfig.GALACTICA {
-		baseFee = fork.CalcBaseFee(&p.forkConfig, parent.Header)
+		baseFee = fork.CalcBaseFee(p.forkConfig, parent.Header)
 	}
 
 	rt := runtime.New(
