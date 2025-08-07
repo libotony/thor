@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
-
 	"github.com/vechain/thor/v2/genesis"
 	"github.com/vechain/thor/v2/logdb"
 	"github.com/vechain/thor/v2/test"
@@ -59,7 +58,7 @@ func TestStaker(t *testing.T) {
 		t.Fatal(err)
 	}
 	// set stargate address
-	if _, _, err := params.Set(thor.KeyStargateContractAddress, new(big.Int).SetBytes(stargate.Address().Bytes())).
+	if _, _, err := params.Set(thor.KeyDelegatorContractAddress, new(big.Int).SetBytes(stargate.Address().Bytes())).
 		Send().
 		WithSigner(executor).
 		WithOptions(txOpts()).SubmitAndConfirm(txContext(t)); err != nil {
@@ -177,6 +176,7 @@ func TestStaker(t *testing.T) {
 		WithSigner(validatorKey).
 		WithOptions(txOpts()).SubmitAndConfirm(txContext(t))
 	require.NoError(t, err)
+	require.False(t, receipt.Reverted)
 
 	increaseEvents, err := staker.FilterStakeIncreased(newRange(receipt), nil, logdb.ASC)
 	require.NoError(t, err)
@@ -230,7 +230,7 @@ func TestStaker(t *testing.T) {
 	require.False(t, delegation.Locked)
 	require.Equal(t, queuedID, delegation.Validator)
 
-	// GetValidatorsTotals
+	// GetValidationTotals
 	validationTotals, err := staker.GetValidationTotals(firstID)
 	require.NoError(t, err)
 
@@ -239,7 +239,7 @@ func TestStaker(t *testing.T) {
 	require.Equal(t, big.NewInt(0).String(), validationTotals.DelegationsLockedWeight.String())
 	require.Equal(t, big.NewInt(0).String(), validationTotals.DelegationsLockedStake.String())
 
-	// UpdateDelegationAutoRenew - Enable AutoRenew
+	// Signal Delegation Exit
 	receipt, _, err = staker.SignalDelegationExit(delegationID).
 		Send().
 		WithSigner(stargate).
@@ -274,8 +274,8 @@ func TestStaker(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, big.NewInt(0).Cmp(delegation.Stake), 0)
 
-	// GetDelegatorsRewards
-	rewards, err := staker.GetDelegatorsRewards(validator.Address, 1)
+	// GetDelegationRewards
+	rewards, err := staker.GetDelegationRewards(validator.Address, 1)
 	require.NoError(t, err)
 	require.Equal(t, 0, big.NewInt(0).Cmp(rewards))
 }

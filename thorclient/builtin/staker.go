@@ -210,9 +210,9 @@ func (s *Staker) WithdrawDelegation(delegationID *big.Int) *bind.MethodBuilder {
 	return s.contract.Method("withdrawDelegation", delegationID)
 }
 
-func (s *Staker) GetDelegatorsRewards(validatorID thor.Address, period uint32) (*big.Int, error) {
+func (s *Staker) GetDelegationRewards(validator thor.Address, period uint32) (*big.Int, error) {
 	out := new(big.Int)
-	if err := s.contract.Method("getDelegatorsRewards", validatorID, period).Call().AtRevision(s.revision).ExecuteInto(&out); err != nil {
+	if err := s.contract.Method("getDelegationRewards", validator, period).Call().AtRevision(s.revision).ExecuteInto(&out); err != nil {
 		return nil, err
 	}
 	return out, nil

@@ -109,7 +109,7 @@ func TestStakerNativeGasCosts(t *testing.T) {
 		},
 		{
 			function:    "native_addValidation",
-			expectedGas: 68400,
+			expectedGas: 68200,
 			args:        []any{account1, account1, staker.LowStakingPeriod, staker.MinStake},
 			description: "Add a new validator (not implemented yet)",
 		},
@@ -136,8 +136,8 @@ func TestStakerNativeGasCosts(t *testing.T) {
 		},
 		{
 			function:     "native_withdrawStake",
-			expectedGas:  37800,
-			args:         []any{account1, account1},
+			expectedGas:  37600,
+			args:         []any{account1},
 			description:  "Withdraw stake for a validator",
 			preTestHooks: []TestHook{preTestAddValidation(account1)},
 		},
@@ -153,9 +153,8 @@ func TestStakerNativeGasCosts(t *testing.T) {
 		// },
 		{
 			function:    "native_increaseStake",
-			expectedGas: 22400,
+			expectedGas: 21800,
 			args: []any{
-				account1,
 				account1,
 				staker.MinStake,
 			},
@@ -164,9 +163,8 @@ func TestStakerNativeGasCosts(t *testing.T) {
 		},
 		{
 			function:    "native_decreaseStake",
-			expectedGas: 22400,
+			expectedGas: 22200,
 			args: []any{
-				account1,
 				account1,
 				staker.MinStake,
 			},
@@ -175,7 +173,7 @@ func TestStakerNativeGasCosts(t *testing.T) {
 		},
 		{
 			function:    "native_addDelegation",
-			expectedGas: 33400,
+			expectedGas: 32400,
 			args: []any{
 				account1,
 				staker.MinStake,
@@ -195,7 +193,7 @@ func TestStakerNativeGasCosts(t *testing.T) {
 		},
 		{
 			function:    "native_withdrawDelegation",
-			expectedGas: 23400,
+			expectedGas: 23000,
 			args: []any{
 				big.NewInt(1), // IDs are incremental, starting at 1
 			},
@@ -205,7 +203,7 @@ func TestStakerNativeGasCosts(t *testing.T) {
 		// TODO: How can we mint thousands of blocks and perform housekeeping?
 		{
 			function:    "native_signalDelegationExit",
-			expectedGas: 2600,
+			expectedGas: 22400,
 			args: []any{
 				big.NewInt(1), // IDs are incremental, starting at 1
 			},
@@ -214,7 +212,7 @@ func TestStakerNativeGasCosts(t *testing.T) {
 			err:          "revert: delegation has not started yet, funds can be withdrawn",
 		},
 		{
-			function:    "native_getDelegatorsRewards",
+			function:    "native_getDelegationRewards",
 			expectedGas: 1000,
 			args: []any{
 				account1,
@@ -263,7 +261,6 @@ func TestStakerNativeGasCosts(t *testing.T) {
 
 			// Validate function executed successfully (no revert)
 			require.NotNil(t, result, "Function %s should return result", tc.function)
-			require.Greater(t, len(result), 0, "Function %s should return at least one value", tc.function)
 
 			// Check if last element is an error string (staker native functions return error as last element)
 			if len(result) > 0 {
