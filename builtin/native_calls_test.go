@@ -34,6 +34,17 @@ import (
 
 var thorChain *testchain.Chain
 
+type TestTxDescription struct {
+	t          *testing.T
+	abi        *abi.ABI
+	methodName string
+	address    thor.Address
+	acc        genesis.DevAccount
+	args       []any
+	duplicate  bool
+	vet        *big.Int
+}
+
 func inspectClauseWithBlockRef(clause *tx.Clause, blockRef *tx.BlockRef) ([]byte, uint64, error) {
 	builder := new(tx.Builder).
 		ChainTag(thorChain.Repo().ChainTag()).
@@ -1511,7 +1522,7 @@ func TestStakerContract_Native(t *testing.T) {
 	assert.Equal(t, big.NewInt(0).Int64(), (*queuedStakeRes[1].(**big.Int)).Int64())
 
 	reward := new(*big.Int)
-	_, err = callContractAndGetOutput(abi, "getDelegationRewards", toAddr, reward, node, uint32(1))
+	_, err = callContractAndGetOutput(abi, "getDelegatorsRewards", toAddr, reward, node, uint32(1))
 	assert.NoError(t, err)
 	assert.Equal(t, new(big.Int).String(), (*reward).String())
 

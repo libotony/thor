@@ -267,6 +267,7 @@ func init() {
 			}
 			return []any{delegationID}
 		}},
+
 		{"native_withdrawDelegation", func(env *xenv.Environment) []any {
 			var args struct {
 				DelegationID *big.Int
@@ -307,6 +308,12 @@ func init() {
 				panic(err)
 			}
 
+			// abi.EncodeOutput will run reflect.ValueOf on each argument, it will panic if pass the zero value of the type
+			// so here we directly return the non-exist delegation
+			if delegation.IsEmpty() {
+				return []any{thor.Address{}, big.NewInt(0), uint32(0), uint32(math.MaxUint32), uint8(0), false}
+			}
+
 			lastPeriod := uint32(math.MaxUint32)
 			if delegation.LastIteration != nil {
 				lastPeriod = *delegation.LastIteration
@@ -322,7 +329,7 @@ func init() {
 				locked,
 			}
 		}},
-		{"native_getDelegationRewards", func(env *xenv.Environment) []any {
+		{"native_getDelegatorsRewards", func(env *xenv.Environment) []any {
 			var args struct {
 				Validator     common.Address
 				StakingPeriod uint32
@@ -330,7 +337,7 @@ func init() {
 			env.ParseArgs(&args)
 			charger := gascharger.New(env)
 
-			reward, err := Staker.NativeMetered(env.State(), charger).GetDelegationRewards(thor.Address(args.Validator), args.StakingPeriod)
+			reward, err := Staker.NativeMetered(env.State(), charger).GetDelegatorsRewards(thor.Address(args.Validator), args.StakingPeriod)
 			if err != nil {
 				panic(err)
 			}

@@ -8,8 +8,6 @@ package staker
 import (
 	"math/big"
 
-	"github.com/pkg/errors"
-
 	"github.com/vechain/thor/v2/builtin/gascharger"
 	"github.com/vechain/thor/v2/builtin/params"
 	"github.com/vechain/thor/v2/builtin/solidity"
@@ -144,6 +142,7 @@ func (s *Staker) Get(validator thor.Address) (*validation.Validation, error) {
 
 // GetWithdrawable returns the withdrawable stake of a validator.
 func (s *Staker) GetWithdrawable(validator thor.Address, block uint32) (*big.Int, error) {
+	// Non-existing validations will be normalized in CalculateWithdrawableVET
 	val, err := s.validationService.GetValidation(validator)
 	if err != nil {
 		return nil, err
@@ -188,8 +187,8 @@ func (s *Staker) HasDelegations(
 }
 
 // GetDelegationRewards returns all delegator's reward for given validator and staking period.
-func (s *Staker) GetDelegationRewards(validator thor.Address, stakingPeriod uint32) (*big.Int, error) {
-	return s.validationService.GetDelegationRewards(validator, stakingPeriod)
+func (s *Staker) GetDelegatorsRewards(validator thor.Address, stakingPeriod uint32) (*big.Int, error) {
+	return s.validationService.GetDelegatorsRewards(validator, stakingPeriod)
 }
 
 // GetCompletedPeriods returns number of completed staking periods for validation.
@@ -373,7 +372,6 @@ func (s *Staker) AddDelegation(
 	multiplier uint8,
 ) (*big.Int, error) {
 	logger.Debug("adding delegation", "validator", validator, "stake", new(big.Int).Div(stake, big.NewInt(1e18)), "multiplier", multiplier)
-
 	// ensure validation is ok to receive a new delegation
 	val, err := s.validationService.GetExistingValidation(validator)
 	if err != nil {
@@ -525,7 +523,6 @@ func (s *Staker) ValidateStakeChange(validator thor.Address, increase *big.Int, 
 	// increase stake
 	if increase.Sign() > 0 {
 		tvl := big.NewInt(0).Add(val.NextPeriodTVL(), agg.NextPeriodTVL())
-
 		// accumulated TVL should cannot be more than MaxStake
 		if tvl.Add(tvl, increase).Cmp(MaxStake) > 0 {
 			return false, nil
@@ -556,25 +553,6 @@ func (s *Staker) ValidateStakeChange(validator thor.Address, increase *big.Int, 
 	}
 
 	return false, nil
-}
-
-func (s *Staker) validateNextPeriodTVL(validator thor.Address) error {
-	val, err := s.validationService.GetValidation(validator)
-	if err != nil {
-		return err
-	}
-
-	agg, err := s.aggregationService.GetAggregation(validator)
-	if err != nil {
-		return err
-	}
-
-	// accumulated TVL should cannot be more than MaxStake
-	if big.NewInt(0).Add(val.NextPeriodTVL(), agg.NextPeriodTVL()).Cmp(MaxStake) > 0 {
-		return errors.New("stake is out of range")
-	}
-
-	return nil
 }
 
 func debugOverride(sctx *solidity.Context, ptr *uint32, bytes32 thor.Bytes32) {

@@ -222,6 +222,10 @@ func TestStaker(t *testing.T) {
 	require.Len(t, delegationEvents, 1)
 	delegationID := delegationEvents[0].DelegationID
 
+	// Access to a non-existent delegation should not return an error
+	_, err = staker.GetDelegation(big.NewInt(1000))
+	require.NoError(t, err)
+
 	// GetDelegation
 	delegation, err := staker.GetDelegation(delegationID)
 	require.NoError(t, err)
@@ -275,7 +279,7 @@ func TestStaker(t *testing.T) {
 	require.Equal(t, big.NewInt(0).Cmp(delegation.Stake), 0)
 
 	// GetDelegationRewards
-	rewards, err := staker.GetDelegationRewards(validator.Address, 1)
+	rewards, err := staker.GetDelegatorsRewards(validator.Address, 1)
 	require.NoError(t, err)
 	require.Equal(t, 0, big.NewInt(0).Cmp(rewards))
 }

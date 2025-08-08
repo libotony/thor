@@ -124,10 +124,11 @@ contract Staker {
      * @dev signalExit signals the intent to exit a validator position at the end of the staking period.
      */
     function signalExit(address validator) public stakerNotPaused {
-        (address endorsor, , , Status status, , , , ) = StakerNative(address(this)).native_get(validator);
+        (address endorsor, , , Status status, , , , uint32 exitBlock) = StakerNative(address(this)).native_get(validator);
         require(status != Status.Unknown, "staker: validation not found");
         require(status == Status.Active, "staker: validation is not active");
         require(endorsor == msg.sender, "staker: endorsor required");
+        require(exitBlock == MAX_UINT32, "staker: validation has signaled exit");
 
         StakerNative(address(this)).native_signalExit(validator);
         emit ValidationSignaledExit(validator);
@@ -179,18 +180,16 @@ contract Staker {
      * @dev withdrawDelegation withdraws the delegation position funds.
      */
     function withdrawDelegation(uint256 delegationID) public onlyDelegatorContract delegatorNotPaused {
-        (address validator, uint256 stake, , , , bool locked) = StakerNative(address(this)).native_getDelegation(
+        (address validator, uint256 stake, , , ,bool locked) = StakerNative(address(this)).native_getDelegation(
             delegationID
         );
         require(stake > 0, "staker: delegation not found or withdrawn");
+        require(!locked, "staker: delegation is not eligible for withdraw");
 
         (, , , Status status, , , , ) = StakerNative(address(this)).native_get(validator);
         require(status != Status.Unknown, "staker: validation not found");
 
-        require(!locked, "staker: delegation is not eligible for withdraw");
-
         uint256 withdrawable = StakerNative(address(this)).native_withdrawDelegation(delegationID);
-
         if (withdrawable > 0) {
             (bool success, ) = msg.sender.call{value: withdrawable}("");
             require(success, "staker: transfer failed"); // TODO: check if this is needed
@@ -240,9 +239,6 @@ contract Staker {
      * @dev getWithdrawable returns the amount of a validator's withdrawable VET.
      */
     function getWithdrawable(address validator) public view returns (uint256) {
-        (, , , Status status, , , , ) = StakerNative(address(this)).native_get(validator);
-        require(status != Status.Unknown, "staker: validation not found");
-
         return StakerNative(address(this)).native_getWithdrawable(validator);
     }
 
@@ -268,10 +264,10 @@ contract Staker {
     }
 
     /**
-     * @dev getDelegationRewards returns all delegator's rewards for a given validator address and staking period.
+     * @dev getDelegatorsRewards returns all delegator's rewards for a given validator address and staking period.
      */
-    function getDelegationRewards(address validator, uint32 stakingPeriod) public view returns (uint256) {
-        return StakerNative(address(this)).native_getDelegationRewards(validator, stakingPeriod);
+    function getDelegatorsRewards(address validator, uint32 stakingPeriod) public view returns (uint256) {
+        return StakerNative(address(this)).native_getDelegatorsRewards(validator, stakingPeriod);
     }
 
     /**
@@ -370,7 +366,7 @@ interface StakerNative {
 
     function native_next(address prev) external view returns (address);
 
-    function native_getDelegationRewards(
+    function native_getDelegatorsRewards(
         address validator,
         uint32 stakingPeriod
     ) external view returns (uint256);

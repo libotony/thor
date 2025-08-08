@@ -378,7 +378,7 @@ func (s *Service) GetExitEpoch(block uint32) (thor.Address, error) {
 	return validator, nil
 }
 
-func (s *Service) GetDelegationRewards(validator thor.Address, stakingPeriod uint32) (*big.Int, error) {
+func (s *Service) GetDelegatorsRewards(validator thor.Address, stakingPeriod uint32) (*big.Int, error) {
 	periodBytes := make([]byte, 4)
 	binary.BigEndian.PutUint32(periodBytes, stakingPeriod)
 	key := thor.Blake2b([]byte("rewards"), validator.Bytes(), periodBytes)
