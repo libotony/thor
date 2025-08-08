@@ -60,7 +60,7 @@ func TestStaker(t *testing.T) {
 		t.Fatal(err)
 	}
 	// set stargate address
-	if _, _, err := params.Set(thor.KeyStargateContractAddress, new(big.Int).SetBytes(stargate.Address().Bytes())).
+	if _, _, err := params.Set(thor.KeyDelegatorContractAddress, new(big.Int).SetBytes(stargate.Address().Bytes())).
 		Send().
 		WithSigner(executor).
 		WithOptions(txOpts()).SubmitAndConfirm(txContext(t)); err != nil {
@@ -191,6 +191,7 @@ func TestStaker(t *testing.T) {
 		WithSigner(validatorKey).
 		WithOptions(txOpts()).SubmitAndConfirm(txContext(t))
 	require.NoError(t, err)
+	require.False(t, receipt.Reverted)
 
 	increaseEvents, err := staker.FilterStakeIncreased(newRange(receipt), nil, logdb.ASC)
 	require.NoError(t, err)
@@ -236,8 +237,17 @@ func TestStaker(t *testing.T) {
 	require.Len(t, delegationEvents, 1)
 	delegationID := delegationEvents[0].DelegationID
 
+<<<<<<< HEAD
 	// GetDelegationStake
 	delegationStake, err := staker.GetDelegationStake(delegationID)
+=======
+	// Access to a non-existent delegation should not return an error
+	_, err = staker.GetDelegation(big.NewInt(1000))
+	require.NoError(t, err)
+
+	// GetDelegation
+	delegation, err := staker.GetDelegation(delegationID)
+>>>>>>> 40c868d1 (add tests)
 	require.NoError(t, err)
 	require.Equal(t, minStake, delegationStake.Stake)
 	require.Equal(t, uint8(100), delegationStake.Multiplier)
@@ -250,7 +260,7 @@ func TestStaker(t *testing.T) {
 	require.Equal(t, uint32(math.MaxUint32), delegationPeriodDetails.EndPeriod)
 	require.False(t, delegationPeriodDetails.Locked)
 
-	// GetValidatorsTotals
+	// GetValidationTotals
 	validationTotals, err := staker.GetValidationTotals(firstID)
 	require.NoError(t, err)
 
@@ -266,6 +276,7 @@ func TestStaker(t *testing.T) {
 	require.Equal(t, big.NewInt(1), queued)
 
 	// UpdateDelegationAutoRenew - Enable AutoRenew
+	// Signal Delegation Exit
 	receipt, _, err = staker.SignalDelegationExit(delegationID).
 		Send().
 		WithSigner(stargate).
@@ -300,7 +311,7 @@ func TestStaker(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, big.NewInt(0).Cmp(delegationStake.Stake), 0)
 
-	// GetDelegatorsRewards
+	// GetDelegationRewards
 	rewards, err := staker.GetDelegatorsRewards(validator.Address, 1)
 	require.NoError(t, err)
 	require.Equal(t, 0, big.NewInt(0).Cmp(rewards))

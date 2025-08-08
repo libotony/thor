@@ -52,14 +52,6 @@ func (s *Service) Add(
 	stake *big.Int,
 	multiplier uint8,
 ) (*big.Int, error) {
-	// ensure input is sane
-	if multiplier == 0 {
-		return nil, errors.New("multiplier cannot be 0")
-	}
-	if stake.Cmp(big.NewInt(0)) <= 0 {
-		return nil, errors.New("stake must be greater than 0")
-	}
-
 	// update the global delegation counter
 	id, err := s.idCounter.Get()
 	if err != nil {
@@ -73,7 +65,7 @@ func (s *Service) Add(
 
 	delegationID := new(big.Int).Set(id)
 	delegation := Delegation{
-		Validation:     validator,
+		Validator:      validator,
 		Multiplier:     multiplier,
 		Stake:          stake,
 		FirstIteration: firstIteration,

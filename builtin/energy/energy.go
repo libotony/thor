@@ -268,7 +268,11 @@ type staker interface {
 }
 
 func (e *Energy) DistributeRewards(beneficiary, signer thor.Address, staker staker) error {
-	reward, err := e.CalculateRewards(staker)
+	totalStaked, _, err := staker.LockedVET()
+	if err != nil {
+		return err
+	}
+	reward, err := e.CalculateRewards(totalStaked)
 	if err != nil {
 		return err
 	}
@@ -290,7 +294,7 @@ func (e *Energy) DistributeRewards(beneficiary, signer thor.Address, staker stak
 		proposerReward.Mul(proposerReward, validatorRewardPerc)
 		proposerReward.Div(proposerReward, big.NewInt(100))
 
-		val, err := e.params.Get(thor.KeyStargateContractAddress)
+		val, err := e.params.Get(thor.KeyDelegatorContractAddress)
 		if err != nil {
 			return err
 		}
@@ -326,11 +330,7 @@ func (e *Energy) DistributeRewards(beneficiary, signer thor.Address, staker stak
 	return nil
 }
 
-func (e *Energy) CalculateRewards(staker staker) (*big.Int, error) {
-	totalStaked, _, err := staker.LockedVET()
-	if err != nil {
-		return nil, err
-	}
+func (e *Energy) CalculateRewards(totalStaked *big.Int) (*big.Int, error) {
 	bigE18 := big.NewInt(1e18)
 	// sqrt(totalStaked / 1e18) * 1e18, we are calculating sqrt on VET and then converting to wei
 	sqrtStake := new(big.Int).Sqrt(new(big.Int).Div(totalStaked, bigE18))
