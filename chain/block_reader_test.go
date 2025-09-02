@@ -94,3 +94,13 @@ func TestBlockReaderFork(t *testing.T) {
 	},
 		blks)
 }
+
+func TestT(t *testing.T) {
+	t.Log(25 / 20)
+	// block 25
+	// start block 20
+	// period 10
+
+	t.Log((25 - 20) / 10)
+
+}

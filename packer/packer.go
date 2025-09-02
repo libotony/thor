@@ -69,7 +69,7 @@ func (p *Packer) Schedule(parent *chain.BlockSummary, nowTimestamp uint64) (*Flo
 
 	var sched scheduler
 	checkpoint := st.NewCheckpoint()
-	dPosStatus, err := builtin.Staker.Native(st).SyncPOS(p.forkConfig, parent.Header.Number()+1)
+	dPosStatus, err := builtin.Staker.Native(st, parent.Header.Number()+1).SyncPOS(p.forkConfig, parent.Header.Number()+1)
 	if err != nil {
 		log.Error("staker sync pos failed - reverting state", "err", err, "height", parent.Header.Number()+1, "parent", parent, "checkpoint", checkpoint)
 		st.RevertTo(checkpoint)
@@ -113,7 +113,7 @@ func (p *Packer) Mock(parent *chain.BlockSummary, targetTime uint64, gasLimit ui
 		features |= tx.DelegationFeature
 	}
 
-	staker := builtin.Staker.Native(state)
+	staker := builtin.Staker.Native(state, parent.Header.Number()+1)
 	dPosStatus, err := staker.SyncPOS(p.forkConfig, parent.Header.Number()+1)
 	if err != nil {
 		return nil, false, err

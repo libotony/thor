@@ -77,12 +77,12 @@ func (p *prototypeContract) Events() *abi.ABI {
 	return abi
 }
 
-func (s *stakerContract) NativeMetered(state *state.State, charger *gascharger.Charger) *staker.Staker {
-	return staker.New(s.Address, state, Params.Native(state), charger)
+func (s *stakerContract) NativeMetered(state *state.State, blockNum uint32, charger *gascharger.Charger) *staker.Staker {
+	return staker.New(s.Address, state, blockNum, Params.Native(state), charger)
 }
 
-func (s *stakerContract) Native(state *state.State) *staker.Staker {
-	return s.NativeMetered(state, nil)
+func (s *stakerContract) Native(state *state.State, blockNum uint32) *staker.Staker {
+	return s.NativeMetered(state, blockNum, nil)
 }
 
 func (s *stakerContract) Events() *abi.ABI {

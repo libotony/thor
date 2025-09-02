@@ -326,7 +326,7 @@ func (engine *Engine) computeState(header *block.Header) (*bftState, error) {
 				return nil, err
 			}
 			state := engine.stater.NewState(parentBlockSummary.Root())
-			staker := builtin.Staker.Native(state)
+			staker := builtin.Staker.Native(state, h.Number())
 
 			var weight uint64
 			if posActive, _ := staker.IsPoSActive(); posActive {
@@ -417,7 +417,7 @@ func (engine *Engine) findCheckpointByQuality(target uint32, finalized, headID t
 
 func (engine *Engine) getTotalWeight(sum *chain.BlockSummary) (uint64, error) {
 	state := engine.stater.NewState(sum.Root())
-	staker := builtin.Staker.Native(state)
+	staker := builtin.Staker.Native(state, sum.Header.Number())
 
 	// Get total weight including delegations
 	_, totalWeight, err := staker.LockedStake()

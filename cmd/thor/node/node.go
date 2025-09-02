@@ -328,7 +328,7 @@ func (n *Node) guardBlockProcessing(blockNum uint32, process func(conflicts uint
 					return err
 				}
 				state := n.stater.NewState(summary.Root())
-				active, err := builtin.Staker.Native(state).IsPoSActive()
+				active, err := builtin.Staker.Native(state, summary.Header.Number()).IsPoSActive()
 				if err != nil {
 					return nil
 				}

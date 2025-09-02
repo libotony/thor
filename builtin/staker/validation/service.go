@@ -67,22 +67,14 @@ func New(sctx *solidity.Context,
 	}
 }
 
-func (s *Service) GetCompletedPeriods(validator thor.Address) (uint32, error) {
-	v, err := s.GetValidation(validator)
-	if err != nil {
-		return uint32(0), err
-	}
-	return v.CompleteIterations, nil
-}
-
-func (s *Service) IncreaseDelegatorsReward(node thor.Address, reward *big.Int) error {
+func (s *Service) IncreaseDelegatorsReward(node thor.Address, reward *big.Int, currentBlock uint32) error {
 	val, err := s.GetValidation(node)
 	if err != nil {
 		return err
 	}
 
 	periodBytes := make([]byte, 4)
-	binary.BigEndian.PutUint32(periodBytes, val.CurrentIteration())
+	binary.BigEndian.PutUint32(periodBytes, val.CurrentIteration(currentBlock))
 	key := thor.Blake2b([]byte("rewards"), node.Bytes(), periodBytes)
 
 	rewards, err := s.repo.getReward(key)
@@ -172,16 +164,16 @@ func (s *Service) Add(
 	stake uint64,
 ) error {
 	entry := &Validation{
-		Endorser:           endorser,
-		Period:             period,
-		CompleteIterations: 0,
-		Status:             StatusQueued,
-		LockedVET:          0,
-		QueuedVET:          stake,
-		CooldownVET:        0,
-		PendingUnlockVET:   0,
-		WithdrawableVET:    0,
-		Weight:             0,
+		Endorser:         endorser,
+		Period:           period,
+		LastIteration:    0,
+		Status:           StatusQueued,
+		LockedVET:        0,
+		QueuedVET:        stake,
+		CooldownVET:      0,
+		PendingUnlockVET: 0,
+		WithdrawableVET:  0,
+		Weight:           0,
 	}
 
 	if err := s.validatorQueue.Add(validator); err != nil {
@@ -191,8 +183,8 @@ func (s *Service) Add(
 	return s.repo.setValidation(validator, entry, true)
 }
 
-func (s *Service) SignalExit(validator thor.Address, validation *Validation) error {
-	minBlock := validation.StartBlock + validation.Period*(validation.CurrentIteration())
+func (s *Service) SignalExit(validator thor.Address, validation *Validation, currentBlock uint32) error {
+	minBlock := validation.StartBlock + validation.Period*(validation.CurrentIteration(currentBlock))
 	return s.markValidatorExit(validator, minBlock, exitMaxTry)
 }
 
@@ -266,6 +258,7 @@ func (s *Service) WithdrawStake(
 	if validation.Status == StatusQueued {
 		validation.QueuedVET = 0
 		validation.Status = StatusExit
+		validation.LastIteration = 0
 		if err := s.validatorQueue.Remove(validator); err != nil {
 			return 0, 0, err
 		}

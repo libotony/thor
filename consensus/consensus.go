@@ -88,7 +88,7 @@ func (c *Consensus) NewRuntimeForReplay(header *block.Header, skipValidation boo
 	state := c.stater.NewState(parentSummary.Root())
 
 	if !skipValidation {
-		staker := builtin.Staker.Native(state)
+		staker := builtin.Staker.Native(state, header.Number())
 		dPosStatus, err := staker.SyncPOS(c.forkConfig, header.Number())
 		if err != nil {
 			return nil, err

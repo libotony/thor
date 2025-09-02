@@ -31,14 +31,14 @@ const (
 var ErrMaxTryReached = errors.New("max try reached")
 
 type Validation struct {
-	Endorser           thor.Address  // the address providing the stake
-	Beneficiary        *thor.Address `rlp:"nil"` // the address receiving the rewards
-	Period             uint32        // the staking period of the validation
-	CompleteIterations uint32        // the completed staking periods by the validation
-	Status             Status        // status of the validation
-	StartBlock         uint32        // the block number when the validation started the first staking period
-	ExitBlock          *uint32       `rlp:"nil"` // the block number when the validation moved to cooldown
-	OfflineBlock       *uint32       `rlp:"nil"` // the block when validator went offline, it will be cleared once online
+	Endorser      thor.Address  // the address providing the stake
+	Beneficiary   *thor.Address `rlp:"nil"` // the address receiving the rewards
+	Period        uint32        // the staking period of the validation
+	LastIteration uint32        // the last staking iteration by the validation
+	Status        Status        // status of the validation
+	StartBlock    uint32        // the block number when the validation started the first staking period
+	ExitBlock     *uint32       `rlp:"nil"` // the block number when the validation moved to cooldown
+	OfflineBlock  *uint32       `rlp:"nil"` // the block when validator went offline, it will be cleared once online
 
 	LockedVET        uint64 // the amount(in VET not wei) locked for the current staking period, for the validator only
 	PendingUnlockVET uint64 // the amount(in VET not wei) that will be unlocked in the next staking period. DOES NOT contribute to the TVL
@@ -123,11 +123,36 @@ func (v *Validation) NextPeriodTVL() (uint64, error) {
 	return nextPeriodLocked - v.PendingUnlockVET, nil
 }
 
-func (v *Validation) CurrentIteration() uint32 {
-	if v.Status == StatusActive {
-		return v.CompleteIterations + 1 // +1 because the current iteration is not completed yet
+// queued withdrawn status exit
+// housekeeping exit validator status exit
+
+func (v *Validation) CurrentIteration(blockNum uint32) uint32 {
+	if v.Status == StatusQueued || v.Status == StatusUnknown {
+		return 0
 	}
-	return v.CompleteIterations
+
+	if v.Status == StatusActive {
+		return (blockNum-v.StartBlock)/v.Period + 1
+	}
+
+	// status exit
+	return v.LastIteration
+}
+
+func (v *Validation) CompletePeriod(blockNum uint32) uint32 {
+	if v.Status == StatusQueued || v.Status == StatusUnknown {
+		return 0
+	}
+
+	if v.Status == StatusActive {
+		return (blockNum - v.StartBlock) / v.Period
+	}
+
+	// status exit
+	if blockNum < *v.ExitBlock {
+		return v.LastIteration - 1
+	}
+	return v.LastIteration
 }
 
 // renew moves the stakes and weights around as follows:
@@ -179,7 +204,6 @@ func (v *Validation) renew(delegationWeight uint64) (*globalstats.Renewal, error
 	v.LockedVET = after.lockedVET
 	v.WithdrawableVET += v.PendingUnlockVET
 	v.Weight = after.valWeight + delegationWeight
-	v.CompleteIterations++
 	v.QueuedVET = 0
 	v.PendingUnlockVET = 0
 
@@ -200,7 +224,6 @@ func (v *Validation) exit() *globalstats.Exit {
 	v.LockedVET = 0
 	v.PendingUnlockVET = 0
 	v.Weight = 0
-	v.CompleteIterations++
 
 	// unlock pending stake
 	if v.QueuedVET > 0 {

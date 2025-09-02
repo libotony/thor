@@ -38,7 +38,7 @@ func (c *Consensus) validate(
 	}
 
 	checkpoint := state.NewCheckpoint()
-	staker := builtin.Staker.Native(state)
+	staker := builtin.Staker.Native(state, header.Number())
 	dPosStatus, err := staker.SyncPOS(c.forkConfig, header.Number())
 	if err != nil {
 		log.Error("staker sync pos failed - reverting state", "err", err, "height", header.Number(), "parent", parent, "checkpoint", checkpoint)
@@ -298,7 +298,7 @@ func (c *Consensus) verifyBlock(blk *block.Block, state *state.State, blockConfl
 
 	if posActive {
 		// TODO: We can reward priority fees here too
-		staker := builtin.Staker.Native(state)
+		staker := builtin.Staker.Native(state, header.Number())
 		energy := builtin.Energy.Native(state, header.Timestamp())
 		if err := energy.DistributeRewards(blk.Header().Beneficiary(), signer, staker); err != nil {
 			return nil, nil, err

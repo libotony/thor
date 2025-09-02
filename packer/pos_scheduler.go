@@ -14,7 +14,7 @@ import (
 )
 
 func (p *Packer) schedulePOS(parent *chain.BlockSummary, nowTimestamp uint64, state *state.State) (thor.Address, uint64, uint64, error) {
-	staker := builtin.Staker.Native(state)
+	staker := builtin.Staker.Native(state, parent.Header.Number()+1)
 
 	seed, err := p.seeder.Generate(parent.Header.ID())
 	if err != nil {

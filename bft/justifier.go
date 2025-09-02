@@ -75,7 +75,7 @@ func (engine *Engine) newJustifier(parentID thor.Bytes32) (*justifier, error) {
 	}
 
 	state := engine.stater.NewState(sum.Root())
-	staker := builtin.Staker.Native(state)
+	staker := builtin.Staker.Native(state, sum.Header.Number())
 	posActive, err := staker.IsPoSActive()
 	if err != nil {
 		return nil, err

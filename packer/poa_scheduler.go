@@ -19,7 +19,7 @@ func (p *Packer) schedulePOA(parent *chain.BlockSummary, nowTimestamp uint64, st
 	if err != nil {
 		return thor.Address{}, 0, 0, err
 	}
-	staker := builtin.Staker.Native(state)
+	staker := builtin.Staker.Native(state, parent.Header.Number()+1)
 
 	mbp, err := builtin.Params.Native(state).Get(thor.KeyMaxBlockProposers)
 	if err != nil {

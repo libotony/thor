@@ -33,7 +33,7 @@ func (c *Consensus) validateAuthorityProposer(header *block.Header, parent *bloc
 		}
 		candidates = poa.NewCandidates(list)
 	}
-	staker := builtin.Staker.Native(st)
+	staker := builtin.Staker.Native(st, header.Number())
 	endorsement, err := builtin.Params.Native(st).Get(thor.KeyProposerEndorsement)
 	if err != nil {
 		return nil, err

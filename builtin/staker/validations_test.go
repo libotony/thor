@@ -2121,32 +2121,6 @@ func TestStaker_GetRewards(t *testing.T) {
 	assert.Equal(t, big.NewInt(1000), amount)
 }
 
-func TestStaker_GetCompletedPeriods(t *testing.T) {
-	staker, _ := newStaker(t, 0, 3, false)
-
-	proposerAddr := datagen.RandAddress()
-
-	stake := RandomStake()
-	period := uint32(360) * 24 * 15
-
-	err := staker.AddValidation(proposerAddr, proposerAddr, period, stake)
-	assert.NoError(t, err)
-
-	_, err = staker.activateNextValidation(0, getTestMaxLeaderSize(staker.params))
-	assert.NoError(t, err)
-
-	periods, err := staker.GetCompletedPeriods(proposerAddr)
-	assert.NoError(t, err)
-	assert.Equal(t, uint32(0), periods)
-
-	_, err = staker.Housekeep(period)
-	assert.NoError(t, err)
-
-	periods, err = staker.GetCompletedPeriods(proposerAddr)
-	assert.NoError(t, err)
-	assert.Equal(t, uint32(1), periods)
-}
-
 func TestStaker_MultipleUpdates_CorrectWithdraw(t *testing.T) {
 	staker, _ := newStaker(t, 0, 1, false)
 
