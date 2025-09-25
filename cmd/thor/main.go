@@ -236,6 +236,12 @@ func defaultAction(ctx *cli.Context) error {
 		return err
 	}
 
+	// this needs to be protected, otherwise every start up will overwrite the best block
+	bestBlockID := thor.MustParseBytes32("")
+	if err := repo.SetBestBlockID(bestBlockID); err != nil {
+		return err
+	}
+
 	master, err := loadNodeMaster(ctx)
 	if err != nil {
 		return err

@@ -221,6 +221,20 @@ func (r *Repository) saveBlock(block *block.Block, receipts tx.Receipts, conflic
 	return &summary, nil
 }
 
+func (r *Repository) SetBestBlockID(id thor.Bytes32) error {
+	summary, err := r.GetBlockSummary(id)
+	if err != nil {
+		return err
+	}
+
+	if err := r.propStore.Put(bestBlockIDKey, id[:]); err != nil {
+		return err
+	}
+
+	r.bestSummary.Store(summary)
+	return nil
+}
+
 // AddBlock add a new block with its receipts into repository.
 func (r *Repository) AddBlock(newBlock *block.Block, receipts tx.Receipts, conflicts uint32, asBest bool) error {
 	parentSummary, err := r.GetBlockSummary(newBlock.Header().ParentID())
