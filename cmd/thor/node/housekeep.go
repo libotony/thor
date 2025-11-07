@@ -54,7 +54,7 @@ func (n *Node) houseKeeping(ctx context.Context) {
 func (n *Node) handleNewBlock(newBlockEvent *comm.NewBlockEvent) {
 	var stats blockStats
 	newBlock := newBlockEvent.Block
-	if isTrunk, err := n.processBlock(newBlockEvent.Block, &stats); err != nil {
+	if isTrunk, err := n.processBlock(newBlock, &stats); err != nil {
 		if consensus.IsFutureBlock(err) ||
 			((err == errParentMissing || err == errBlockTemporaryUnprocessable) && n.futureBlocksCache.Contains(newBlock.Header().ParentID())) {
 			logger.Debug("future block added", "id", newBlock.Header().ID())
