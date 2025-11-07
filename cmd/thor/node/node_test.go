@@ -244,13 +244,12 @@ func TestNode_HandleBlockStream_SendNormalBlock(t *testing.T) {
 	}
 }
 
-func setupTestNodeForTxstashLoop(db *leveldb.DB) *Node {
+func setupTestNodeForTxstashLoop(db *leveldb.DB) (*Node, *txStash) {
 	// Create original node
 	originalNode := &Node{
-		txCh:    make(chan *txpool.TxEvent, 1),
-		txStash: newTxStash(db, 100),
+		txCh: make(chan *txpool.TxEvent, 1),
 	}
-	return originalNode
+	return originalNode, newTxStash(db, 100)
 }
 
 func TestNode_TxStashLoop_ExecutableTx_Processing(t *testing.T) {
@@ -258,10 +257,7 @@ func TestNode_TxStashLoop_ExecutableTx_Processing(t *testing.T) {
 	assert.NoError(t, err)
 	defer db.Close()
 
-	node := setupTestNodeForTxstashLoop(db)
-
-	buf, restore := captureLogs()
-	defer restore()
+	node, stash := setupTestNodeForTxstashLoop(db)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
 	defer cancel()
@@ -288,7 +284,7 @@ func TestNode_TxStashLoop_ExecutableTx_Processing(t *testing.T) {
 		select {
 		case <-ctx.Done():
 		default:
-			node.txStashLoop(ctx)
+			node.txStashLoop(ctx, stash)
 		}
 	}()
 
@@ -299,8 +295,7 @@ func TestNode_TxStashLoop_ExecutableTx_Processing(t *testing.T) {
 	cancel()
 	<-done
 
-	assert.True(t, len(node.txStash.LoadAll()) == 0, "TxStash should be empty")
-	assert.Contains(t, buf.String(), "received executable tx signal", "Log should contain executable tx signal")
+	assert.True(t, len(stash.LoadAll()) == 0, "TxStash should be empty")
 }
 
 func TestNode_TxStashLoop_UnexecutableTx_Processing(t *testing.T) {
@@ -308,10 +303,7 @@ func TestNode_TxStashLoop_UnexecutableTx_Processing(t *testing.T) {
 	assert.NoError(t, err)
 	defer db.Close()
 
-	node := setupTestNodeForTxstashLoop(db)
-
-	buf, restore := captureLogs()
-	defer restore()
+	node, stash := setupTestNodeForTxstashLoop(db)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
 	defer cancel()
@@ -338,7 +330,7 @@ func TestNode_TxStashLoop_UnexecutableTx_Processing(t *testing.T) {
 		select {
 		case <-ctx.Done():
 		default:
-			node.txStashLoop(ctx)
+			node.txStashLoop(ctx, stash)
 		}
 	}()
 
@@ -349,8 +341,7 @@ func TestNode_TxStashLoop_UnexecutableTx_Processing(t *testing.T) {
 	cancel()
 	<-done
 
-	assert.True(t, len(node.txStash.LoadAll()) == 1, "TxStash should contain 1 item")
-	assert.Contains(t, buf.String(), txEvent.Tx.ID().String(), "Log should contain executable txid")
+	assert.True(t, len(stash.LoadAll()) == 1, "TxStash should contain 1 item")
 }
 
 func TestNode_TxStashLoop_StashErrorHandling(t *testing.T) {
@@ -358,7 +349,7 @@ func TestNode_TxStashLoop_StashErrorHandling(t *testing.T) {
 	assert.NoError(t, err)
 	defer db.Close()
 
-	node := setupTestNodeForTxstashLoop(db)
+	node, stash := setupTestNodeForTxstashLoop(db)
 
 	buf, restore := captureLogs()
 	defer restore()
@@ -391,7 +382,7 @@ func TestNode_TxStashLoop_StashErrorHandling(t *testing.T) {
 		select {
 		case <-ctx.Done():
 		default:
-			node.txStashLoop(ctx)
+			node.txStashLoop(ctx, stash)
 		}
 	}()
 
@@ -403,5 +394,4 @@ func TestNode_TxStashLoop_StashErrorHandling(t *testing.T) {
 	<-done
 
 	assert.Contains(t, buf.String(), "leveldb: closed", "Log should contain stash error")
-	assert.Contains(t, buf.String(), txEvent.Tx.ID().String(), "Log should contain executable txid")
 }

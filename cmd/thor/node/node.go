@@ -71,7 +71,6 @@ type Node struct {
 	newBlockCh        chan *comm.NewBlockEvent
 	txCh              chan *txpool.TxEvent
 	futureBlocksCache *cache.RandCache
-	txStash           *txStash
 }
 
 func New(
@@ -129,12 +128,12 @@ func (n *Node) Run(ctx context.Context) error {
 		return err
 	}
 	defer db.Close()
-	n.txStash = newTxStash(db, 1000)
+	txStash := newTxStash(db, 1000)
 
 	var goes co.Goes
 	goes.Go(func() { n.comm.Sync(ctx, n.handleBlockStream) })
 	goes.Go(func() { n.houseKeeping(ctx) })
-	goes.Go(func() { n.txStashLoop(ctx) })
+	goes.Go(func() { n.txStashLoop(ctx, txStash) })
 	goes.Go(func() { n.packerLoop(ctx) })
 
 	goes.Wait()
@@ -180,12 +179,12 @@ func (n *Node) handleBlockStream(ctx context.Context, stream <-chan *block.Block
 	return nil
 }
 
-func (n *Node) txStashLoop(ctx context.Context) {
+func (n *Node) txStashLoop(ctx context.Context, stash *txStash) {
 	logger.Debug("enter tx stash loop")
 	defer logger.Debug("leave tx stash loop")
 
 	{
-		txs := n.txStash.LoadAll()
+		txs := stash.LoadAll()
 		if len(txs) > 0 {
 			n.txPool.Fill(txs)
 		}
@@ -195,20 +194,17 @@ func (n *Node) txStashLoop(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
-			logger.Debug("received context done signal")
 			return
 		case txEv := <-n.txCh:
-			logger.Debug("received tx signal")
 			// skip executables
 			if txEv.Executable != nil && *txEv.Executable {
-				logger.Debug("received executable tx signal")
 				continue
 			}
 			// only stash non-executable txs
-			if err := n.txStash.Save(txEv.Tx); err != nil {
-				logger.Warn("stash tx", "id", txEv.Tx.ID().String(), "err", err)
+			if err := stash.Save(txEv.Tx); err != nil {
+				logger.Warn("stash tx", "id", txEv.Tx.ID(), "err", err)
 			} else {
-				logger.Trace("stashed tx", "id", txEv.Tx.ID().String())
+				logger.Trace("stashed tx", "id", txEv.Tx.ID())
 			}
 		}
 	}
