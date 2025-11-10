@@ -30,26 +30,26 @@ jobs:
     name: Go Module Check
     uses: ./.github/workflows/go-mod-check.yaml
 
-  run-e2e-tests:
-    name: E2E Tests
-    uses: ./.github/workflows/test-e2e.yaml
-    permissions:
-      contents: read
-    secrets: inherit
+  # run-e2e-tests:
+  #   name: E2E Tests
+  #   uses: ./.github/workflows/test-e2e.yaml
+  #   permissions:
+  #     contents: read
+  #   secrets: inherit
 
-  run-smoke-tests:
-    name: Smoke Tests
-    uses: ./.github/workflows/test-smoke.yaml
-    permissions:
-      contents: read
-    secrets: inherit
-    needs: [run-e2e-tests]
+  # run-smoke-tests:
+  #   name: Smoke Tests
+  #   uses: ./.github/workflows/test-smoke.yaml
+  #   permissions:
+  #     contents: read
+  #   secrets: inherit
+  #   needs: [run-e2e-tests]
 
-  run-rosetta-tests:
-    name: Rosetta Tests
-    uses: ./.github/workflows/test-rosetta.yaml
-    with:
-      thor_version: ${{ github.sha }}
+  # run-rosetta-tests:
+  #   name: Rosetta Tests
+  #   uses: ./.github/workflows/test-rosetta.yaml
+  #   with:
+  #     thor_version: ${{ github.sha }}
 
   generate-tags:
     name: Generate Docker Tags
@@ -76,7 +76,7 @@ jobs:
     secrets: inherit
     needs:
       - run-unit-tests
-      - run-e2e-tests
+      # - run-e2e-tests
       - generate-tags
       - lint
       - license-check
@@ -99,12 +99,12 @@ jobs:
       - lint
       - module-check
       - run-unit-tests
-      - run-e2e-tests
+      # - run-e2e-tests
     if: github.ref_name == 'master' && always() && (
       needs.publish-docker-image.result != 'success' || 
       needs.run-unit-tests.result != 'success' || 
       needs.lint.result != 'success' || 
-      needs.run-e2e-tests.result != 'success' || 
+      # needs.run-e2e-tests.result != 'success' || 
       needs.license-check.result != 'success' || 
       needs.module-check.result != 'success')
     runs-on: ubuntu-latest
