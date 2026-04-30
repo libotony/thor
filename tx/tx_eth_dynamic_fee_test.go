@@ -19,7 +19,7 @@ import (
 )
 
 // newEthDynamicFeeUnsigned returns a zero-signature 0x02 tx ready to be signed.
-func newEthDynamicFeeUnsigned(t *testing.T, chainID *big.Int) *Transaction {
+func newEthDynamicFeeUnsigned(t *testing.T, chainID uint64) *Transaction {
 	t.Helper()
 	to, err := thor.ParseAddress("0x7567d83b7b8d80addcb281a71d54fc7b3364ffed")
 	require.NoError(t, err)
@@ -36,11 +36,11 @@ func newEthDynamicFeeUnsigned(t *testing.T, chainID *big.Int) *Transaction {
 // TestEthDynamicFee_BuildFields checks that the Builder produces a tx with the
 // expected field values visible through the Transaction API.
 func TestEthDynamicFee_BuildFields(t *testing.T) {
-	chainID := big.NewInt(100009)
+	chainID := uint64(100009)
 	trx := newEthDynamicFeeUnsigned(t, chainID)
 
 	assert.Equal(t, uint8(TypeEthDynamicFee), trx.Type())
-	assert.Equal(t, chainID, trx.ChainID())
+	assert.Equal(t, new(big.Int).SetUint64(chainID), trx.ChainID())
 	assert.Equal(t, uint64(7), trx.Nonce())
 	assert.Equal(t, uint64(21_000), trx.Gas())
 	assert.Equal(t, big.NewInt(1_000_000_000_000), trx.MaxFeePerGas())
@@ -65,7 +65,7 @@ func TestEthDynamicFee_BuildRejectsBadClauseCount(t *testing.T) {
 	// 0 clauses
 	assert.Panics(t, func() {
 		NewBuilder(TypeEthDynamicFee).
-			ChainID(big.NewInt(1)).
+			ChainID(1).
 			MaxFeePerGas(big.NewInt(1)).MaxPriorityFeePerGas(big.NewInt(1)).
 			Gas(21_000).Nonce(0).Build()
 	}, "0 clauses must panic")
@@ -73,7 +73,7 @@ func TestEthDynamicFee_BuildRejectsBadClauseCount(t *testing.T) {
 	// 2 clauses
 	assert.Panics(t, func() {
 		NewBuilder(TypeEthDynamicFee).
-			ChainID(big.NewInt(1)).
+			ChainID(1).
 			Clause(NewClause(&to).WithValue(big.NewInt(1))).
 			Clause(NewClause(&to).WithValue(big.NewInt(2))).
 			MaxFeePerGas(big.NewInt(1)).MaxPriorityFeePerGas(big.NewInt(1)).
@@ -87,7 +87,7 @@ func TestEthDynamicFee_BuildRejectsBadClauseCount(t *testing.T) {
 func TestEthDynamicFee_BuildContractCreation(t *testing.T) {
 	bytecode := []byte{0x60, 0x80, 0x60, 0x40, 0x52}
 	trx := NewBuilder(TypeEthDynamicFee).
-		ChainID(big.NewInt(1)).
+		ChainID(1).
 		Clause(NewClause(nil).WithData(bytecode)).
 		MaxFeePerGas(big.NewInt(1)).MaxPriorityFeePerGas(big.NewInt(1)).
 		Gas(100_000).Nonce(0).Build()
@@ -106,7 +106,7 @@ func TestEthDynamicFee_SignAndRecover(t *testing.T) {
 	require.NoError(t, err)
 	expected := thor.Address(crypto.PubkeyToAddress(pk.PublicKey))
 
-	trx := newEthDynamicFeeUnsigned(t, big.NewInt(100009))
+	trx := newEthDynamicFeeUnsigned(t, 100009)
 	signed, err := Sign(trx, pk)
 	require.NoError(t, err)
 
@@ -122,7 +122,7 @@ func TestEthDynamicFee_RejectsHighS(t *testing.T) {
 	pk, err := crypto.GenerateKey()
 	require.NoError(t, err)
 
-	signed, err := Sign(newEthDynamicFeeUnsigned(t, big.NewInt(100009)), pk)
+	signed, err := Sign(newEthDynamicFeeUnsigned(t, 100009), pk)
 	require.NoError(t, err)
 	_, err = signed.Origin()
 	require.NoError(t, err, "freshly signed tx must pass low-s")
@@ -152,7 +152,7 @@ func reencodeWithSig(t *testing.T, signed *Transaction, sig []byte) []byte {
 // TestEthDynamicFee_SigningHashIsKeccak asserts the signing hash is
 // Keccak256(0x02 || RLP(signingFields)).
 func TestEthDynamicFee_SigningHashIsKeccak(t *testing.T) {
-	trx := newEthDynamicFeeUnsigned(t, big.NewInt(42))
+	trx := newEthDynamicFeeUnsigned(t, 42)
 
 	var buf bytes.Buffer
 	buf.WriteByte(TypeEthDynamicFee)
@@ -169,7 +169,7 @@ func TestEthDynamicFee_IDIsEthCanonical(t *testing.T) {
 	pk, err := crypto.GenerateKey()
 	require.NoError(t, err)
 
-	signed, err := Sign(newEthDynamicFeeUnsigned(t, big.NewInt(42)), pk)
+	signed, err := Sign(newEthDynamicFeeUnsigned(t, 42), pk)
 	require.NoError(t, err)
 
 	raw, err := signed.MarshalBinary()
@@ -187,7 +187,7 @@ func TestEthDynamicFee_EncodeDecodeRoundTrip(t *testing.T) {
 	pk, err := crypto.GenerateKey()
 	require.NoError(t, err)
 
-	signed, err := Sign(newEthDynamicFeeUnsigned(t, big.NewInt(42)), pk)
+	signed, err := Sign(newEthDynamicFeeUnsigned(t, 42), pk)
 	require.NoError(t, err)
 
 	raw, err := signed.MarshalBinary()
@@ -214,7 +214,7 @@ func TestEthDynamicFee_EncodeDecodeRoundTrip(t *testing.T) {
 // access list round-trips through RLP — the rejection happens at resolve
 // time, not decode time, to keep hashes bit-exact with Ethereum wallets.
 func TestEthDynamicFee_DecodePreservesAccessList(t *testing.T) {
-	trx := newEthDynamicFeeUnsigned(t, big.NewInt(42))
+	trx := newEthDynamicFeeUnsigned(t, 42)
 	body := trx.body.(*ethDynamicFeeTransaction)
 	body.AccessList = AccessList{
 		{Address: thor.Address{0x01}, StorageKeys: []thor.Bytes32{{0x02}}},
@@ -241,7 +241,7 @@ func TestEthDynamicFee_DecodePreservesAccessList(t *testing.T) {
 // features are simply not applicable to 0x02 (returns nil regardless of
 // supported mask).
 func TestEthDynamicFee_TestFeaturesIgnoresDelegation(t *testing.T) {
-	trx := newEthDynamicFeeUnsigned(t, big.NewInt(42))
+	trx := newEthDynamicFeeUnsigned(t, 42)
 	var delegation Features
 	delegation.SetDelegated(true)
 	assert.NoError(t, trx.TestFeatures(delegation))
@@ -253,7 +253,7 @@ func TestEthDynamicFee_TestFeaturesIgnoresDelegation(t *testing.T) {
 func TestEthDynamicFee_SignatureLengthMustBe65(t *testing.T) {
 	pk, err := crypto.GenerateKey()
 	require.NoError(t, err)
-	signed, err := Sign(newEthDynamicFeeUnsigned(t, big.NewInt(42)), pk)
+	signed, err := Sign(newEthDynamicFeeUnsigned(t, 42), pk)
 	require.NoError(t, err)
 
 	// Mutate signature length → origin recovery must fail.
@@ -267,7 +267,7 @@ func TestEthDynamicFee_SignatureLengthMustBe65(t *testing.T) {
 func TestEthDynamicFee_SignatureVIsParity(t *testing.T) {
 	pk, err := crypto.GenerateKey()
 	require.NoError(t, err)
-	signed, err := Sign(newEthDynamicFeeUnsigned(t, big.NewInt(42)), pk)
+	signed, err := Sign(newEthDynamicFeeUnsigned(t, 42), pk)
 	require.NoError(t, err)
 
 	sig := signed.Signature()

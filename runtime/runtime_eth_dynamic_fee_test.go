@@ -85,7 +85,7 @@ func TestEthDynFee_PlainTransfer(t *testing.T) {
 		Gas(gas).
 		MaxFeePerGas(maxFee).
 		MaxPriorityFeePerGas(maxPriority).
-		ChainID(big.NewInt(0)).
+		ChainID(0).
 		Nonce(1).
 		Clause(tx.NewClause(&addr).WithValue(value)).
 		Build()
@@ -149,7 +149,7 @@ func TestEthDynFee_ContractCreation(t *testing.T) {
 		Gas(100000).
 		MaxFeePerGas(maxFee).
 		MaxPriorityFeePerGas(maxPriority).
-		ChainID(big.NewInt(0)).
+		ChainID(0).
 		Nonce(2).
 		Clause(tx.NewClause(nil).WithData(code)). // To == nil → contract creation
 		Build()
@@ -227,7 +227,7 @@ func TestEthDynFee_SponsoredCall(t *testing.T) {
 		Gas(100000).
 		MaxFeePerGas(maxFee).
 		MaxPriorityFeePerGas(maxPriority).
-		ChainID(big.NewInt(0)).
+		ChainID(0).
 		Nonce(3).
 		Clause(tx.NewClause(&target).WithData(callData)).
 		Build()
@@ -275,7 +275,7 @@ func TestEthDynFee_BaseFeeFloor(t *testing.T) {
 		Gas(21000).
 		MaxFeePerGas(maxFee).
 		MaxPriorityFeePerGas(big.NewInt(0)).
-		ChainID(big.NewInt(0)).
+		ChainID(0).
 		Nonce(4).
 		Clause(tx.NewClause(&addr).WithValue(big.NewInt(1))).
 		Build()
@@ -306,7 +306,7 @@ func TestEthDynFee_InsufficientBalance(t *testing.T) {
 		Gas(21000).
 		MaxFeePerGas(new(big.Int).Mul(baseFee, big.NewInt(2))).
 		MaxPriorityFeePerGas(new(big.Int).Set(baseFee)).
-		ChainID(big.NewInt(0)).
+		ChainID(0).
 		Nonce(5).
 		Clause(tx.NewClause(&addr).WithValue(big.NewInt(1))).
 		Build()

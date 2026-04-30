@@ -29,7 +29,7 @@ type Builder struct {
 
 	// 0x02 (ETH EIP-1559) specific. Ignored for other tx types.
 	// (To, Value, Data) come from clauses[0] — see Build().
-	chainID *big.Int
+	chainID uint64
 }
 
 func NewBuilder(txType Type) *Builder {
@@ -116,10 +116,8 @@ func (b *Builder) Features(feat Features) *Builder {
 
 // ChainID sets the Ethereum chainID used by type 0x02 transactions. Ignored
 // for non-0x02 types.
-func (b *Builder) ChainID(chainID *big.Int) *Builder {
-	if chainID != nil {
-		b.chainID = new(big.Int).Set(chainID)
-	}
+func (b *Builder) ChainID(chainID uint64) *Builder {
+	b.chainID = chainID
 	return b
 }
 
@@ -165,13 +163,9 @@ func (b *Builder) Build() *Transaction {
 		if maxPrio == nil {
 			maxPrio = new(big.Int)
 		}
-		chainID := b.chainID
-		if chainID == nil {
-			chainID = new(big.Int)
-		}
 		return &Transaction{
 			body: &ethDynamicFeeTransaction{
-				ChainID:              chainID,
+				ChainID:              new(big.Int).SetUint64(b.chainID),
 				Nonce:                b.nonce,
 				MaxPriorityFeePerGas: maxPrio,
 				MaxFeePerGas:         maxFee,

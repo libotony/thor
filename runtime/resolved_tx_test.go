@@ -98,7 +98,7 @@ func TestTxBasics(t *testing.T) {
 		Gas(1000000).
 		MaxFeePerGas(big.NewInt(thor.InitialBaseFee)).
 		MaxPriorityFeePerGas(big.NewInt(0)).
-		ChainID(big.NewInt(0)).
+		ChainID(0).
 		Clause(tx.NewClause(&addr).WithValue(big.NewInt(100))).
 		Build()
 	_, err = runtime.ResolveTransaction(tx.MustSign(ethTx, genesis.DevAccounts()[0].PrivateKey))
