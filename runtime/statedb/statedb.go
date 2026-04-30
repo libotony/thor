@@ -136,10 +136,20 @@ func (s *StateDB) AddBalance(addr common.Address, amount *big.Int) {
 	}
 }
 
-// GetNonce stub.
-func (s *StateDB) GetNonce(_ common.Address) uint64 { return 0 }
+// GetNonce reads the on-state Nonce. Pre-INTERSTELLAR no path writes it, so
+// this returns 0 — behavior identical to the previous hardcoded stub. Post-
+// INTERSTELLAR the value reflects sequential nonces written by 0x02 txs.
+func (s *StateDB) GetNonce(addr common.Address) uint64 {
+	n, err := s.state.GetNonce(thor.Address(addr))
+	if err != nil {
+		panic(err)
+	}
+	return n
+}
 
-// SetNonce stub.
+// SetNonce is a no-op in V1 — only V2 (0x02 post-INTERSTELLAR path) writes
+// account nonces. Keeping it a no-op here prevents accidental writes from
+// non-eth-tx execution paths.
 func (s *StateDB) SetNonce(_ common.Address, _ uint64) {}
 
 // GetCodeHash stub.
