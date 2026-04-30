@@ -12,9 +12,10 @@ import (
 	"slices"
 	"sort"
 
-	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/pkg/errors"
 	"github.com/syndtr/goleveldb/leveldb/util"
+
+	"github.com/vechain/thor/v2/rlp"
 
 	"github.com/vechain/thor/v2/block"
 	"github.com/vechain/thor/v2/kv"

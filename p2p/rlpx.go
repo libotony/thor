@@ -39,9 +39,9 @@ import (
 	"github.com/ethereum/go-ethereum/crypto/ecies"
 	"github.com/ethereum/go-ethereum/crypto/keccak"
 	"github.com/ethereum/go-ethereum/crypto/secp256k1"
-	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/golang/snappy"
 	"github.com/vechain/thor/v2/p2p/discover"
+	"github.com/vechain/thor/v2/rlp"
 )
 
 const (

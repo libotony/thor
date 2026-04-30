@@ -8,8 +8,8 @@ package p2psrv
 import (
 	"sync"
 
-	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/vechain/thor/v2/p2p/discover"
+	"github.com/vechain/thor/v2/rlp"
 )
 
 // Nodes slice of discovered nodes.

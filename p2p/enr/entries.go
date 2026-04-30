@@ -23,7 +23,7 @@ import (
 	"net"
 
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/rlp"
+	"github.com/vechain/thor/v2/rlp"
 )
 
 // Entry is implemented by known node record entry types.

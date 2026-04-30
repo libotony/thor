@@ -26,8 +26,8 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/event"
-	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/vechain/thor/v2/p2p/discover"
+	"github.com/vechain/thor/v2/rlp"
 )
 
 // Msg defines the structure of a p2p message.

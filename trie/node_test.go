@@ -20,8 +20,9 @@ import (
 	"io"
 	"testing"
 
-	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/vechain/thor/v2/rlp"
 
 	"github.com/vechain/thor/v2/test/datagen"
 )

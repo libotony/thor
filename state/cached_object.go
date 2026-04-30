@@ -6,8 +6,9 @@
 package state
 
 import (
-	"github.com/ethereum/go-ethereum/rlp"
 	lru "github.com/hashicorp/golang-lru"
+
+	"github.com/vechain/thor/v2/rlp"
 
 	"github.com/vechain/thor/v2/muxdb"
 	"github.com/vechain/thor/v2/thor"

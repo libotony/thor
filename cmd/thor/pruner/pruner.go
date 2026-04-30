@@ -14,8 +14,9 @@ import (
 
 	"github.com/vechain/thor/v2/block"
 
-	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/pkg/errors"
+
+	"github.com/vechain/thor/v2/rlp"
 
 	"github.com/vechain/thor/v2/bft"
 	"github.com/vechain/thor/v2/chain"

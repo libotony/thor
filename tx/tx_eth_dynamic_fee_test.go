@@ -11,10 +11,10 @@ import (
 	"testing"
 
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/vechain/thor/v2/rlp"
 	"github.com/vechain/thor/v2/thor"
 )
 
@@ -39,7 +39,7 @@ func TestEthDynamicFee_BuildFields(t *testing.T) {
 	chainID := uint64(100009)
 	trx := newEthDynamicFeeUnsigned(t, chainID)
 
-	assert.Equal(t, uint8(TypeEthDynamicFee), trx.Type())
+	assert.Equal(t, TypeEthDynamicFee, trx.Type())
 	assert.Equal(t, new(big.Int).SetUint64(chainID), trx.ChainID())
 	assert.Equal(t, uint64(7), trx.Nonce())
 	assert.Equal(t, uint64(21_000), trx.Gas())
@@ -196,7 +196,7 @@ func TestEthDynamicFee_EncodeDecodeRoundTrip(t *testing.T) {
 	decoded := new(Transaction)
 	require.NoError(t, decoded.UnmarshalBinary(raw))
 
-	assert.Equal(t, uint8(TypeEthDynamicFee), decoded.Type())
+	assert.Equal(t, TypeEthDynamicFee, decoded.Type())
 	assert.Equal(t, signed.Hash(), decoded.Hash())
 	// Re-encode and assert bit-exact match.
 	rawAgain, err := decoded.MarshalBinary()

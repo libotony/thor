@@ -8,7 +8,7 @@ package prototype
 import (
 	"math/big"
 
-	"github.com/ethereum/go-ethereum/rlp"
+	"github.com/vechain/thor/v2/rlp"
 
 	"github.com/vechain/thor/v2/state"
 	"github.com/vechain/thor/v2/thor"
