@@ -30,10 +30,14 @@ func TestStateReadWrite(t *testing.T) {
 	assert.Equal(t, M([]byte(nil), nil), M(state.GetCode(addr)))
 	assert.Equal(t, M(thor.Bytes32{}, nil), M(state.GetCodeHash(addr)))
 	assert.Equal(t, M(thor.Bytes32{}, nil), M(state.GetStorage(addr, storageKey)))
+	assert.Equal(t, M(uint64(0), nil), M(state.GetNonce(addr)))
 
 	// make account not empty
 	state.SetBalance(addr, big.NewInt(1))
 	assert.Equal(t, M(big.NewInt(1), nil), M(state.GetBalance(addr)))
+
+	state.SetNonce(addr, 7)
+	assert.Equal(t, M(uint64(7), nil), M(state.GetNonce(addr)))
 
 	state.SetMaster(addr, thor.BytesToAddress([]byte("master")))
 	assert.Equal(t, M(thor.BytesToAddress([]byte("master")), nil), M(state.GetMaster(addr)))
@@ -55,6 +59,7 @@ func TestStateReadWrite(t *testing.T) {
 	assert.Equal(t, M(thor.Address{}, nil), M(state.GetMaster(addr)))
 	assert.Equal(t, M([]byte(nil), nil), M(state.GetCode(addr)))
 	assert.Equal(t, M(thor.Bytes32{}, nil), M(state.GetCodeHash(addr)))
+	assert.Equal(t, M(uint64(0), nil), M(state.GetNonce(addr)))
 }
 
 func TestStateRevert(t *testing.T) {

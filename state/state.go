@@ -173,6 +173,26 @@ func (s *State) SetBalance(addr thor.Address, balance *big.Int) error {
 	return nil
 }
 
+// GetNonce returns the post-Interstellar 0x02 sequential nonce for the address.
+func (s *State) GetNonce(addr thor.Address) (uint64, error) {
+	acc, err := s.getAccount(addr)
+	if err != nil {
+		return 0, &Error{err}
+	}
+	return acc.Nonce, nil
+}
+
+// SetNonce sets the sequential nonce for the address.
+func (s *State) SetNonce(addr thor.Address, nonce uint64) error {
+	cpy, err := s.getAccountCopy(addr)
+	if err != nil {
+		return &Error{err}
+	}
+	cpy.Nonce = nonce
+	s.updateAccount(addr, &cpy)
+	return nil
+}
+
 // GetEnergy get energy for the given address at block number specified.
 func (s *State) GetEnergy(addr thor.Address, blockTime uint64, stopTime uint64) (*big.Int, error) {
 	acc, err := s.getAccount(addr)

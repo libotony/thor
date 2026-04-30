@@ -24,6 +24,10 @@ type AccountMetadata struct {
 
 // Account is the Thor consensus representation of an account.
 // RLP encoded objects are stored in main account trie.
+//
+// Nonce is optional: pre-Interstellar accounts encode 6 fields (Nonce==0
+// trailing) so state root stays unchanged byte-for-byte. Post-Interstellar
+// 0x02 txs may bump it; once non-zero the encoding becomes 7 fields.
 type Account struct {
 	Balance     *big.Int
 	Energy      *big.Int
@@ -31,15 +35,17 @@ type Account struct {
 	Master      []byte // master address
 	CodeHash    []byte // hash of code
 	StorageRoot []byte // merkle root of the storage trie
+	Nonce       uint64 `rlp:"optional"`
 }
 
 // IsEmpty returns if an account is empty.
-// An empty account has zero balance and zero length code hash.
+// EIP-161 alignment: zero balance, energy, master, codeHash, and nonce.
 func (a *Account) IsEmpty() bool {
 	return a.Balance.Sign() == 0 &&
 		a.Energy.Sign() == 0 &&
 		len(a.Master) == 0 &&
-		len(a.CodeHash) == 0
+		len(a.CodeHash) == 0 &&
+		a.Nonce == 0
 }
 
 var bigE18 = big.NewInt(1e18)
