@@ -45,10 +45,14 @@ var (
 
 type Type = byte
 
-// Starting from 0x51 to avoid ambiguity with Ethereum tx type codes.
+// TypeLegacy and TypeDynamicFee are VeChain-native; TypeEthDynamicFee is the Ethereum
+// EIP-1559 (0x02) envelope, kept bit-exact with Ethereum so wallets can track it by
+// its native keccak256 hash.
 const (
 	TypeLegacy     = Type(0x00)
 	TypeDynamicFee = Type(0x51)
+
+	TypeEthDynamicFee = Type(0x02)
 )
 
 const (
@@ -172,6 +176,10 @@ func (t *Transaction) decodeTyped(b []byte) (txData, error) {
 		var body dynamicFeeTransaction
 		err := body.decode(b[1:])
 		return &body, err
+	case TypeEthDynamicFee:
+		var body ethDynamicFeeTransaction
+		err := body.decode(b[1:])
+		return &body, err
 	default:
 		return nil, ErrTxTypeNotSupported
 	}
@@ -266,12 +274,19 @@ func (t *Transaction) Expiration() uint32 {
 
 // IsExpired returns whether the tx is expired according to the given blockNum.
 func (t *Transaction) IsExpired(blockNum uint32) bool {
+	// Ethereum EIP-1559 (0x02) has no expiration concept — the user's wallet is responsible
+	// for bumping nonces / canceling. Without this short-circuit, blockRef=0 and expiration=0
+	// would make the tx look expired for every blockNum > 0.
+	if t.Type() == TypeEthDynamicFee {
+		return false
+	}
 	return uint64(blockNum) > uint64(t.BlockRef().Number())+uint64(t.body.expiration()) // cast to uint64 to prevent potential overflow
 }
 
-// ID returns id of tx.
-// ID = hash(signingHash, origin).
-// It returns zero Bytes32 if origin not available.
+// ID returns id of tx. Zero on origin recovery failure.
+//   - native (0x00 / 0x51): Blake2b(SigningHash, Origin)
+//   - 0x02 ETH: Keccak256(0x02 || RLP(body)) — eth canonical txhash, equal
+//     to Hash() so both cache slots get filled in one keccak.
 func (t *Transaction) ID() (id thor.Bytes32) {
 	if cached := t.cache.id.Load(); cached != nil {
 		return cached.(thor.Bytes32)
@@ -282,22 +297,52 @@ func (t *Transaction) ID() (id thor.Bytes32) {
 	if err != nil {
 		return
 	}
+	if t.Type() == TypeEthDynamicFee {
+		return t.Hash()
+	}
 	return thor.Blake2b(t.SigningHash().Bytes(), origin[:])
 }
 
-// Hash returns hash of tx.
-// Unlike ID, it's the hash of RLP encoded tx.
+// ChainID returns the ETH EIP-1559 chainID for type 0x02 transactions, or nil
+// for VeChain-native types (which use ChainTag instead).
+func (t *Transaction) ChainID() *big.Int {
+	if eth, ok := t.body.(*ethDynamicFeeTransaction); ok {
+		if eth.ChainID == nil {
+			return nil
+		}
+		return new(big.Int).Set(eth.ChainID)
+	}
+	return nil
+}
+
+// AccessList returns the EIP-2930 access list for type 0x02 transactions, or
+// nil for other types. Currently non-empty access lists are rejected at the
+// runtime resolution stage (see runtime.ResolveTransaction).
+func (t *Transaction) AccessList() AccessList {
+	if eth, ok := t.body.(*ethDynamicFeeTransaction); ok {
+		return eth.AccessList
+	}
+	return nil
+}
+
+// Hash returns hash of RLP-encoded tx (no origin recovery required).
+//   - 0x00:           Blake2b(RLP(body))
+//   - 0x51:           Blake2b(0x51 || RLP(body))
+//   - 0x02 ETH:       Keccak256(0x02 || RLP(body)) — eth canonical txhash
 func (t *Transaction) Hash() (hash thor.Bytes32) {
 	if cached := t.cache.hash.Load(); cached != nil {
 		return cached.(thor.Bytes32)
 	}
 	defer func() { t.cache.hash.Store(hash) }()
 
-	// Legacy tx don't have type prefix.
-	if t.Type() == TypeLegacy {
+	switch t.Type() {
+	case TypeLegacy:
 		return rlpHash(t.body)
+	case TypeEthDynamicFee:
+		return keccakPrefixedRlpHash(t.Type(), t.body)
+	default:
+		return prefixedRlpHash(t.Type(), t.body)
 	}
-	return prefixedRlpHash(t.Type(), t.body)
 }
 
 // SigningHash returns hash of tx excludes signature.
@@ -309,6 +354,12 @@ func (t *Transaction) SigningHash() (hash thor.Bytes32) {
 
 	if t.Type() == TypeLegacy {
 		return rlpHash(t.body.signingFields())
+	}
+	// ETH EIP-1559 defines the signing hash as Keccak256(0x02 || RLP(fields)),
+	// not Blake2b. Keeping it in lockstep with the Ethereum spec is what lets
+	// MetaMask/ethers sign a tx off-line and have us recover the same origin.
+	if t.Type() == TypeEthDynamicFee {
+		return keccakPrefixedRlpHash(t.Type(), t.body.signingFields())
 	}
 	// Include type prefix for typed tx.
 	return prefixedRlpHash(t.Type(), t.body.signingFields())
@@ -355,7 +406,7 @@ func (t *Transaction) Features() Features {
 
 // Origin extract address of tx originator from signature.
 func (t *Transaction) Origin() (thor.Address, error) {
-	if err := t.validateSignatureLength(); err != nil {
+	if err := t.validateSignatureFormat(); err != nil {
 		return thor.Address{}, err
 	}
 
@@ -380,7 +431,7 @@ func (t *Transaction) DelegatorSigningHash(origin thor.Address) (hash thor.Bytes
 
 // Delegator returns delegator address who would like to pay for gas fee.
 func (t *Transaction) Delegator() (*thor.Address, error) {
-	if err := t.validateSignatureLength(); err != nil {
+	if err := t.validateSignatureFormat(); err != nil {
 		return nil, err
 	}
 
@@ -423,6 +474,9 @@ func (t *Transaction) WithSignature(sig []byte) *Transaction {
 // TestFeatures test if the tx is compatible with given supported features.
 // An error returned if it is incompatible.
 func (t *Transaction) TestFeatures(supported Features) error {
+	if t.Type() == TypeEthDynamicFee {
+		return nil
+	}
 	r := t.body.reserved()
 	if r.Features&supported != r.Features {
 		return errors.New("unsupported features")
@@ -641,7 +695,24 @@ func (t *Transaction) String() string {
 		`, s, t.body.maxFeePerGas(), t.body.maxPriorityFeePerGas())
 }
 
-func (t *Transaction) validateSignatureLength() error {
+// validateSignatureFormat checks that t.body.signature() conforms to the
+// type's required byte-level shape. For native types (0x00 / 0x51) that's a
+// length check (65 or 130 depending on VIP-191 delegation). For 0x02 it's
+// length 65 plus the EIP-2 low-s constraint (S ∈ [1, N/2]) — without it,
+// flipping S yields a second valid keccak256(signed-binary), splitting the
+// chain index. Native types skip low-s here because Transaction.ID() is
+// keccak(SigningHash || origin) and is invariant under S-flip.
+func (t *Transaction) validateSignatureFormat() error {
+	if t.Type() == TypeEthDynamicFee {
+		sig := t.body.signature()
+		if len(sig) != 65 {
+			return secp256k1.ErrInvalidSignatureLen
+		}
+		if bytes.Compare(sig[32:64], secp256k1HalfN[:]) > 0 {
+			return ErrHighSInSignature
+		}
+		return nil
+	}
 	expectedSigLen := 65
 	if t.Features().IsDelegated() {
 		expectedSigLen *= 2
@@ -656,7 +727,7 @@ func (t *Transaction) validateSignatureLength() error {
 // EnforceSignatureLowS checks that the S value in the signature are <= secp256k1 N/2.
 // This is not required for consensus, but a protection against signature malleability.
 func (t *Transaction) EnforceSignatureLowS() error {
-	if err := t.validateSignatureLength(); err != nil {
+	if err := t.validateSignatureFormat(); err != nil {
 		return err
 	}
 

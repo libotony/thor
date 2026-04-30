@@ -26,6 +26,10 @@ type Builder struct {
 	nonce                uint64
 	dependsOn            *thor.Bytes32
 	reserved             reserved
+
+	// 0x02 (ETH EIP-1559) specific. Ignored for other tx types.
+	// (To, Value, Data) come from clauses[0] — see Build().
+	chainID *big.Int
 }
 
 func NewBuilder(txType Type) *Builder {
@@ -110,6 +114,15 @@ func (b *Builder) Features(feat Features) *Builder {
 	return b
 }
 
+// ChainID sets the Ethereum chainID used by type 0x02 transactions. Ignored
+// for non-0x02 types.
+func (b *Builder) ChainID(chainID *big.Int) *Builder {
+	if chainID != nil {
+		b.chainID = new(big.Int).Set(chainID)
+	}
+	return b
+}
+
 // Build builds a tx object.
 func (b *Builder) Build() *Transaction {
 	if b.txType == TypeLegacy {
@@ -124,6 +137,57 @@ func (b *Builder) Build() *Transaction {
 				Nonce:        b.nonce,
 				DependsOn:    b.dependsOn,
 				Reserved:     b.reserved,
+			},
+		}
+	}
+
+	if b.txType == TypeEthDynamicFee {
+		// 0x02 carries exactly one (to, value, data) tuple at the envelope
+		// level. We model that with the existing single-clause API instead
+		// of duplicating it as separate Eth{To,Value,Data} fields, so the
+		// builder shape matches how the runtime resolves 0x02 (single
+		// Clause for execution). Multi-clause is rejected here rather than
+		// being silently truncated.
+		if len(b.clauses) != 1 {
+			panic("tx: TypeEthDynamicFee requires exactly one clause")
+		}
+		c := b.clauses[0]
+
+		value := c.body.Value
+		if value == nil {
+			value = new(big.Int)
+		}
+		maxFee := b.maxFeePerGas
+		if maxFee == nil {
+			maxFee = new(big.Int)
+		}
+		maxPrio := b.maxPriorityFeePerGas
+		if maxPrio == nil {
+			maxPrio = new(big.Int)
+		}
+		chainID := b.chainID
+		if chainID == nil {
+			chainID = new(big.Int)
+		}
+		return &Transaction{
+			body: &ethDynamicFeeTransaction{
+				ChainID:              chainID,
+				Nonce:                b.nonce,
+				MaxPriorityFeePerGas: maxPrio,
+				MaxFeePerGas:         maxFee,
+				Gas:                  b.gas,
+				To:                   c.body.To,
+				Value:                new(big.Int).Set(value),
+				Data:                 append([]byte(nil), c.body.Data...),
+				// AccessList: builder always emits the canonical empty
+				// list (RLP zero-length slice). Non-empty lists are
+				// rejected at runtime; round-trip parity with non-empty
+				// lists is exercised via direct RLP decode in
+				// TestEthDynamicFee_DecodePreservesAccessList, not the
+				// builder.
+				V: new(big.Int),
+				R: new(big.Int),
+				S: new(big.Int),
 			},
 		}
 	}

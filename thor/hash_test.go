@@ -111,6 +111,14 @@ func TestBlake2bFn(t *testing.T) {
 	assert.Equal(t, Blake2b([]byte("custom writer")), h)
 }
 
+func TestKeccak256Fn(t *testing.T) {
+	h := Keccak256Fn(func(w io.Writer) {
+		w.Write([]byte("custom writer"))
+	})
+
+	assert.Equal(t, Keccak256([]byte("custom writer")), h)
+}
+
 func TestKeccak256(t *testing.T) {
 	singleData := []byte("data")
 	multipleData := [][]byte{[]byte("multi"), []byte("ple"), []byte("data")}

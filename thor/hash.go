@@ -92,3 +92,18 @@ func Keccak256(data ...[]byte) (h Bytes32) {
 	keccak256Pool.Put(hasher)
 	return
 }
+
+// Keccak256Fn computes a keccak256 checksum for whatever fn writes into the
+// supplied writer. Mirrors Blake2bFn: a single pooled hasher is reused so
+// callers building a hash from many small pieces (RLP encoders, structured
+// preimages) avoid allocating a new sha3.state per call.
+func Keccak256Fn(fn func(w io.Writer)) (h Bytes32) {
+	hasher := keccak256Pool.Get().(*keccak256)
+	fn(hasher.state)
+	hasher.state.Read(hasher.b32[:])
+	h = hasher.b32
+
+	hasher.state.Reset()
+	keccak256Pool.Put(hasher)
+	return
+}

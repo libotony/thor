@@ -65,14 +65,14 @@ func (t *dynamicFeeTransaction) signature() []byte        { return t.Signature }
 
 func (t *dynamicFeeTransaction) maxFeePerGas() *big.Int {
 	if t.MaxFeePerGas == nil {
-		return &big.Int{}
+		return new(big.Int)
 	}
 	return new(big.Int).Set(t.MaxFeePerGas)
 }
 
 func (t *dynamicFeeTransaction) maxPriorityFeePerGas() *big.Int {
 	if t.MaxPriorityFeePerGas == nil {
-		return &big.Int{}
+		return new(big.Int)
 	}
 	return new(big.Int).Set(t.MaxPriorityFeePerGas)
 }
