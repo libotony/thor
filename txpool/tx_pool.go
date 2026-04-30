@@ -138,12 +138,12 @@ func (p *TxPool) housekeeping() {
 				atomic.StoreUint32(&p.addedAfterWash, 0)
 
 				startTime := mclock.Now()
-				executables, removedLegacy, removedDynamicFee, err := p.wash(headSummary, headBlockChanged)
+				executables, removed, err := p.wash(headSummary, headBlockChanged)
 				elapsed := mclock.Now() - startTime
 
 				ctx := []any{
 					"len", poolLen,
-					"removed", removedLegacy + removedDynamicFee,
+					"removed", removed.Legacy + removed.DynamicFee + removed.EthDynamicFee,
 					"elapsed", common.PrettyDuration(elapsed),
 				}
 				if err != nil {
@@ -153,11 +153,14 @@ func (p *TxPool) housekeeping() {
 					metricTxPoolExecutablesGauge().Set(int64(len(executables)))
 				}
 
-				if removedLegacy > 0 {
-					metricTxPoolGauge().AddWithLabel(0-int64(removedLegacy), map[string]string{"source": "washed", "type": "Legacy"})
+				if removed.Legacy > 0 {
+					metricTxPoolGauge().AddWithLabel(0-int64(removed.Legacy), map[string]string{"source": "washed", "type": "Legacy"})
 				}
-				if removedDynamicFee > 0 {
-					metricTxPoolGauge().AddWithLabel(0-int64(removedDynamicFee), map[string]string{"source": "washed", "type": "DynamicFee"})
+				if removed.DynamicFee > 0 {
+					metricTxPoolGauge().AddWithLabel(0-int64(removed.DynamicFee), map[string]string{"source": "washed", "type": "DynamicFee"})
+				}
+				if removed.EthDynamicFee > 0 {
+					metricTxPoolGauge().AddWithLabel(0-int64(removed.EthDynamicFee), map[string]string{"source": "washed", "type": "EthDynamicFee"})
 				}
 				logger.Trace("wash done", ctx...)
 			}
@@ -272,8 +275,11 @@ func (p *TxPool) add(newTx *tx.Transaction, rejectNonExecutable bool, localSubmi
 	atomic.AddUint32(&p.addedAfterWash, 1)
 
 	txTypeString := "Legacy"
-	if newTx.Type() == tx.TypeDynamicFee {
+	switch newTx.Type() {
+	case tx.TypeDynamicFee:
 		txTypeString = "DynamicFee"
+	case tx.TypeEthDynamicFee:
+		txTypeString = "EthDynamicFee"
 	}
 	metricTxPoolGauge().AddWithLabel(1, map[string]string{"source": source, "type": txTypeString})
 
@@ -449,10 +455,13 @@ func (p *TxPool) Remove(txHash thor.Bytes32, txID thor.Bytes32) bool {
 	}
 	if p.all.RemoveByHash(txHash) {
 		txTypeString := "Unknown"
-		if removedTransaction.Type() == tx.TypeLegacy {
+		switch removedTransaction.Type() {
+		case tx.TypeLegacy:
 			txTypeString = "Legacy"
-		} else if removedTransaction.Type() == tx.TypeDynamicFee {
+		case tx.TypeDynamicFee:
 			txTypeString = "DynamicFee"
+		case tx.TypeEthDynamicFee:
+			txTypeString = "EthDynamicFee"
 		}
 		metricTxPoolGauge().AddWithLabel(-1, map[string]string{"source": "n/a", "type": txTypeString})
 		logger.Debug("tx removed", "id", txID)
@@ -489,6 +498,13 @@ func (p *TxPool) Dump() tx.Transactions {
 	return p.all.ToTxs()
 }
 
+// washStats counts removals per tx type during a wash pass.
+type washStats struct {
+	Legacy        int
+	DynamicFee    int
+	EthDynamicFee int
+}
+
 // wash to evict txs that are over limit, out of lifetime, out of energy, settled, expired or dep broken.
 // this method should only be called in housekeeping go routine
 func (p *TxPool) wash(
@@ -496,8 +512,7 @@ func (p *TxPool) wash(
 	headBlockChanged bool,
 ) (
 	executables tx.Transactions,
-	removedLegacy int,
-	removedDynamicFee int,
+	removed washStats,
 	err error,
 ) {
 	all := p.all.ToTxObjects()
@@ -509,20 +524,26 @@ func (p *TxPool) wash(
 				if len(all)-i <= p.options.Limit {
 					break
 				}
-				if txObj.Type() == tx.TypeLegacy {
-					removedLegacy++
-				} else if txObj.Type() == tx.TypeDynamicFee {
-					removedDynamicFee++
+				switch txObj.Type() {
+				case tx.TypeLegacy:
+					removed.Legacy++
+				case tx.TypeDynamicFee:
+					removed.DynamicFee++
+				case tx.TypeEthDynamicFee:
+					removed.EthDynamicFee++
 				}
 				p.all.RemoveByHash(txObj.Hash())
 			}
 		} else {
 			for _, txObj := range toRemove {
 				p.all.RemoveByHash(txObj.Hash())
-				if txObj.Type() == tx.TypeLegacy {
-					removedLegacy++
-				} else if txObj.Type() == tx.TypeDynamicFee {
-					removedDynamicFee++
+				switch txObj.Type() {
+				case tx.TypeLegacy:
+					removed.Legacy++
+				case tx.TypeDynamicFee:
+					removed.DynamicFee++
+				case tx.TypeEthDynamicFee:
+					removed.EthDynamicFee++
 				}
 			}
 		}
@@ -544,7 +565,7 @@ func (p *TxPool) wash(
 
 	legacyTxBaseGasPrice, err := builtin.Params.Native(newState()).Get(thor.KeyLegacyTxBaseGasPrice)
 	if err != nil {
-		return executables, removedLegacy, removedDynamicFee, err
+		return executables, removed, err
 	}
 	needPriorityGasPriceUpdate := func() bool {
 		if !headBlockChanged {
@@ -681,7 +702,7 @@ func (p *TxPool) wash(
 			p.txFeed.Send(&TxEvent{tx, &executable})
 		}
 	})
-	return executables, 0, 0, nil
+	return executables, removed, nil
 }
 
 // Len returns the length of the `all` field
@@ -695,7 +716,12 @@ func (p *TxPool) validateTxBasics(trx *tx.Transaction) error {
 		return badTxError{err.Error()}
 	}
 
-	if trx.ChainTag() != p.repo.ChainTag() {
+	if trx.Type() == tx.TypeEthDynamicFee {
+		cid := trx.ChainID()
+		if cid == nil || cid.BitLen() > 64 || cid.Uint64() != p.repo.ChainID() {
+			return badTxError{"chain id mismatch"}
+		}
+	} else if trx.ChainTag() != p.repo.ChainTag() {
 		return badTxError{"chain tag mismatch"}
 	}
 

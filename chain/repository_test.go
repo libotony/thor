@@ -64,6 +64,9 @@ func TestRepositoryFunc(t *testing.T) {
 	assert.Equal(t, b0summary, repo1.BestBlockSummary())
 	assert.Equal(t, repo1.GenesisBlock().Header().ID()[31], repo1.ChainTag())
 
+	gid := repo1.GenesisBlock().Header().ID()
+	assert.Equal(t, uint64(uint16(gid[30])<<8|uint16(gid[31])), repo1.ChainID())
+
 	tx1 := new(tx.Builder).Build()
 	receipt1 := &tx.Receipt{}
 
