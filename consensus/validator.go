@@ -198,9 +198,16 @@ func (c *Consensus) validateBlockBody(blk *block.Block) error {
 			return consensusError(fmt.Sprintf("tx delegator blocked got packed: %v", delegator))
 		}
 
-		switch {
-		case tr.ChainTag() != c.repo.ChainTag():
+		if tr.Type() == tx.TypeEthDynamicFee {
+			cid := tr.ChainID()
+			if cid == nil || cid.BitLen() > 64 || cid.Uint64() != c.repo.ChainID() {
+				return consensusError(fmt.Sprintf("tx chain id mismatch: want %v, have %v", c.repo.ChainID(), cid))
+			}
+		} else if tr.ChainTag() != c.repo.ChainTag() {
 			return consensusError(fmt.Sprintf("tx chain tag mismatch: want %v, have %v", c.repo.ChainTag(), tr.ChainTag()))
+		}
+
+		switch {
 		case header.Number() < tr.BlockRef().Number():
 			return consensusError(fmt.Sprintf("tx ref future block: ref %v, current %v", tr.BlockRef().Number(), header.Number()))
 		case tr.IsExpired(header.Number()):

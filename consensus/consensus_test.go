@@ -631,6 +631,34 @@ func TestConsent(t *testing.T) {
 			},
 		},
 		{
+			"ErrChainIDMismatch", func(t *testing.T) {
+				addr := thor.BytesToAddress([]byte("addr"))
+				ethTrx := tx.NewBuilder(tx.TypeEthDynamicFee).
+					Gas(21000).
+					MaxFeePerGas(big.NewInt(thor.InitialBaseFee)).
+					MaxPriorityFeePerGas(big.NewInt(0)).
+					ChainID(tc.con.repo.ChainID() + 1). // wrong
+					Nonce(1).
+					Clause(tx.NewClause(&addr).WithValue(big.NewInt(1))).
+					Build()
+				ethTrx = tx.MustSign(ethTrx, genesis.DevAccounts()[0].PrivateKey)
+
+				blk, err := tc.sign(tc.builder(tc.original.Header()).Transaction(ethTrx))
+				if err != nil {
+					t.Fatal(err)
+				}
+				err = tc.consent(blk)
+				expected := consensusError(
+					fmt.Sprintf(
+						"tx chain id mismatch: want %v, have %v",
+						tc.con.repo.ChainID(),
+						big.NewInt(int64(tc.con.repo.ChainID()+1)),
+					),
+				)
+				assert.Equal(t, expected, err)
+			},
+		},
+		{
 			"ErrRefFutureBlock", func(t *testing.T) {
 				blk, err := tc.sign(
 					tc.builder(tc.original.Header()).Transaction(

@@ -323,6 +323,35 @@ func TestAdoptErr(t *testing.T) {
 		t.Fatalf("Expected error message: '%s', but got: '%s'", expectedErrorMessage, err.Error())
 	}
 
+	// Test eth-tx chain id mismatch
+	ethTxBad := tx.NewBuilder(tx.TypeEthDynamicFee).
+		Gas(21000).
+		MaxFeePerGas(big.NewInt(thor.InitialBaseFee)).
+		MaxPriorityFeePerGas(big.NewInt(0)).
+		ChainID(repo.ChainID() + 1). // wrong chain id
+		Nonce(100).
+		Clause(clause).
+		Build()
+	ethTxBad = tx.MustSign(ethTxBad, genesis.DevAccounts()[0].PrivateKey)
+	expectedErrorMessage = "bad tx: chain id mismatch"
+	if err := flow.Adopt(ethTxBad); err.Error() != expectedErrorMessage {
+		t.Fatalf("Expected error message: '%s', but got: '%s'", expectedErrorMessage, err.Error())
+	}
+
+	// Test eth-tx with matching chain id passes the chain-id check (downstream errors are acceptable)
+	ethTxOK := tx.NewBuilder(tx.TypeEthDynamicFee).
+		Gas(21000).
+		MaxFeePerGas(big.NewInt(thor.InitialBaseFee)).
+		MaxPriorityFeePerGas(big.NewInt(0)).
+		ChainID(repo.ChainID()).
+		Nonce(101).
+		Clause(clause).
+		Build()
+	ethTxOK = tx.MustSign(ethTxOK, genesis.DevAccounts()[0].PrivateKey)
+	if err := flow.Adopt(ethTxOK); err != nil && err.Error() == "bad tx: chain id mismatch" {
+		t.Fatalf("eth-tx with matching ChainID should not fail chain-id check, got: %s", err.Error())
+	}
+
 	thor.MockBlocklist([]string{genesis.DevAccounts()[9].Address.String()})
 	// Test origin blacklisted
 	builder := new(tx.Builder).

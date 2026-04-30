@@ -157,9 +157,16 @@ func (f *Flow) Adopt(t *tx.Transaction) error {
 		return badTxError{err.Error()}
 	}
 
-	switch {
-	case t.ChainTag() != f.packer.repo.ChainTag():
+	if t.Type() == tx.TypeEthDynamicFee {
+		cid := t.ChainID()
+		if cid == nil || cid.BitLen() > 64 || cid.Uint64() != f.packer.repo.ChainID() {
+			return badTxError{"chain id mismatch"}
+		}
+	} else if t.ChainTag() != f.packer.repo.ChainTag() {
 		return badTxError{"chain tag mismatch"}
+	}
+
+	switch {
 	case f.Number() < t.BlockRef().Number():
 		return errTxNotAdoptableNow
 	case t.IsExpired(f.Number()):
