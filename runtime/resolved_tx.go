@@ -76,6 +76,12 @@ func ResolveTransaction(trx *tx.Transaction) (*ResolvedTransaction, error) {
 		if trx.MaxFeePerGas().Cmp(trx.MaxPriorityFeePerGas()) < 0 {
 			return nil, errors.New("maxFeePerGas is less than maxPriorityFeePerGas")
 		}
+
+		if trx.Type() == tx.TypeEthDynamicFee {
+			if len(trx.AccessList()) > 0 {
+				return nil, errors.New("access list not supported")
+			}
+		}
 	}
 
 	return &ResolvedTransaction{

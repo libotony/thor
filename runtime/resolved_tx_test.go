@@ -6,13 +6,16 @@
 package runtime_test
 
 import (
+	"bytes"
 	"math/big"
 	"reflect"
 	"strings"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common/math"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/crypto/secp256k1"
+	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/vechain/thor/v2/builtin"
@@ -88,6 +91,24 @@ func TestTxBasics(t *testing.T) {
 	trx = txBuilder(0x0, tx.TypeDynamicFee).MaxPriorityFeePerGas(math.MaxBig256).Build()
 	_, err = runtime.ResolveTransaction(txSign(trx))
 	assert.EqualError(t, err, "maxFeePerGas is less than maxPriorityFeePerGas")
+
+	// EthDynamicFee — empty access list resolves OK.
+	addr := thor.BytesToAddress([]byte("addr"))
+	ethTx := tx.NewBuilder(tx.TypeEthDynamicFee).
+		Gas(1000000).
+		MaxFeePerGas(big.NewInt(thor.InitialBaseFee)).
+		MaxPriorityFeePerGas(big.NewInt(0)).
+		ChainID(big.NewInt(0)).
+		Clause(tx.NewClause(&addr).WithValue(big.NewInt(100))).
+		Build()
+	_, err = runtime.ResolveTransaction(tx.MustSign(ethTx, genesis.DevAccounts()[0].PrivateKey))
+	assert.Nil(t, err)
+
+	// EthDynamicFee — non-empty access list rejected.
+	// RLP-encoded directly to sidestep the builder's empty-AL invariant.
+	ethTxWithAL := buildEthTxWithAccessList(t, addr)
+	_, err = runtime.ResolveTransaction(ethTxWithAL)
+	assert.EqualError(t, err, "access list not supported")
 }
 
 func TestGaspriceLessThanBaseFee(t *testing.T) {
@@ -438,4 +459,101 @@ func txBuilder(tag byte, txType tx.Type) *tx.Builder {
 
 func txSign(trx *tx.Transaction) *tx.Transaction {
 	return tx.MustSign(trx, genesis.DevAccounts()[0].PrivateKey)
+}
+
+// buildEthTxWithAccessList constructs a signed 0x02 tx with one access tuple
+// by RLP-encoding the body directly and decoding it into our tx.Transaction type.
+func buildEthTxWithAccessList(t *testing.T, to thor.Address) *tx.Transaction {
+	t.Helper()
+
+	pk, err := crypto.GenerateKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Mirror of tx.ethDynamicFeeTransaction (unexported) for RLP encoding;
+	// field order and types must match exactly so UnmarshalBinary accepts it.
+	type accessTuple struct {
+		Address     thor.Address
+		StorageKeys []thor.Bytes32
+	}
+	type ethBody struct {
+		ChainID              *big.Int
+		Nonce                uint64
+		MaxPriorityFeePerGas *big.Int
+		MaxFeePerGas         *big.Int
+		Gas                  uint64
+		To                   *thor.Address `rlp:"nil"`
+		Value                *big.Int
+		Data                 []byte
+		AccessList           []accessTuple
+		V, R, S              *big.Int
+	}
+
+	toAddr := to
+	body := &ethBody{
+		ChainID:              big.NewInt(0),
+		Nonce:                1,
+		MaxPriorityFeePerGas: big.NewInt(0),
+		MaxFeePerGas:         big.NewInt(thor.InitialBaseFee),
+		Gas:                  1000000,
+		To:                   &toAddr,
+		Value:                big.NewInt(100),
+		Data:                 nil,
+		AccessList:           []accessTuple{{Address: thor.Address{0x01}, StorageKeys: []thor.Bytes32{{0x02}}}},
+		V:                    new(big.Int),
+		R:                    new(big.Int),
+		S:                    new(big.Int),
+	}
+
+	// Compute the signing hash: keccak256(0x02 || RLP(fields without V,R,S))
+	type signingFields struct {
+		ChainID              *big.Int
+		Nonce                uint64
+		MaxPriorityFeePerGas *big.Int
+		MaxFeePerGas         *big.Int
+		Gas                  uint64
+		To                   *thor.Address `rlp:"nil"`
+		Value                *big.Int
+		Data                 []byte
+		AccessList           []accessTuple
+	}
+	sf := &signingFields{
+		ChainID:              body.ChainID,
+		Nonce:                body.Nonce,
+		MaxPriorityFeePerGas: body.MaxPriorityFeePerGas,
+		MaxFeePerGas:         body.MaxFeePerGas,
+		Gas:                  body.Gas,
+		To:                   body.To,
+		Value:                body.Value,
+		Data:                 body.Data,
+		AccessList:           body.AccessList,
+	}
+	rlpBytes, err := rlp.EncodeToBytes(sf)
+	if err != nil {
+		t.Fatal(err)
+	}
+	hashInput := append([]byte{tx.TypeEthDynamicFee}, rlpBytes...)
+	hash := crypto.Keccak256Hash(hashInput)
+
+	sig, err := crypto.Sign(hash[:], pk)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// sig is [R(32) || S(32) || V(1)] where V is 0 or 1
+	body.R = new(big.Int).SetBytes(sig[:32])
+	body.S = new(big.Int).SetBytes(sig[32:64])
+	body.V = new(big.Int).SetUint64(uint64(sig[64]))
+
+	var buf bytes.Buffer
+	buf.WriteByte(tx.TypeEthDynamicFee)
+	if err := rlp.Encode(&buf, body); err != nil {
+		t.Fatal(err)
+	}
+
+	out := new(tx.Transaction)
+	if err := out.UnmarshalBinary(buf.Bytes()); err != nil {
+		t.Fatal(err)
+	}
+	return out
 }
