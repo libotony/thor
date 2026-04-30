@@ -142,7 +142,7 @@ func TestEVMFunction(t *testing.T) {
 				assert.Nil(t, err)
 				assert.Nil(t, out.VMErr)
 
-				assert.Equal(t, ctx.chain.GenesisID(), thor.BytesToBytes32(out.Data))
+				assert.Equal(t, new(big.Int).SetUint64(ctx.chain.ChainID()), new(big.Int).SetBytes(out.Data))
 			},
 		},
 		{
@@ -1579,4 +1579,40 @@ func GetMockTx(repo *chain.Repository, t *testing.T) *tx.Transaction {
 	tx = tx.WithSignature(sig)
 
 	return tx
+}
+
+// TestChainIDInterstellarSwitch confirms the EVM CHAINID opcode returns the
+// legacy 32-byte genesis-id-as-bigint pre-Interstellar and the 64-bit chain id
+// (last 2 bytes of genesis) post-Interstellar.
+func TestChainIDInterstellarSwitch(t *testing.T) {
+	db := muxdb.NewMem()
+	g, _ := genesis.NewDevnet()
+	stater := state.NewStater(db)
+	b0, _, _, err := g.Build(stater)
+	assert.Nil(t, err)
+	repo, _ := chain.NewRepository(db, b0)
+
+	// CHAINID; PUSH1 0; MSTORE; PUSH1 32; PUSH1 0; RETURN
+	code := []byte{byte(vm.CHAINID), byte(vm.PUSH1), 0x00, byte(vm.MSTORE), byte(vm.PUSH1), 0x20, byte(vm.PUSH1), 0x00, byte(vm.RETURN)}
+	target := thor.BytesToAddress([]byte("chainid_probe"))
+
+	runChainID := func(forkConfig *thor.ForkConfig) *big.Int {
+		st := stater.NewState(trie.Root{Hash: b0.Header().StateRoot()})
+		assert.Nil(t, st.SetCode(target, code))
+
+		exec, _ := runtime.New(repo.NewChain(b0.Header().ID()), st, &xenv.BlockContext{}, forkConfig).
+			PrepareClause(tx.NewClause(&target), 0, math.MaxUint64, &xenv.TransactionContext{})
+		out, _, err := exec()
+		assert.Nil(t, err)
+		assert.Nil(t, out.VMErr)
+		return new(big.Int).SetBytes(out.Data)
+	}
+
+	preFork := &thor.ForkConfig{INTERSTELLAR: math.MaxUint32}
+	expectedPre := new(big.Int).SetBytes(b0.Header().ID().Bytes())
+	assert.Equal(t, expectedPre, runChainID(preFork), "pre-Interstellar uses full genesis id")
+
+	postFork := &thor.ForkConfig{INTERSTELLAR: 0}
+	expectedPost := new(big.Int).SetUint64(repo.ChainID())
+	assert.Equal(t, expectedPost, runChainID(postFork), "post-Interstellar uses 64-bit chain id")
 }

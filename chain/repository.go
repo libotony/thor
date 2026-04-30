@@ -132,7 +132,7 @@ func (r *Repository) ChainTag() byte {
 	return r.tag
 }
 
-// ChainID returns the EIP-155 chain id (Interstellar): last 2 bytes of genesis id.
+// ChainID returns the 64-bit chain id (Interstellar): last 2 bytes of genesis id.
 func (r *Repository) ChainID() uint64 {
 	return r.chainID
 }
