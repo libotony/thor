@@ -12,6 +12,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/pkg/errors"
 
@@ -174,6 +175,14 @@ func (rt *Runtime) Chain() *chain.Chain         { return rt.chain }
 func (rt *Runtime) State() *state.State         { return rt.state }
 func (rt *Runtime) Context() *xenv.BlockContext { return rt.ctx }
 
+// newStateDB returns V2 for 0x02 txs, V1 otherwise.
+func (rt *Runtime) newStateDB(txCtx *xenv.TransactionContext) statedb.StateDB {
+	if txCtx.Type == tx.TypeEthDynamicFee {
+		return statedb.NewV2(rt.state)
+	}
+	return statedb.New(rt.state)
+}
+
 // SetVMConfig config VM.
 // Returns this runtime.
 func (rt *Runtime) SetVMConfig(config vm.Config) *Runtime {
@@ -181,7 +190,7 @@ func (rt *Runtime) SetVMConfig(config vm.Config) *Runtime {
 	return rt
 }
 
-func (rt *Runtime) newEVM(stateDB *statedb.StateDB, clauseIndex uint32, txCtx *xenv.TransactionContext) *vm.EVM {
+func (rt *Runtime) newEVM(stateDB statedb.StateDB, clauseIndex uint32, txCtx *xenv.TransactionContext) *vm.EVM {
 	var (
 		lastNonNativeCallGas uint64
 		baseFee              *big.Int
@@ -231,7 +240,10 @@ func (rt *Runtime) newEVM(stateDB *statedb.StateDB, clauseIndex uint32, txCtx *x
 			}
 			return common.Hash(id)
 		},
-		NewContractAddress: func(_ *vm.EVM, counter uint32) common.Address {
+		NewContractAddress: func(evm *vm.EVM, counter uint32, caller common.Address) common.Address {
+			if txCtx.Type == tx.TypeEthDynamicFee {
+				return crypto.CreateAddress(caller, evm.StateDB.GetNonce(caller))
+			}
 			return common.Address(thor.CreateContractAddress(txCtx.ID, clauseIndex, counter))
 		},
 		InterceptContractCall: func(evm *vm.EVM, contract *vm.Contract, readonly bool) ([]byte, error, bool) {
@@ -380,7 +392,7 @@ func (rt *Runtime) PrepareClause(
 	txCtx *xenv.TransactionContext,
 ) (exec func() (output *Output, interrupted bool, err error), interrupt func()) {
 	var (
-		stateDB       = statedb.New(rt.state)
+		stateDB       = rt.newStateDB(txCtx)
 		evm           = rt.newEVM(stateDB, clauseIndex, txCtx)
 		data          []byte
 		leftOverGas   uint64
@@ -409,6 +421,9 @@ func (rt *Runtime) PrepareClause(
 			data, caddr, leftOverGas, vmErr = evm.Create(vm.AccountRef(txCtx.Origin), clause.Data(), gas, clause.Value())
 			contractAddr = (*thor.Address)(&caddr)
 		} else {
+			if txCtx.Type == tx.TypeEthDynamicFee {
+				stateDB.SetNonce(common.Address(txCtx.Origin), stateDB.GetNonce(common.Address(txCtx.Origin))+1)
+			}
 			data, leftOverGas, vmErr = evm.Call(vm.AccountRef(txCtx.Origin), common.Address(*clause.To()), clause.Data(), gas, clause.Value())
 		}
 
@@ -523,9 +538,12 @@ func (rt *Runtime) PrepareTransaction(trx *tx.Transaction) (*TransactionExecutor
 				leftOverGas += refund
 
 				if output.VMErr != nil {
-					// vm exception here
-					// revert all executed clauses
-					rt.state.RevertTo(checkpoint)
+					if txCtx.Type != tx.TypeEthDynamicFee {
+						// multi-clause: undo prior clauses' state.
+						// eth tx needs to preserve the nonce increment and EVM's internal
+						// RevertToSnapshot already cleaned the failed call.
+						rt.state.RevertTo(checkpoint)
+					}
 					reverted = true
 					txOutputs = nil
 					return

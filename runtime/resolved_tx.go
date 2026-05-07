@@ -244,6 +244,7 @@ func (r *ResolvedTransaction) ToContext(
 		return nil, err
 	}
 	return &xenv.TransactionContext{
+		Type:        r.tx.Type(),
 		ID:          r.tx.ID(),
 		Origin:      r.Origin,
 		GasPayer:    gasPayer,

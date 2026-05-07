@@ -21,8 +21,55 @@ import (
 
 var codeSizeCache, _ = lru.New(32 * 1024)
 
-// StateDB implements evm.StateDB, only adapt to evm.
-type StateDB struct {
+// StateDB mirrors vm.StateDB plus thor-specific helpers (GetLogs, AddTransfer).
+// Inlined instead of embedding vm.StateDB because vm's internal tests already
+// import this package.
+type StateDB interface {
+	CreateAccount(common.Address)
+
+	SubBalance(common.Address, *big.Int)
+	AddBalance(common.Address, *big.Int)
+	GetBalance(common.Address) *big.Int
+
+	GetNonce(common.Address) uint64
+	SetNonce(common.Address, uint64)
+
+	GetCodeHash(common.Address) common.Hash
+	GetCode(common.Address) []byte
+	SetCode(common.Address, []byte)
+	GetCodeSize(common.Address) int
+
+	AddRefund(uint64)
+	GetRefund() uint64
+
+	GetState(common.Address, common.Hash) common.Hash
+	SetState(common.Address, common.Hash, common.Hash)
+
+	Suicide(common.Address) bool
+	HasSuicided(common.Address) bool
+
+	Exist(common.Address) bool
+	Empty(common.Address) bool
+
+	RevertToSnapshot(int)
+	Snapshot() int
+
+	AddLog(*types.Log)
+	AddPreimage(common.Hash, []byte)
+
+	SetTransientState(common.Address, common.Hash, common.Hash)
+	GetTransientState(common.Address, common.Hash) common.Hash
+
+	CreateContract(common.Address)
+	IsNewContract(common.Address) bool
+
+	// thor-specific
+	GetLogs() (tx.Events, tx.Transfers)
+	AddTransfer(*tx.Transfer)
+}
+
+// stateDB implements evm.StateDB, only adapt to evm.
+type stateDB struct {
 	state *state.State
 	repo  *stackedmap.StackedMap
 }
@@ -41,8 +88,12 @@ type (
 	}
 )
 
-// New create a statedb object.
-func New(state *state.State) *StateDB {
+// New creates a V1 statedb.
+func New(state *state.State) StateDB {
+	return newV1(state)
+}
+
+func newV1(state *state.State) *stateDB {
 	getter := func(k any) (any, bool, error) {
 		switch k.(type) {
 		case suicideFlagKey:
@@ -58,20 +109,20 @@ func New(state *state.State) *StateDB {
 	}
 
 	repo := stackedmap.New(getter)
-	return &StateDB{
+	return &stateDB{
 		state,
 		repo,
 	}
 }
 
 // GetRefund returns total refund during VM life-cycle.
-func (s *StateDB) GetRefund() uint64 {
+func (s *stateDB) GetRefund() uint64 {
 	v, _, _ := s.repo.Get(refundKey{})
 	return v.(uint64)
 }
 
 // GetLogs returns collected event and transfer logs.
-func (s *StateDB) GetLogs() (tx.Events, tx.Transfers) {
+func (s *stateDB) GetLogs() (tx.Events, tx.Transfers) {
 	var (
 		events    tx.Events
 		transfers tx.Transfers
@@ -89,7 +140,7 @@ func (s *StateDB) GetLogs() (tx.Events, tx.Transfers) {
 }
 
 // ForEachStorage see state.State.ForEachStorage.
-// func (s *StateDB) ForEachStorage(addr common.Address, cb func(common.Hash, common.Hash) bool) {
+// func (s *stateDB) ForEachStorage(addr common.Address, cb func(common.Hash, common.Hash) bool) {
 // 	s.state.ForEachStorage(thor.Address(addr), func(k thor.Bytes32, v []byte) bool {
 // 		// TODO should rlp decode v
 // 		return cb(common.Hash(k), common.BytesToHash(v))
@@ -97,10 +148,10 @@ func (s *StateDB) GetLogs() (tx.Events, tx.Transfers) {
 // }
 
 // CreateAccount stub.
-func (s *StateDB) CreateAccount(_ common.Address) {}
+func (s *stateDB) CreateAccount(_ common.Address) {}
 
 // GetBalance stub.
-func (s *StateDB) GetBalance(addr common.Address) *big.Int {
+func (s *stateDB) GetBalance(addr common.Address) *big.Int {
 	bal, err := s.state.GetBalance(thor.Address(addr))
 	if err != nil {
 		panic(err)
@@ -109,7 +160,7 @@ func (s *StateDB) GetBalance(addr common.Address) *big.Int {
 }
 
 // SubBalance stub.
-func (s *StateDB) SubBalance(addr common.Address, amount *big.Int) {
+func (s *stateDB) SubBalance(addr common.Address, amount *big.Int) {
 	if amount.Sign() == 0 {
 		return
 	}
@@ -123,7 +174,7 @@ func (s *StateDB) SubBalance(addr common.Address, amount *big.Int) {
 }
 
 // AddBalance stub.
-func (s *StateDB) AddBalance(addr common.Address, amount *big.Int) {
+func (s *stateDB) AddBalance(addr common.Address, amount *big.Int) {
 	if amount.Sign() == 0 {
 		return
 	}
@@ -136,10 +187,8 @@ func (s *StateDB) AddBalance(addr common.Address, amount *big.Int) {
 	}
 }
 
-// GetNonce reads the on-state Nonce. Pre-INTERSTELLAR no path writes it, so
-// this returns 0 — behavior identical to the previous hardcoded stub. Post-
-// INTERSTELLAR the value reflects sequential nonces written by 0x02 txs.
-func (s *StateDB) GetNonce(addr common.Address) uint64 {
+// GetNonce reads the on-state nonce.
+func (s *stateDB) GetNonce(addr common.Address) uint64 {
 	n, err := s.state.GetNonce(thor.Address(addr))
 	if err != nil {
 		panic(err)
@@ -147,13 +196,11 @@ func (s *StateDB) GetNonce(addr common.Address) uint64 {
 	return n
 }
 
-// SetNonce is a no-op in V1 — only V2 (0x02 post-INTERSTELLAR path) writes
-// account nonces. Keeping it a no-op here prevents accidental writes from
-// non-eth-tx execution paths.
-func (s *StateDB) SetNonce(_ common.Address, _ uint64) {}
+// SetNonce is a no-op in V1; only V2 writes nonces.
+func (s *stateDB) SetNonce(_ common.Address, _ uint64) {}
 
 // GetCodeHash stub.
-func (s *StateDB) GetCodeHash(addr common.Address) common.Hash {
+func (s *stateDB) GetCodeHash(addr common.Address) common.Hash {
 	hash, err := s.state.GetCodeHash(thor.Address(addr))
 	if err != nil {
 		panic(err)
@@ -162,7 +209,7 @@ func (s *StateDB) GetCodeHash(addr common.Address) common.Hash {
 }
 
 // GetCode stub.
-func (s *StateDB) GetCode(addr common.Address) []byte {
+func (s *stateDB) GetCode(addr common.Address) []byte {
 	code, err := s.state.GetCode(thor.Address(addr))
 	if err != nil {
 		panic(err)
@@ -171,7 +218,7 @@ func (s *StateDB) GetCode(addr common.Address) []byte {
 }
 
 // GetCodeSize stub.
-func (s *StateDB) GetCodeSize(addr common.Address) int {
+func (s *stateDB) GetCodeSize(addr common.Address) int {
 	hash, err := s.state.GetCodeHash(thor.Address(addr))
 	if err != nil {
 		panic(err)
@@ -192,14 +239,14 @@ func (s *StateDB) GetCodeSize(addr common.Address) int {
 }
 
 // SetCode stub.
-func (s *StateDB) SetCode(addr common.Address, code []byte) {
+func (s *stateDB) SetCode(addr common.Address, code []byte) {
 	if err := s.state.SetCode(thor.Address(addr), code); err != nil {
 		panic(err)
 	}
 }
 
 // HasSuicided stub.
-func (s *StateDB) HasSuicided(addr common.Address) bool {
+func (s *stateDB) HasSuicided(addr common.Address) bool {
 	// only check suicide flag here
 	v, _, _ := s.repo.Get(suicideFlagKey(addr))
 	return v.(bool)
@@ -209,7 +256,7 @@ func (s *StateDB) HasSuicided(addr common.Address) bool {
 // We do two things:
 // 1, delete account
 // 2, set suicide flag
-func (s *StateDB) Suicide(addr common.Address) bool {
+func (s *stateDB) Suicide(addr common.Address) bool {
 	exist, err := s.state.Exists(thor.Address(addr))
 	if err != nil {
 		panic(err)
@@ -223,7 +270,7 @@ func (s *StateDB) Suicide(addr common.Address) bool {
 }
 
 // GetState stub.
-func (s *StateDB) GetState(addr common.Address, key common.Hash) common.Hash {
+func (s *stateDB) GetState(addr common.Address, key common.Hash) common.Hash {
 	val, err := s.state.GetStorage(thor.Address(addr), thor.Bytes32(key))
 	if err != nil {
 		panic(err)
@@ -232,12 +279,12 @@ func (s *StateDB) GetState(addr common.Address, key common.Hash) common.Hash {
 }
 
 // SetState stub.
-func (s *StateDB) SetState(addr common.Address, key, value common.Hash) {
+func (s *stateDB) SetState(addr common.Address, key, value common.Hash) {
 	s.state.SetStorage(thor.Address(addr), thor.Bytes32(key), thor.Bytes32(value))
 }
 
 // Exist stub.
-func (s *StateDB) Exist(addr common.Address) bool {
+func (s *stateDB) Exist(addr common.Address) bool {
 	b, err := s.state.Exists(thor.Address(addr))
 	if err != nil {
 		panic(err)
@@ -246,58 +293,58 @@ func (s *StateDB) Exist(addr common.Address) bool {
 }
 
 // Empty stub.
-func (s *StateDB) Empty(addr common.Address) bool {
+func (s *stateDB) Empty(addr common.Address) bool {
 	return !s.Exist(addr)
 }
 
 // AddRefund stub.
-func (s *StateDB) AddRefund(gas uint64) {
+func (s *stateDB) AddRefund(gas uint64) {
 	v, _, _ := s.repo.Get(refundKey{})
 	total := v.(uint64) + gas
 	s.repo.Put(refundKey{}, total)
 }
 
 // AddPreimage stub.
-func (s *StateDB) AddPreimage(hash common.Hash, preimage []byte) {
+func (s *stateDB) AddPreimage(hash common.Hash, preimage []byte) {
 	s.repo.Put(preimageKey(hash), preimage)
 }
 
 // AddLog stub.
-func (s *StateDB) AddLog(vmlog *types.Log) {
+func (s *stateDB) AddLog(vmlog *types.Log) {
 	s.repo.Put(eventKey{}, vmlog)
 }
 
-func (s *StateDB) AddTransfer(transfer *tx.Transfer) {
+func (s *stateDB) AddTransfer(transfer *tx.Transfer) {
 	s.repo.Put(transferKey{}, transfer)
 }
 
-func (s *StateDB) SetTransientState(addr common.Address, key, value common.Hash) {
+func (s *stateDB) SetTransientState(addr common.Address, key, value common.Hash) {
 	s.repo.Put(transientStorageKey{thor.Address(addr), thor.Bytes32(key)}, value)
 }
 
-func (s *StateDB) GetTransientState(addr common.Address, key common.Hash) common.Hash {
+func (s *stateDB) GetTransientState(addr common.Address, key common.Hash) common.Hash {
 	v, _, _ := s.repo.Get(transientStorageKey{thor.Address(addr), thor.Bytes32(key)})
 	return v.(common.Hash)
 }
 
-func (s *StateDB) CreateContract(addr common.Address) {
+func (s *stateDB) CreateContract(addr common.Address) {
 	s.repo.Put(newContractKey(addr), true)
 }
 
-func (s *StateDB) IsNewContract(addr common.Address) bool {
+func (s *stateDB) IsNewContract(addr common.Address) bool {
 	v, _, _ := s.repo.Get(newContractKey(addr))
 	return v.(bool)
 }
 
 // Snapshot stub.
-func (s *StateDB) Snapshot() int {
+func (s *stateDB) Snapshot() int {
 	srev := s.state.NewCheckpoint()
 	s.repo.Put(stateRevKey{}, srev)
 	return s.repo.Push()
 }
 
 // RevertToSnapshot stub.
-func (s *StateDB) RevertToSnapshot(rev int) {
+func (s *stateDB) RevertToSnapshot(rev int) {
 	s.repo.PopTo(rev)
 	if srev, ok, _ := s.repo.Get(stateRevKey{}); ok {
 		s.state.RevertTo(srev.(int))

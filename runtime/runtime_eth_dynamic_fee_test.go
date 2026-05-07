@@ -10,6 +10,7 @@ import (
 	"math/big"
 	"testing"
 
+	"github.com/ethereum/go-ethereum/common"
 	gomath "github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/stretchr/testify/assert"
@@ -176,15 +177,72 @@ func TestEthDynFee_ContractCreation(t *testing.T) {
 	// = 5000 + 48000 + 4 = 53004. gasUsed >= floor.
 	assert.GreaterOrEqual(t, receipt.GasUsed, uint64(53004))
 
-	// Verify VeChain's address derivation rule:
-	// CreateContractAddress(txID, clauseIndex=0, counter=0) — NOT Ethereum's nonce-based rule.
-	// ExecuteTransaction collapses runtime.Output into tx.Output (Events+Transfers only),
-	// so we confirm the contract landed at the VeChain-derived address by checking state.
+	// Eth tx uses Ethereum's nonce-based rule: CreateAddress(origin, nonce-before-increment).
+	// On-state nonce starts at 0 for the genesis account.
 	assert.Len(t, receipt.Outputs, 1)
-	expectedAddr := thor.CreateContractAddress(trx.ID(), 0, 0)
+	expectedAddr := thor.Address(crypto.CreateAddress(common.Address(origin.Address), 0))
 	exists, existsErr := st.Exists(expectedAddr)
 	assert.Nil(t, existsErr)
-	assert.True(t, exists, "contract account must exist at VeChain-derived address")
+	assert.True(t, exists, "contract account must exist at eth-derived address")
+}
+
+// TestEthDynFee_RevertPreservesNonce guards eth tx revert semantics: when a
+// clause hits VMErr, the receipt is marked reverted but the sender nonce
+// increment must persist (matches Ethereum: failed txs still consume nonce).
+func TestEthDynFee_RevertPreservesNonce(t *testing.T) {
+	repo, st, baseFee, blockTime := setupEthTxRuntime(t)
+
+	origin := genesis.DevAccounts()[0]
+	beneficiary := thor.BytesToAddress([]byte("proposer"))
+
+	// Init code = INVALID opcode → ErrInvalidOpCode → VMErr.
+	// CREATE path: evm.create increments nonce before its snapshot, so the
+	// increment is preserved across EVM-internal RevertToSnapshot.
+	maxFee := new(big.Int).Mul(baseFee, big.NewInt(2))
+	maxPriority := new(big.Int).Set(baseFee)
+
+	trx := tx.NewBuilder(tx.TypeEthDynamicFee).
+		Gas(100000).
+		MaxFeePerGas(maxFee).
+		MaxPriorityFeePerGas(maxPriority).
+		ChainID(0).
+		Nonce(0).
+		Clause(tx.NewClause(nil).WithData([]byte{0xfe})).
+		Build()
+	trx = tx.MustSign(trx, origin.PrivateKey)
+
+	prevNonce, err := st.GetNonce(origin.Address)
+	assert.Nil(t, err)
+	assert.Equal(t, uint64(0), prevNonce)
+
+	rt := runtime.New(
+		repo.NewChain(repo.BestBlockSummary().Header.ID()),
+		st,
+		&xenv.BlockContext{
+			Time:        blockTime,
+			Number:      repo.BestBlockSummary().Header.Number() + 1,
+			GasLimit:    repo.BestBlockSummary().Header.GasLimit(),
+			BaseFee:     baseFee,
+			Beneficiary: beneficiary,
+		},
+		&thor.SoloFork,
+	)
+
+	receipt, err := rt.ExecuteTransaction(trx)
+	assert.Nil(t, err, "ExecuteTransaction should not error on clause-level revert")
+	assert.True(t, receipt.Reverted, "eth tx must be marked reverted on VMErr")
+	assert.Nil(t, receipt.Outputs, "outputs must be cleared on revert")
+
+	// Nonce persists post-revert (Ethereum semantics).
+	currNonce, err := st.GetNonce(origin.Address)
+	assert.Nil(t, err)
+	assert.Equal(t, uint64(1), currNonce, "sender nonce must increment even on reverted eth tx")
+
+	// Contract account must NOT exist at the eth-derived address.
+	contractAddr := thor.Address(crypto.CreateAddress(common.Address(origin.Address), 0))
+	exists, err := st.Exists(contractAddr)
+	assert.Nil(t, err)
+	assert.False(t, exists, "failed init must not leave a contract account")
 }
 
 func TestEthDynFee_SponsoredCall(t *testing.T) {

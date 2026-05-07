@@ -34,6 +34,7 @@ type BlockContext struct {
 
 // TransactionContext transaction context.
 type TransactionContext struct {
+	Type        tx.Type
 	ID          thor.Bytes32
 	Origin      thor.Address
 	GasPayer    thor.Address
