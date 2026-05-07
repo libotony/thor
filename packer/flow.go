@@ -194,6 +194,24 @@ func (f *Flow) Adopt(t *tx.Transaction) error {
 		}
 	}
 
+	if !thor.IsForked(f.Number(), f.packer.forkConfig.INTERSTELLAR) && t.Type() == tx.TypeEthDynamicFee {
+		return badTxError{"invalid tx type"}
+	}
+
+	// Eth tx requires linear nonce growth.
+	if t.Type() == tx.TypeEthDynamicFee {
+		accNonce, err := f.runtime.State().GetNonce(origin)
+		if err != nil {
+			return err
+		}
+		if t.Nonce() < accNonce {
+			return badTxError{"nonce too low"}
+		}
+		if t.Nonce() > accNonce {
+			return errTxNotAdoptableNow
+		}
+	}
+
 	// check if tx already there
 	if found, err := f.hasTx(t.ID(), t.BlockRef().Number()); err != nil {
 		return err

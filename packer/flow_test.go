@@ -264,6 +264,82 @@ func TestPackAfterGalacticaFork(t *testing.T) {
 	}
 }
 
+// TestEthDynFee_AdoptRejectedPreInterstellar verifies packer rejects 0x02
+// txs before INTERSTELLAR activation (V2 statedb / 64-bit chainid not yet on).
+func TestEthDynFee_AdoptRejectedPreInterstellar(t *testing.T) {
+	tc, err := testchain.NewWithFork(&thor.ForkConfig{GALACTICA: 0, HAYABUSA: math.MaxUint32, INTERSTELLAR: math.MaxUint32}, 180)
+	require.NoError(t, err)
+
+	validator, ok := tc.NextValidator()
+	require.True(t, ok)
+
+	pkr := packer.New(tc.Repo(), tc.Stater(), validator.Address, nil, tc.GetForkConfig(), 0)
+	best := tc.Repo().BestBlockSummary()
+	flow, err := pkr.Schedule(best, best.Header.Timestamp()+thor.BlockInterval())
+	require.NoError(t, err)
+
+	to := thor.BytesToAddress([]byte("to"))
+	trx := tx.NewBuilder(tx.TypeEthDynamicFee).
+		Gas(21000).
+		MaxFeePerGas(big.NewInt(thor.InitialBaseFee)).
+		MaxPriorityFeePerGas(big.NewInt(0)).
+		ChainID(tc.Repo().ChainID()).
+		Nonce(0).
+		Clause(tx.NewClause(&to).WithValue(big.NewInt(1))).
+		Build()
+	trx = tx.MustSign(trx, genesis.DevAccounts()[1].PrivateKey)
+
+	err = flow.Adopt(trx)
+	assert.Error(t, err)
+	assert.Equal(t, "bad tx: invalid tx type", err.Error())
+}
+
+// TestEthDynFee_AdoptNonceLinearGrowth verifies that packer rejects eth txs
+// whose nonce doesn't match the on-state nonce: future nonce → not adoptable
+// now (queued semantics); equal nonce → passes the nonce gate.
+func TestEthDynFee_AdoptNonceLinearGrowth(t *testing.T) {
+	tc, err := testchain.NewWithFork(&thor.ForkConfig{GALACTICA: 0, HAYABUSA: math.MaxUint32, INTERSTELLAR: 0}, 180)
+	require.NoError(t, err)
+
+	validator, ok := tc.NextValidator()
+	require.True(t, ok)
+
+	pkr := packer.New(tc.Repo(), tc.Stater(), validator.Address, nil, tc.GetForkConfig(), 0)
+	best := tc.Repo().BestBlockSummary()
+	flow, err := pkr.Schedule(best, best.Header.Timestamp()+thor.BlockInterval())
+	require.NoError(t, err)
+
+	to := thor.BytesToAddress([]byte("to"))
+	clause := tx.NewClause(&to).WithValue(big.NewInt(1))
+
+	// nonce > state.nonce → not adoptable now.
+	futureTx := tx.NewBuilder(tx.TypeEthDynamicFee).
+		Gas(21000).
+		MaxFeePerGas(big.NewInt(thor.InitialBaseFee)).
+		MaxPriorityFeePerGas(big.NewInt(0)).
+		ChainID(tc.Repo().ChainID()).
+		Nonce(99).
+		Clause(clause).
+		Build()
+	futureTx = tx.MustSign(futureTx, genesis.DevAccounts()[1].PrivateKey)
+	err = flow.Adopt(futureTx)
+	assert.Error(t, err)
+	assert.Equal(t, "tx not adoptable now", err.Error())
+
+	// nonce == state.nonce → passes nonce gate.
+	okTx := tx.NewBuilder(tx.TypeEthDynamicFee).
+		Gas(21000).
+		MaxFeePerGas(big.NewInt(thor.InitialBaseFee)).
+		MaxPriorityFeePerGas(big.NewInt(0)).
+		ChainID(tc.Repo().ChainID()).
+		Nonce(0).
+		Clause(clause).
+		Build()
+	okTx = tx.MustSign(okTx, genesis.DevAccounts()[2].PrivateKey)
+	err = flow.Adopt(okTx)
+	assert.Nil(t, err, "eth tx with matching nonce must adopt")
+}
+
 func TestAdoptErr(t *testing.T) {
 	db := muxdb.NewMem()
 	stater := state.NewStater(db)
@@ -351,6 +427,7 @@ func TestAdoptErr(t *testing.T) {
 	if err := flow.Adopt(ethTxOK); err != nil && err.Error() == "bad tx: chain id mismatch" {
 		t.Fatalf("eth-tx with matching ChainID should not fail chain-id check, got: %s", err.Error())
 	}
+
 
 	thor.MockBlocklist([]string{genesis.DevAccounts()[9].Address.String()})
 	// Test origin blacklisted

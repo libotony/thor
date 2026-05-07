@@ -214,6 +214,8 @@ func (c *Consensus) validateBlockBody(blk *block.Block) error {
 			return consensusError(fmt.Sprintf("tx expired: ref %v, current %v, expiration %v", tr.BlockRef().Number(), header.Number(), tr.Expiration()))
 		case !thor.IsForked(header.Number(), c.forkConfig.GALACTICA) && tr.Type() != tx.TypeLegacy:
 			return consensusError("invalid tx: " + tx.ErrTxTypeNotSupported.Error())
+		case !thor.IsForked(header.Number(), c.forkConfig.INTERSTELLAR) && tr.Type() == tx.TypeEthDynamicFee:
+			return consensusError("invalid tx: " + tx.ErrTxTypeNotSupported.Error())
 		}
 
 		if err := tr.TestFeatures(header.TxsFeatures()); err != nil {
@@ -269,16 +271,16 @@ func (c *Consensus) verifyBlock(blk *block.Block, state *state.State, blockConfl
 		return chain.HasTransaction(txid, txBlockRef)
 	}
 
-	for _, tx := range txs {
+	for _, trx := range txs {
 		// check if tx existed
-		if found, err := hasTx(tx.ID(), tx.BlockRef().Number()); err != nil {
+		if found, err := hasTx(trx.ID(), trx.BlockRef().Number()); err != nil {
 			return nil, nil, err
 		} else if found {
 			return nil, nil, consensusError("tx already exists")
 		}
 
 		// check depended tx
-		if dep := tx.DependsOn(); dep != nil {
+		if dep := trx.DependsOn(); dep != nil {
 			found, reverted, err := findDep(*dep)
 			if err != nil {
 				return nil, nil, err
@@ -292,7 +294,22 @@ func (c *Consensus) verifyBlock(blk *block.Block, state *state.State, blockConfl
 			}
 		}
 
-		receipt, err := rt.ExecuteTransaction(tx)
+		// Eth tx requires linear nonce growth (mismatch is a hard consensus error).
+		if trx.Type() == tx.TypeEthDynamicFee {
+			origin, err := trx.Origin()
+			if err != nil {
+				return nil, nil, consensusError(fmt.Sprintf("tx signer unavailable: %v", err))
+			}
+			accNonce, err := state.GetNonce(origin)
+			if err != nil {
+				return nil, nil, err
+			}
+			if trx.Nonce() != accNonce {
+				return nil, nil, consensusError(fmt.Sprintf("tx nonce mismatch: want %v, have %v", accNonce, trx.Nonce()))
+			}
+		}
+
+		receipt, err := rt.ExecuteTransaction(trx)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -303,7 +320,7 @@ func (c *Consensus) verifyBlock(blk *block.Block, state *state.State, blockConfl
 		}
 
 		receipts = append(receipts, receipt)
-		processedTxs[tx.ID()] = receipt.Reverted
+		processedTxs[trx.ID()] = receipt.Reverted
 	}
 
 	if header.GasUsed() != totalGasUsed {

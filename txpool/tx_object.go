@@ -84,6 +84,9 @@ func (o *TxObject) Executable(chain *chain.Chain, state *state.State, headBlock 
 	case !thor.IsForked(nextBlockNum, forkConfig.GALACTICA) && o.Type() != tx.TypeLegacy:
 		// reject non legacy tx before GALACTICA
 		return false, tx.ErrTxTypeNotSupported
+	case !thor.IsForked(nextBlockNum, forkConfig.INTERSTELLAR) && o.Type() == tx.TypeEthDynamicFee:
+		// reject eth-typed tx before INTERSTELLAR (V2 statedb / 64-bit chainid not active)
+		return false, tx.ErrTxTypeNotSupported
 	}
 
 	// test features on next block
@@ -117,6 +120,20 @@ func (o *TxObject) Executable(chain *chain.Chain, state *state.State, headBlock 
 	// Tx is considered executable when the BlockRef has passed in reference to the next block.
 	if o.BlockRef().Number() > nextBlockNum {
 		return false, nil
+	}
+
+	// Eth tx requires linear nonce growth: equal → executable, greater → queued, lower → reject.
+	if o.Type() == tx.TypeEthDynamicFee {
+		accNonce, err := state.GetNonce(o.resolved.Origin)
+		if err != nil {
+			return false, err
+		}
+		if o.Nonce() < accNonce {
+			return false, errors.New("nonce too low")
+		}
+		if o.Nonce() > accNonce {
+			return false, nil
+		}
 	}
 
 	checkpoint := state.NewCheckpoint()
