@@ -421,9 +421,7 @@ func (rt *Runtime) PrepareClause(
 			data, caddr, leftOverGas, vmErr = evm.Create(vm.AccountRef(txCtx.Origin), clause.Data(), gas, clause.Value())
 			contractAddr = (*thor.Address)(&caddr)
 		} else {
-			if txCtx.Type == tx.TypeEthDynamicFee {
-				stateDB.SetNonce(common.Address(txCtx.Origin), stateDB.GetNonce(common.Address(txCtx.Origin))+1)
-			}
+			stateDB.SetNonce(common.Address(txCtx.Origin), stateDB.GetNonce(common.Address(txCtx.Origin))+1)
 			data, leftOverGas, vmErr = evm.Call(vm.AccountRef(txCtx.Origin), common.Address(*clause.To()), clause.Data(), gas, clause.Value())
 		}
 
