@@ -6,6 +6,7 @@
 package thor
 
 import (
+	"encoding/hex"
 	"hash"
 	"io"
 	"math/rand/v2"
@@ -109,6 +110,15 @@ func TestBlake2bFn(t *testing.T) {
 	})
 
 	assert.Equal(t, Blake2b([]byte("custom writer")), h)
+}
+
+func TestKeccak256EmptyGolden(t *testing.T) {
+	h := Keccak256()
+	want := "c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470"
+	got := hex.EncodeToString(h[:])
+	if got != want {
+		t.Fatalf("empty-input keccak256 mismatch: got %s want %s", got, want)
+	}
 }
 
 func TestKeccak256(t *testing.T) {
