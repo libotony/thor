@@ -26,6 +26,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/state"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/params"
 
 	"github.com/vechain/thor/v2/tracers"
@@ -49,12 +50,20 @@ type dummyStatedb struct {
 	state.StateDB
 }
 
-func (*dummyStatedb) GetRefund() uint64                                          { return 1337 }
-func (*dummyStatedb) GetBalance(addr common.Address) *big.Int                    { return new(big.Int) }
-func (*dummyStatedb) GetTransientState(common.Address, common.Hash) common.Hash  { return common.Hash{} }
-func (*dummyStatedb) SetTransientState(common.Address, common.Hash, common.Hash) {}
-func (*dummyStatedb) CreateContract(common.Address)                              {}
-func (*dummyStatedb) IsNewContract(common.Address) bool                          { return false }
+func (*dummyStatedb) GetRefund() uint64                                           { return 1337 }
+func (*dummyStatedb) GetBalance(addr common.Address) *big.Int                     { return new(big.Int) }
+func (*dummyStatedb) AddBalance(common.Address, *big.Int)                         {}
+func (*dummyStatedb) SubBalance(common.Address, *big.Int)                         {}
+func (*dummyStatedb) HasSuicided(common.Address) bool                             { return false }
+func (*dummyStatedb) Suicide(common.Address) bool                                 { return false }
+func (*dummyStatedb) SetCode(common.Address, []byte)                              {}
+func (*dummyStatedb) SetNonce(common.Address, uint64)                             {}
+func (*dummyStatedb) SetState(common.Address, common.Hash, common.Hash)           {}
+func (*dummyStatedb) AddLog(*types.Log)                                           {}
+func (*dummyStatedb) GetTransientState(common.Address, common.Hash) common.Hash   { return common.Hash{} }
+func (*dummyStatedb) SetTransientState(common.Address, common.Hash, common.Hash)  {}
+func (*dummyStatedb) CreateContract(common.Address)                               {}
+func (*dummyStatedb) IsNewContract(common.Address) bool                           { return false }
 
 func testCtx() vm.Context {
 	return vm.Context{
