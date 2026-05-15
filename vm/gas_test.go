@@ -8,12 +8,13 @@ package vm
 import (
 	"testing"
 
-	"github.com/ethereum/go-ethereum/params"
 	"github.com/holiman/uint256"
+
+	"github.com/vechain/thor/v2/vm/internal"
 )
 
 func TestCallGas(t *testing.T) {
-	gasTable := params.GasTableEIP150
+	gasTable := internal.GasTableEIP150
 
 	// Define test cases
 	tests := []struct {

@@ -9,6 +9,8 @@ import (
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/params"
+
+	"github.com/vechain/thor/v2/vm/internal"
 )
 
 // isForked returns whether a fork scheduled at block s is active at the given head block.
@@ -40,6 +42,20 @@ func (c *ChainConfig) IsShanghai(num *big.Int) bool {
 // IsOsaka returns whether num is either equal to the Osaka fork block or greater.
 func (c *ChainConfig) IsOsaka(num *big.Int) bool {
 	return isForked(c.OsakaBlock, num)
+}
+
+// GasTable returns the gas table for the given block number.
+func (c *ChainConfig) GasTable(num *big.Int) internal.GasTable {
+	switch {
+	case c.IsConstantinople(num):
+		return internal.GasTableConstantinople
+	case c.IsEIP158(num):
+		return internal.GasTableEIP158
+	case c.IsEIP150(num):
+		return internal.GasTableEIP150
+	default:
+		return internal.GasTableHomestead
+	}
 }
 
 // Rules wraps ChainConfig and is merely syntatic sugar or can be used for functions
