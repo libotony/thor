@@ -13,6 +13,7 @@ require (
 	github.com/ethereum/go-ethereum v1.17.3
 	github.com/golang/snappy v1.0.0
 	github.com/google/gofuzz v1.2.0
+	github.com/google/uuid v1.6.0
 	github.com/gorilla/handlers v1.5.1
 	github.com/gorilla/mux v1.8.1
 	github.com/gorilla/websocket v1.4.2
@@ -23,7 +24,6 @@ require (
 	github.com/mattn/go-isatty v0.0.20
 	github.com/mattn/go-sqlite3 v1.14.22
 	github.com/mattn/go-tty v0.0.0-20180219170247-931426f7535a
-	github.com/pborman/uuid v0.0.0-20170612153648-e790cca94e6c
 	github.com/pkg/errors v0.9.1
 	github.com/pmezard/go-difflib v1.0.0
 	github.com/prometheus/client_golang v1.18.0
@@ -61,7 +61,6 @@ require (
 	github.com/go-sourcemap/sourcemap v2.1.3+incompatible // indirect
 	github.com/gofrs/flock v0.12.1 // indirect
 	github.com/google/pprof v0.0.0-20230207041349-798e818bf904 // indirect
-	github.com/google/uuid v1.6.0 // indirect
 	github.com/holiman/bloomfilter/v2 v2.0.3 // indirect
 	github.com/klauspost/cpuid/v2 v2.0.9 // indirect
 	github.com/mattn/go-runewidth v0.0.13 // indirect
