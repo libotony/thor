@@ -18,8 +18,8 @@ import (
 
 	"github.com/ethereum/go-ethereum/accounts/keystore"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/mattn/go-isatty"
 	"github.com/google/uuid"
+	"github.com/mattn/go-isatty"
 	"github.com/pkg/errors"
 	"github.com/urfave/cli/v3"
 
