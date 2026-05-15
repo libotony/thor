@@ -101,6 +101,8 @@ func (h *ethLogger) Enabled(_ context.Context, lvl slog.Level) bool {
 	return lvl >= h.minLevel
 }
 
+// Handle forwards geth log records to thor's logger. Slog attrs are dropped:
+// thor's logger consumes only the message string.
 func (h *ethLogger) Handle(_ context.Context, r slog.Record) error {
 	switch r.Level {
 	case ethlog.LevelCrit:
