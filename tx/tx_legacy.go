@@ -9,10 +9,11 @@ import (
 	"bytes"
 	"encoding/binary"
 	"io"
+	"math"
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/math"
+	ethmath "github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/rlp"
 
 	"github.com/vechain/thor/v2/thor"
@@ -94,7 +95,7 @@ func (t *legacyTransaction) evaluateWork(origin thor.Address) func(nonce uint64)
 		binary.BigEndian.PutUint64(nonceBytes[:], nonce)
 		hash := thor.Blake2b(hashWithoutNonce[:], nonceBytes[:])
 		r := new(big.Int).SetBytes(hash[:])
-		return r.Div(math.MaxBig256, r)
+		return r.Div(ethmath.MaxBig256, r)
 	}
 }
 

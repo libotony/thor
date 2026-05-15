@@ -487,10 +487,12 @@ func (t *Transaction) EffectiveGasPrice(baseFee *big.Int, legacyTxBaseGasPrice *
 	// For dynamic fee transactions, effective gas price take block base fee into account.
 	// Which is MIN(maxFeePerGas, maxPriorityFeePerGas + baseFee)
 
-	return math.BigMin(t.body.maxFeePerGas(), new(big.Int).Add(
-		t.body.maxPriorityFeePerGas(),
-		baseFee,
-	))
+	a := t.body.maxFeePerGas()
+	b := new(big.Int).Add(t.body.maxPriorityFeePerGas(), baseFee)
+	if b.Cmp(a) < 0 {
+		return b
+	}
+	return a
 }
 
 // EffectivePriorityFeePerGas returns the effective priority fee per gas for the transaction. If maxFeePerGas is less than
@@ -513,7 +515,10 @@ func (t *Transaction) EffectivePriorityFeePerGas(baseFee *big.Int, legacyTxBaseG
 	}
 
 	priorityFeePerGas := new(big.Int).Sub(maxFeePerGas, baseFee)
-	return math.BigMin(priorityFeePerGas, maxPriorityFeePerGas)
+	if maxPriorityFeePerGas.Cmp(priorityFeePerGas) < 0 {
+		return maxPriorityFeePerGas
+	}
+	return priorityFeePerGas
 }
 
 // GasPriceCoef returns gas price coef.

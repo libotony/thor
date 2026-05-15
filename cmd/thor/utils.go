@@ -29,7 +29,6 @@ import (
 	"time"
 
 	"github.com/elastic/gosigar"
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/fdlimit"
 	"github.com/ethereum/go-ethereum/crypto"
 	ethlog "github.com/ethereum/go-ethereum/log"
@@ -560,9 +559,9 @@ func printStartupMessage1(
 ) {
 	bestBlock := repo.BestBlockSummary()
 
-	name := common.MakeName("Thor", fullVersion())
+	name := fmt.Sprintf("Thor/v%s/%s/%s", fullVersion(), runtime.GOOS, runtime.Version())
 	if master == nil { // solo has no master
-		name = common.MakeName("Thor solo", fullVersion())
+		name = fmt.Sprintf("Thor solo/v%s/%s/%s", fullVersion(), runtime.GOOS, runtime.Version())
 	}
 
 	message := fmt.Sprintf(`Starting %v
