@@ -50,8 +50,8 @@ type dummyStatedb struct {
 	state.StateDB
 }
 
-func (*dummyStatedb) GetRefund() uint64                                           { return 1337 }
-func (*dummyStatedb) GetBalance(addr common.Address) *big.Int                     { return new(big.Int) }
+func (*dummyStatedb) GetRefund() uint64                       { return 1337 }
+func (*dummyStatedb) GetBalance(addr common.Address) *big.Int { return new(big.Int) }
 
 // The methods below shadow promoted methods on the embedded state.StateDB so
 // dummyStatedb satisfies thor's vm.StateDB interface (which uses *big.Int and
@@ -64,10 +64,10 @@ func (*dummyStatedb) SetCode(common.Address, []byte)                            
 func (*dummyStatedb) SetNonce(common.Address, uint64)                            {}
 func (*dummyStatedb) SetState(common.Address, common.Hash, common.Hash)          {}
 func (*dummyStatedb) AddLog(*types.Log)                                          {}
-func (*dummyStatedb) GetTransientState(common.Address, common.Hash) common.Hash   { return common.Hash{} }
-func (*dummyStatedb) SetTransientState(common.Address, common.Hash, common.Hash)  {}
-func (*dummyStatedb) CreateContract(common.Address)                               {}
-func (*dummyStatedb) IsNewContract(common.Address) bool                           { return false }
+func (*dummyStatedb) GetTransientState(common.Address, common.Hash) common.Hash  { return common.Hash{} }
+func (*dummyStatedb) SetTransientState(common.Address, common.Hash, common.Hash) {}
+func (*dummyStatedb) CreateContract(common.Address)                              {}
+func (*dummyStatedb) IsNewContract(common.Address) bool                          { return false }
 
 func testCtx() vm.Context {
 	return vm.Context{

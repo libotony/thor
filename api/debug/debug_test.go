@@ -548,7 +548,7 @@ func initDebugServer(t *testing.T) {
 		HAYABUSA:     ^uint32(0),
 		INTERSTELLAR: ^uint32(0),
 	}
-	hayabusaTP := uint32(^uint32(0))
+	hayabusaTP := ^uint32(0)
 	thor.SetConfig(thor.Config{HayabusaTP: &hayabusaTP})
 	thorChain, err := testchain.NewWithFork(&forkConfig, 180)
 	require.NoError(t, err)
