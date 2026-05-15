@@ -927,3 +927,8 @@ func TestValidateSignatureLength(t *testing.T) {
 		})
 	}
 }
+
+func TestMaxBig256(t *testing.T) {
+	assert.True(t, bytes.Equal(math.MaxBig256.Bytes(), maxBig256.Bytes()))
+	assert.Equal(t, 256, maxBig256.BitLen())
+}

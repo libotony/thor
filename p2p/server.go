@@ -83,7 +83,7 @@ type Config struct {
 	DiscoveryV5 bool `toml:",omitempty"`
 
 	// Name sets the node name of this server.
-	// Use common.MakeName to create a name that follows existing conventions.
+	// By convention it is <name>/v<version>/<GOOS>/<Go version>, e.g. thor/v2.5.0/linux/go1.26.5.
 	Name string `toml:"-"`
 
 	// BootstrapNodes are used to establish connectivity
