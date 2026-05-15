@@ -18,11 +18,13 @@ package vm
 
 import (
 	"github.com/ethereum/go-ethereum/params"
+
+	"github.com/vechain/thor/v2/vm/internal"
 )
 
 type (
 	executionFunc       func(pc *uint64, env *EVM, contract *Contract, memory *Memory, stack *Stack) ([]byte, error)
-	gasFunc             func(params.GasTable, *EVM, *Contract, *Stack, *Memory, uint64) (uint64, error) // last parameter is the requested memory size as a uint64
+	gasFunc             func(internal.GasTable, *EVM, *Contract, *Stack, *Memory, uint64) (uint64, error) // last parameter is the requested memory size as a uint64
 	stackValidationFunc func(*Stack) error
 	memorySizeFunc      func(*Stack) (size uint64, overflow bool)
 )
