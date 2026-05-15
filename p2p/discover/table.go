@@ -442,7 +442,7 @@ func (tab *Table) loadSeedNodes() {
 	seeds = append(seeds, tab.nursery...)
 	for i := range seeds {
 		seed := seeds[i]
-		age := log.Lazy{Fn: func() any { return time.Since(tab.db.lastPongReceived(seed.ID)) }}
+		age := time.Since(tab.db.lastPongReceived(seed.ID))
 		log.Debug("Found seed node in database", "id", seed.ID, "addr", seed.addr(), "age", age)
 		tab.add(seed)
 	}
