@@ -215,7 +215,7 @@ func testTraceClauseWithBadClauseIndex(t *testing.T) {
 	// Clause index is out of range
 	traceClauseOption = &api.TraceClauseOption{
 		Name:   "structLogger",
-		Target: fmt.Sprintf("%s/%s/%d", blk.Header().ID(), transaction.ID(), uint64(math.MaxUint64)),
+		Target: fmt.Sprintf("%s/%s/%d", blk.Header().ID(), transaction.ID(), ^uint64(0)),
 	}
 	res = httpPostAndCheckResponseStatus(t, "/debug/tracers", traceClauseOption, 400)
 	assert.Equal(t, `invalid target[2]`, strings.TrimSpace(res))
@@ -426,7 +426,7 @@ func testHandleTraceCallWithMalfomredRevision(t *testing.T) {
 	assert.Equal(t, `revision: strconv.ParseUint: parsing "badRevision": invalid syntax`, strings.TrimSpace(res))
 
 	// Revision number is out of range
-	res = httpPostAndCheckResponseStatus(t, fmt.Sprintf("/debug/tracers/call?revision=%d", uint64(math.MaxUint64)), traceCallOption, 400)
+	res = httpPostAndCheckResponseStatus(t, fmt.Sprintf("/debug/tracers/call?revision=%d", ^uint64(0)), traceCallOption, 400)
 	assert.Equal(t, "revision: block number out of max uint32", strings.TrimSpace(res))
 }
 
@@ -545,10 +545,10 @@ func initDebugServer(t *testing.T) {
 		VIP191:       1,
 		GALACTICA:    1,
 		VIP214:       2,
-		HAYABUSA:     math.MaxUint32,
-		INTERSTELLAR: math.MaxUint32,
+		HAYABUSA:     ^uint32(0),
+		INTERSTELLAR: ^uint32(0),
 	}
-	hayabusaTP := uint32(math.MaxUint32)
+	hayabusaTP := uint32(^uint32(0))
 	thor.SetConfig(thor.Config{HayabusaTP: &hayabusaTP})
 	thorChain, err := testchain.NewWithFork(&forkConfig, 180)
 	require.NoError(t, err)

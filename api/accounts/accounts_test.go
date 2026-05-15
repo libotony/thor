@@ -94,7 +94,7 @@ const (
 )
 
 var (
-	gasLimit     = math.MaxUint32
+	gasLimit     = ^uint32(0)
 	addr         = thor.BytesToAddress([]byte("to"))
 	value        = big.NewInt(10000)
 	storageKey   = thor.Bytes32{}
@@ -541,7 +541,7 @@ func batchCall(t *testing.T) {
 	// Request with not enough gas
 	tooMuchGasBody := &api.BatchCallData{
 		Clauses:    api.Clauses{},
-		Gas:        math.MaxUint64,
+		Gas:        ^uint64(0),
 		GasPrice:   &big,
 		ProvedWork: &big,
 		Caller:     &contractAddr,
