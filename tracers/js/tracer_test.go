@@ -52,14 +52,18 @@ type dummyStatedb struct {
 
 func (*dummyStatedb) GetRefund() uint64                                           { return 1337 }
 func (*dummyStatedb) GetBalance(addr common.Address) *big.Int                     { return new(big.Int) }
-func (*dummyStatedb) AddBalance(common.Address, *big.Int)                         {}
-func (*dummyStatedb) SubBalance(common.Address, *big.Int)                         {}
-func (*dummyStatedb) HasSuicided(common.Address) bool                             { return false }
-func (*dummyStatedb) Suicide(common.Address) bool                                 { return false }
-func (*dummyStatedb) SetCode(common.Address, []byte)                              {}
-func (*dummyStatedb) SetNonce(common.Address, uint64)                             {}
-func (*dummyStatedb) SetState(common.Address, common.Hash, common.Hash)           {}
-func (*dummyStatedb) AddLog(*types.Log)                                           {}
+
+// The methods below shadow promoted methods on the embedded state.StateDB so
+// dummyStatedb satisfies thor's vm.StateDB interface (which uses *big.Int and
+// thor-flavored signatures) rather than upstream's *uint256.Int signatures.
+func (*dummyStatedb) AddBalance(common.Address, *big.Int)                        {}
+func (*dummyStatedb) SubBalance(common.Address, *big.Int)                        {}
+func (*dummyStatedb) HasSuicided(common.Address) bool                            { return false }
+func (*dummyStatedb) Suicide(common.Address) bool                                { return false }
+func (*dummyStatedb) SetCode(common.Address, []byte)                             {}
+func (*dummyStatedb) SetNonce(common.Address, uint64)                            {}
+func (*dummyStatedb) SetState(common.Address, common.Hash, common.Hash)          {}
+func (*dummyStatedb) AddLog(*types.Log)                                          {}
 func (*dummyStatedb) GetTransientState(common.Address, common.Hash) common.Hash   { return common.Hash{} }
 func (*dummyStatedb) SetTransientState(common.Address, common.Hash, common.Hash)  {}
 func (*dummyStatedb) CreateContract(common.Address)                               {}
