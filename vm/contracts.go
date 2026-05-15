@@ -587,7 +587,7 @@ func (c *bn256Add) RequiredGas(input []byte) uint64 {
 	if c.eip1108 {
 		return Bn256AddGasEIP1108
 	}
-	return params.Bn256AddGas
+	return params.Bn256AddGasByzantium
 }
 
 func (c *bn256Add) Run(input []byte) ([]byte, error) {
@@ -614,7 +614,7 @@ func (c *bn256ScalarMul) RequiredGas(input []byte) uint64 {
 	if c.eip1108 {
 		return Bn256ScalarMulGasEIP1108
 	}
-	return params.Bn256ScalarMulGas
+	return params.Bn256ScalarMulGasByzantium
 }
 
 func (c *bn256ScalarMul) Run(input []byte) ([]byte, error) {
@@ -648,7 +648,7 @@ func (c *bn256Pairing) RequiredGas(input []byte) uint64 {
 	if c.eip1108 {
 		return Bn256PairingBaseGasEIP1108 + uint64(len(input)/192)*Bn256PairingPerPointGasEIP1108
 	}
-	return params.Bn256PairingBaseGas + uint64(len(input)/192)*params.Bn256PairingPerPointGas
+	return params.Bn256PairingBaseGasByzantium + uint64(len(input)/192)*params.Bn256PairingPerPointGasByzantium
 }
 
 func (c *bn256Pairing) Run(input []byte) ([]byte, error) {

@@ -298,7 +298,7 @@ func TestGasSuicideGrantsRefund(t *testing.T) {
 	gas, err := gasSuicide(internal.GasTable{}, evm, selfdestructTestContract(), selfdestructTestStack(), &Memory{}, 0)
 	assert.NoError(t, err)
 	assert.Equal(t, uint64(0), gas) // gt.Suicide == 0 for empty GasTable
-	assert.Equal(t, params.SuicideRefundGas, sdb.GetRefund())
+	assert.Equal(t, params.SelfdestructRefundGas, sdb.GetRefund())
 }
 
 // gasSuicide3529 (Cancun) grants no refund.

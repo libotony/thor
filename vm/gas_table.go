@@ -201,7 +201,7 @@ func gasSha3(_ internal.GasTable, _ *EVM, _ *Contract, stack *Stack, mem *Memory
 		return 0, err
 	}
 
-	if gas, overflow = math.SafeAdd(gas, params.Sha3Gas); overflow {
+	if gas, overflow = math.SafeAdd(gas, params.Keccak256Gas); overflow {
 		return 0, ErrGasUintOverflow
 	}
 
@@ -209,7 +209,7 @@ func gasSha3(_ internal.GasTable, _ *EVM, _ *Contract, stack *Stack, mem *Memory
 	if overflow {
 		return 0, ErrGasUintOverflow
 	}
-	if wordGas, overflow = math.SafeMul(toWordSize(wordGas), params.Sha3WordGas); overflow {
+	if wordGas, overflow = math.SafeMul(toWordSize(wordGas), params.Keccak256WordGas); overflow {
 		return 0, ErrGasUintOverflow
 	}
 	if gas, overflow = math.SafeAdd(gas, wordGas); overflow {
@@ -333,7 +333,7 @@ func gasCreate2(_ internal.GasTable, _ *EVM, _ *Contract, stack *Stack, mem *Mem
 	if overflow {
 		return 0, ErrGasUintOverflow
 	}
-	if wordGas, overflow = math.SafeMul(toWordSize(wordGas), params.Sha3WordGas); overflow {
+	if wordGas, overflow = math.SafeMul(toWordSize(wordGas), params.Keccak256WordGas); overflow {
 		return 0, ErrGasUintOverflow
 	}
 	if gas, overflow = math.SafeAdd(gas, wordGas); overflow {
@@ -457,7 +457,7 @@ func gasSuicide(gt internal.GasTable, evm *EVM, contract *Contract, stack *Stack
 	}
 
 	if !evm.StateDB.HasSuicided(contract.Address()) {
-		evm.StateDB.AddRefund(params.SuicideRefundGas)
+		evm.StateDB.AddRefund(params.SelfdestructRefundGas)
 	}
 	return gas, nil
 }
