@@ -42,8 +42,11 @@ type ethLogger struct {
 	logger log.Logger
 }
 
+// Enabled accepts every level; disco delegates level filtering to thor's logger.
 func (h *ethLogger) Enabled(_ context.Context, _ slog.Level) bool { return true }
 
+// Handle forwards geth log records to thor's logger. Slog attrs are dropped:
+// thor's logger consumes only the message string.
 func (h *ethLogger) Handle(_ context.Context, r slog.Record) error {
 	switch r.Level {
 	case ethlog.LevelCrit:
