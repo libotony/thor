@@ -9,14 +9,17 @@ import (
 	"bytes"
 	"encoding/binary"
 	"io"
+	"math"
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/rlp"
 
 	"github.com/vechain/thor/v2/thor"
 )
+
+// maxBig256 is 2^256 - 1, copied from go-ethereum common/math.MaxBig256.
+var maxBig256 = new(big.Int).Sub(new(big.Int).Lsh(big.NewInt(1), 256), big.NewInt(1))
 
 type legacyTransaction struct {
 	ChainTag     byte
@@ -94,7 +97,7 @@ func (t *legacyTransaction) evaluateWork(origin thor.Address) func(nonce uint64)
 		binary.BigEndian.PutUint64(nonceBytes[:], nonce)
 		hash := thor.Blake2b(hashWithoutNonce[:], nonceBytes[:])
 		r := new(big.Int).SetBytes(hash[:])
-		return r.Div(math.MaxBig256, r)
+		return r.Div(maxBig256, r)
 	}
 }
 
