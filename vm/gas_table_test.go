@@ -27,6 +27,8 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/vechain/thor/v2/vm/internal"
 )
 
 func newContractAddress(_ *EVM, _ common.Address, _ uint32) common.Address {
@@ -75,7 +77,7 @@ func TestGasFunctions(t *testing.T) {
 	evm, stack := GetFunctionArguments()
 
 	// Define the function signature
-	type gasFuncType func(params.GasTable, *EVM, *Contract, *Stack, *Memory, uint64) (uint64, error)
+	type gasFuncType func(internal.GasTable, *EVM, *Contract, *Stack, *Memory, uint64) (uint64, error)
 
 	// Create a struct to hold a function reference and its expected result
 	type testItem struct {
@@ -111,7 +113,7 @@ func TestGasFunctions(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		result, err := test.function(params.GasTable{}, evm, &Contract{}, stack, &Memory{}, test.memerySize)
+		result, err := test.function(internal.GasTable{}, evm, &Contract{}, stack, &Memory{}, test.memerySize)
 		if err != nil {
 			t.Errorf("Function %v returned an error: %v", runtime.FuncForPC(reflect.ValueOf(test.function).Pointer()).Name(), err)
 		}
@@ -127,14 +129,14 @@ func TestGasFunctions(t *testing.T) {
 
 func TestGasCall(t *testing.T) {
 	evm, stack := GetFunctionArguments()
-	gas, _ := gasCall(params.GasTable{}, evm, &Contract{}, stack, &Memory{}, 0)
+	gas, _ := gasCall(internal.GasTable{}, evm, &Contract{}, stack, &Memory{}, 0)
 
 	assert.Equal(t, gas, uint64(0x0))
 }
 
 func TestGasCallCode(t *testing.T) {
 	evm, stack := GetFunctionArguments()
-	gas, _ := gasCallCode(params.GasTable{}, evm, &Contract{}, stack, &Memory{}, 0)
+	gas, _ := gasCallCode(internal.GasTable{}, evm, &Contract{}, stack, &Memory{}, 0)
 
 	assert.Equal(t, gas, uint64(0x0))
 }
@@ -143,7 +145,7 @@ func TestGasLog(t *testing.T) {
 	evm, stack := GetFunctionArguments()
 	gasFunc := makeGasLog(0)
 
-	gas, _ := gasFunc(params.GasTable{}, evm, &Contract{}, stack, &Memory{}, 0)
+	gas, _ := gasFunc(internal.GasTable{}, evm, &Contract{}, stack, &Memory{}, 0)
 	assert.Equal(t, gas, uint64(0x0))
 }
 
@@ -156,7 +158,7 @@ func TestGasMcopyOverflow(t *testing.T) {
 		stack.push(uint256.NewInt(0)) // src
 		stack.push(uint256.NewInt(0)) // dst
 
-		_, err := gasMcopy(params.GasTable{}, nil, nil, stack, &Memory{}, 0)
+		_, err := gasMcopy(internal.GasTable{}, nil, nil, stack, &Memory{}, 0)
 		assert.ErrorIs(t, err, ErrGasUintOverflow)
 		returnStack(stack)
 	})
@@ -168,7 +170,7 @@ func TestGasMcopyOverflow(t *testing.T) {
 		stack.push(uint256.NewInt(0))  // dst
 
 		// memorySize > 0xffffffffe0 triggers overflow in memoryGasCost
-		_, err := gasMcopy(params.GasTable{}, nil, nil, stack, &Memory{}, 0xffffffffe1)
+		_, err := gasMcopy(internal.GasTable{}, nil, nil, stack, &Memory{}, 0xffffffffe1)
 		assert.ErrorIs(t, err, ErrGasUintOverflow)
 		returnStack(stack)
 	})
@@ -233,7 +235,7 @@ func TestGasMcopy(t *testing.T) {
 				memoryGasCost(mem, uint64(tt.memLen))
 			}
 
-			gas, err := gasMcopy(params.GasTable{}, nil, nil, stack, mem, tt.memorySize)
+			gas, err := gasMcopy(internal.GasTable{}, nil, nil, stack, mem, tt.memorySize)
 			assert.NoError(t, err)
 			assert.Equal(t, tt.expected, gas)
 

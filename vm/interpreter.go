@@ -21,7 +21,8 @@ import (
 	"sync/atomic"
 
 	"github.com/ethereum/go-ethereum/common/math"
-	"github.com/ethereum/go-ethereum/params"
+
+	"github.com/vechain/thor/v2/vm/internal"
 )
 
 // Config are the configuration options for the Interpreter
@@ -46,7 +47,7 @@ type Config struct {
 type Interpreter struct {
 	evm      *EVM
 	cfg      Config
-	gasTable params.GasTable
+	gasTable internal.GasTable
 
 	readOnly   bool   // Whether to throw on stateful modifications
 	returnData []byte // Last CALL's return data for subsequent reuse
