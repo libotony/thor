@@ -14,10 +14,9 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
 
-// Vendored from go-ethereum's params/gas_table.go (removed upstream in v1.17).
-// thor's vm retains the table-driven model rather than upstream's per-fork
-// JumpTable instructions.
-
+// Package internal vendors go-ethereum's params/gas_table.go (removed upstream
+// in v1.17). thor's vm retains the table-driven model rather than upstream's
+// per-fork JumpTable instructions.
 package internal
 
 // GasTable organizes gas prices for different ethereum phases.
@@ -32,7 +31,7 @@ type GasTable struct {
 
 	ExpByte uint64
 
-	// CreateBySuicide occurs when the refunded account does not exist. Nil means not charged.
+	// CreateBySuicide occurs when the refunded account does not exist. Zero means not charged.
 	CreateBySuicide uint64
 }
 
@@ -60,7 +59,7 @@ var GasTableEIP150 = GasTable{
 	CreateBySuicide: 25000,
 }
 
-// GasTableEIP158 is the EIP-155/EIP-158 (Spurious Dragon) gas table.
+// GasTableEIP158 is the EIP-158 (Spurious Dragon) gas table.
 var GasTableEIP158 = GasTable{
 	ExtcodeSize: 700,
 	ExtcodeCopy: 700,
