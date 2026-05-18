@@ -8,6 +8,7 @@ package accounts
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 	"math/big"
 	"net/http"
 	"net/http/httptest"
@@ -15,7 +16,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/common/math"
+	ethmath "github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/assert"
@@ -94,7 +95,7 @@ const (
 )
 
 var (
-	gasLimit     = ^uint32(0)
+	gasLimit     = uint32(math.MaxUint32)
 	addr         = thor.BytesToAddress([]byte("to"))
 	value        = big.NewInt(10000)
 	storageKey   = thor.Bytes32{}
@@ -166,7 +167,7 @@ func getAccount(t *testing.T) {
 	if err := json.Unmarshal(res, &acc); err != nil {
 		t.Fatal(err)
 	}
-	assert.Equal(t, (*math.HexOrDecimal256)(value), acc.Balance, "balance should be equal")
+	assert.Equal(t, (*ethmath.HexOrDecimal256)(value), acc.Balance, "balance should be equal")
 	assert.Equal(t, http.StatusOK, statusCode, "OK")
 }
 
@@ -523,7 +524,7 @@ func batchCall(t *testing.T) {
 	assert.Equal(t, http.StatusOK, statusCode)
 
 	// Valid request
-	big := math.HexOrDecimal256(*big.NewInt(1000))
+	big := ethmath.HexOrDecimal256(*big.NewInt(1000))
 	fullBody := &api.BatchCallData{
 		Clauses:    api.Clauses{},
 		Gas:        21000,
@@ -541,7 +542,7 @@ func batchCall(t *testing.T) {
 	// Request with not enough gas
 	tooMuchGasBody := &api.BatchCallData{
 		Clauses:    api.Clauses{},
-		Gas:        ^uint64(0),
+		Gas:        math.MaxUint64,
 		GasPrice:   &big,
 		ProvedWork: &big,
 		Caller:     &contractAddr,

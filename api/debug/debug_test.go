@@ -8,13 +8,14 @@ package debug
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 	"math/big"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/common/math"
+	ethmath "github.com/ethereum/go-ethereum/common/math"
 	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -215,7 +216,7 @@ func testTraceClauseWithBadClauseIndex(t *testing.T) {
 	// Clause index is out of range
 	traceClauseOption = &api.TraceClauseOption{
 		Name:   "structLogger",
-		Target: fmt.Sprintf("%s/%s/%d", blk.Header().ID(), transaction.ID(), ^uint64(0)),
+		Target: fmt.Sprintf("%s/%s/%d", blk.Header().ID(), transaction.ID(), uint64(math.MaxUint64)),
 	}
 	res = httpPostAndCheckResponseStatus(t, "/debug/tracers", traceClauseOption, 400)
 	assert.Equal(t, `invalid target[2]`, strings.TrimSpace(res))
@@ -340,14 +341,14 @@ func testTraceCallNextBlock(t *testing.T) {
 
 func testHandleTraceCall(t *testing.T) {
 	addr := datagen.RandAddress()
-	provedWork := math.HexOrDecimal256(*big.NewInt(1000))
+	provedWork := ethmath.HexOrDecimal256(*big.NewInt(1000))
 	traceCallOption := &api.TraceCallOption{
 		Name:       "structLogger",
 		To:         &addr,
-		Value:      &math.HexOrDecimal256{},
+		Value:      &ethmath.HexOrDecimal256{},
 		Data:       "0x00",
 		Gas:        21000,
-		GasPrice:   &math.HexOrDecimal256{},
+		GasPrice:   &ethmath.HexOrDecimal256{},
 		ProvedWork: &provedWork,
 		Caller:     &addr,
 		GasPayer:   &addr,
@@ -426,7 +427,7 @@ func testHandleTraceCallWithMalfomredRevision(t *testing.T) {
 	assert.Equal(t, `revision: strconv.ParseUint: parsing "badRevision": invalid syntax`, strings.TrimSpace(res))
 
 	// Revision number is out of range
-	res = httpPostAndCheckResponseStatus(t, fmt.Sprintf("/debug/tracers/call?revision=%d", ^uint64(0)), traceCallOption, 400)
+	res = httpPostAndCheckResponseStatus(t, fmt.Sprintf("/debug/tracers/call?revision=%d", uint64(math.MaxUint64)), traceCallOption, 400)
 	assert.Equal(t, "revision: block number out of max uint32", strings.TrimSpace(res))
 }
 
@@ -435,10 +436,10 @@ func testHandleTraceCallWithInsufficientGas(t *testing.T) {
 	traceCallOption := &api.TraceCallOption{
 		Name:       "structLogger",
 		To:         &addr,
-		Value:      &math.HexOrDecimal256{},
+		Value:      &ethmath.HexOrDecimal256{},
 		Data:       "0x00",
 		Gas:        70000,
-		GasPrice:   &math.HexOrDecimal256{},
+		GasPrice:   &ethmath.HexOrDecimal256{},
 		Caller:     &addr,
 		GasPayer:   &addr,
 		Expiration: 10,
@@ -455,10 +456,10 @@ func testHandleTraceCallWithBadBlockRef(t *testing.T) {
 	traceCallOption := &api.TraceCallOption{
 		Name:       "structLogger",
 		To:         &addr,
-		Value:      &math.HexOrDecimal256{},
+		Value:      &ethmath.HexOrDecimal256{},
 		Data:       "0x00",
 		Gas:        10,
-		GasPrice:   &math.HexOrDecimal256{},
+		GasPrice:   &ethmath.HexOrDecimal256{},
 		Caller:     &addr,
 		GasPayer:   &addr,
 		Expiration: 10,
@@ -475,10 +476,10 @@ func testHandleTraceCallWithInvalidLengthBlockRef(t *testing.T) {
 	traceCallOption := &api.TraceCallOption{
 		Name:       "structLogger",
 		To:         &addr,
-		Value:      &math.HexOrDecimal256{},
+		Value:      &ethmath.HexOrDecimal256{},
 		Data:       "0x00",
 		Gas:        10,
-		GasPrice:   &math.HexOrDecimal256{},
+		GasPrice:   &ethmath.HexOrDecimal256{},
 		Caller:     &addr,
 		GasPayer:   &addr,
 		Expiration: 10,
@@ -545,10 +546,10 @@ func initDebugServer(t *testing.T) {
 		VIP191:       1,
 		GALACTICA:    1,
 		VIP214:       2,
-		HAYABUSA:     ^uint32(0),
-		INTERSTELLAR: ^uint32(0),
+		HAYABUSA:     uint32(math.MaxUint32),
+		INTERSTELLAR: uint32(math.MaxUint32),
 	}
-	hayabusaTP := ^uint32(0)
+	hayabusaTP := uint32(math.MaxUint32)
 	thor.SetConfig(thor.Config{HayabusaTP: &hayabusaTP})
 	thorChain, err := testchain.NewWithFork(&forkConfig, 180)
 	require.NoError(t, err)
