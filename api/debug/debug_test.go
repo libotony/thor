@@ -546,8 +546,8 @@ func initDebugServer(t *testing.T) {
 		VIP191:       1,
 		GALACTICA:    1,
 		VIP214:       2,
-		HAYABUSA:     uint32(math.MaxUint32),
-		INTERSTELLAR: uint32(math.MaxUint32),
+		HAYABUSA:     math.MaxUint32,
+		INTERSTELLAR: math.MaxUint32,
 	}
 	hayabusaTP := uint32(math.MaxUint32)
 	thor.SetConfig(thor.Config{HayabusaTP: &hayabusaTP})
