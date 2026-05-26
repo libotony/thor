@@ -59,7 +59,7 @@ func TestFinalizedPos(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	st, err := testBFT.engine.computeState(sum.Header)
+	st, err := testBFT.engine.computeState(sum)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -76,7 +76,7 @@ func TestFinalizedPos(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	st, err = testBFT.engine.computeState(sum.Header)
+	st, err = testBFT.engine.computeState(sum)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -396,7 +396,7 @@ func TestJustifierPos(t *testing.T) {
 				numBlksNeededForPos := forkCfg.HAYABUSA + thor.HayabusaTP() + 1
 				testBft.fastForward(thor.EpochLength() - 1 - numBlksNeededForPos)
 
-				vs, err := testBft.engine.newJustifier(testBft.repo.BestBlockSummary().Header.ID())
+				vs, err := newJustifierForPending(testBft)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -418,7 +418,7 @@ func TestJustifierPos(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				vs, err := testBft.engine.newJustifier(testBft.repo.BestBlockSummary().Header.ID())
+				vs, err := newJustifierForPending(testBft)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -438,7 +438,7 @@ func TestJustifierPos(t *testing.T) {
 
 				numBlksNeededForPos := forkCfg.HAYABUSA + thor.HayabusaTP() + 1
 				testBft.fastForward(thor.EpochLength()*2 - numBlksNeededForPos)
-				vs, err := testBft.engine.newJustifier(testBft.repo.BestBlockSummary().Header.ID())
+				vs, err := newJustifierForPending(testBft)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -461,7 +461,7 @@ func TestJustifierPos(t *testing.T) {
 
 				numBlksNeededForPos := forkCfg.HAYABUSA + thor.HayabusaTP() + 1
 				testBft.fastForward(thor.EpochLength()*2 - 1 - numBlksNeededForPos)
-				vs, err := testBft.engine.newJustifier(testBft.repo.BestBlockSummary().Header.ID())
+				vs, err := newJustifierForPending(testBft)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -496,7 +496,7 @@ func TestJustifierPos(t *testing.T) {
 
 				numBlksNeededForPos := forkCfg.HAYABUSA + thor.HayabusaTP() + 1
 				testBft.fastForward(thor.EpochLength()*2 - 1 - numBlksNeededForPos)
-				vs, err := testBft.engine.newJustifier(testBft.repo.BestBlockSummary().Header.ID())
+				vs, err := newJustifierForPending(testBft)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -523,7 +523,7 @@ func TestJustifierPos(t *testing.T) {
 
 				numBlksNeededForPos := forkCfg.HAYABUSA + thor.HayabusaTP() + 1
 				testBft.fastForward(thor.EpochLength()*2 - 1 - numBlksNeededForPos)
-				vs, err := testBft.engine.newJustifier(testBft.repo.BestBlockSummary().Header.ID())
+				vs, err := newJustifierForPending(testBft)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -578,7 +578,7 @@ func TestJustifierPos(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				vs, err := testBft.engine.newJustifier(testBft.repo.BestBlockSummary().Header.ID())
+				vs, err := newJustifierForPending(testBft)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -602,7 +602,7 @@ func TestJustifierPos(t *testing.T) {
 				assert.Equal(t, false, vs.votes[master].isCOM)
 				assert.Equal(t, uint64(0), vs.comVotes)
 
-				vs, err = testBft.engine.newJustifier(testBft.repo.BestBlockSummary().Header.ID())
+				vs, err = newJustifierForPending(testBft)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -938,4 +938,91 @@ func (test *TestBFT) adoptStakerTx(flow *packer.Flow, privateKey *ecdsa.PrivateK
 	}
 
 	return nil
+}
+
+// TestPosThresholdReadsPostHousekeepState pins the contract that newJustifier
+// reads totalWeight from the checkpoint block (post-housekeep state), not from
+// checkpoint - 1. This is the inverse of the pre-fix bug where threshold was
+// computed against W_old while votes summed against W_old + W_new.
+//
+// Limitation: the test asserts structural properties (formula uses checkpoint
+// state, PoS branch is selected) which DO catch:
+//   - thresholdWeight formula regressions (e.g., 2/3 → 1/2 by mistake);
+//   - PoS-vs-PoA branch swap (would set thresholdVotes != 0);
+//   - any change making `thresholdWeight != getTotalWeight(checkpointSum)*2/3`.
+//
+// Empirically, in this test setup housekeep activates queued validators within
+// 1 block of being added (well before the next canonical checkpoint), so we
+// cannot construct a W-difference across the checkpoint we inspect. The
+// "thresholdWeight != getTotalWeight(preCheckpointSum)*2/3" negative assertion
+// is therefore conditional and skipped when the two weights happen to coincide.
+// See review doc §7.2 for the constraints behind this.
+func TestPosThresholdReadsPostHousekeepState(t *testing.T) {
+	forkCfg := &thor.ForkConfig{
+		HAYABUSA: 1,
+	}
+	hayabusaTP := uint32(1)
+	thor.SetConfig(thor.Config{HayabusaTP: &hayabusaTP})
+
+	testBFT, err := newTestBftPos(forkCfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Advance just past the first long-epoch checkpoint so both the checkpoint
+	// block and its predecessor are in the repo.
+	numBlksNeededForPos := forkCfg.HAYABUSA + thor.HayabusaTP() + 1
+	if err = testBFT.fastForward(thor.EpochLength() + 1 - numBlksNeededForPos); err != nil {
+		t.Fatal(err)
+	}
+
+	checkpointID, err := testBFT.repo.NewBestChain().GetBlockID(thor.EpochLength())
+	if err != nil {
+		t.Fatal(err)
+	}
+	checkpointSum, err := testBFT.repo.GetBlockSummary(checkpointID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	preCheckpointID, err := testBFT.repo.NewBestChain().GetBlockID(thor.EpochLength() - 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	preCheckpointSum, err := testBFT.repo.GetBlockSummary(preCheckpointID)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	postWeight, err := testBFT.engine.getTotalWeight(checkpointSum)
+	if err != nil {
+		t.Fatalf("getTotalWeight at checkpoint: %v", err)
+	}
+
+	js, err := testBFT.engine.newJustifier(checkpointSum)
+	if err != nil {
+		t.Fatalf("newJustifier: %v", err)
+	}
+
+	// Structural pin: regardless of W difference, thresholdWeight must equal
+	// postWeight * 2 / 3 and the PoS branch must be selected. Catches formula
+	// regressions and PoS/PoA branch confusion.
+	assert.Equal(t, postWeight*2/3, js.thresholdWeight,
+		"thresholdWeight must come from post-housekeep state at checkpoint")
+	assert.Equal(t, uint64(0), js.thresholdVotes,
+		"PoS path must be selected; nonzero thresholdVotes means PoA was taken from pre-housekeep state")
+
+	// Stronger negative pin: only bites when housekeep actually changed W
+	// across the checkpoint. Empirically the stock test chain does not produce
+	// this difference (see comment above); we still attempt the assertion so
+	// future test changes that DO produce a difference catch the regression.
+	preWeight, preErr := testBFT.engine.getTotalWeight(preCheckpointSum)
+	switch {
+	case preErr != nil:
+		t.Logf("preCheckpoint getTotalWeight returned %v; PoS-branch divergence still pins the contract", preErr)
+	case preWeight == postWeight:
+		t.Logf("WARN: pre==post==%d; W-difference negative pin not exercised (see test docstring)", preWeight)
+	default:
+		assert.NotEqual(t, preWeight*2/3, js.thresholdWeight,
+			"thresholdWeight equals pre-housekeep value — regression in checkpoint state sourcing")
+	}
 }

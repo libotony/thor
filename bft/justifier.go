@@ -5,8 +5,8 @@
 package bft
 
 import (
-	"github.com/vechain/thor/v2/block"
 	"github.com/vechain/thor/v2/builtin"
+	"github.com/vechain/thor/v2/chain"
 	"github.com/vechain/thor/v2/thor"
 )
 
@@ -47,55 +47,74 @@ func newJustifier(parentQuality, checkpoint uint32, thresholdVotes uint64, thres
 	}
 }
 
-func (engine *Engine) newJustifier(parentID thor.Bytes32) (*justifier, error) {
-	blockNum := block.Number(parentID) + 1
+// newJustifier creates a new justifier for the block described by sum.
+//
+// sum.Header may not yet be in the repo (during bft.Select); sum carries
+// the conflicts count so we can still address its post-housekeep state.
+//
+// Two different state snapshots are used:
+//   - qualitySum (checkpoint - 1): last block of the previous round; source of
+//     the previous quality and the PoA threshold (max block proposers).
+//   - thresholdSum (checkpoint): post-housekeep state of the current epoch's
+//     first block; source of PoS total weight. For the checkpoint block itself
+//     the checkpoint is not yet in repo, so we construct the trie root from
+//     sum.Header.StateRoot() and sum.Conflicts directly.
+func (engine *Engine) newJustifier(sum *chain.BlockSummary) (*justifier, error) {
+	header := sum.Header
+	blockNum := header.Number()
+	parentID := header.ParentID()
+	checkpoint := getCheckPoint(blockNum)
 
 	var lastOfParentRound uint32
-	checkpoint := getCheckPoint(blockNum)
 	if checkpoint > 0 {
 		lastOfParentRound = checkpoint - 1
-	} else {
-		lastOfParentRound = 0
 	}
 
-	sum, err := engine.repo.NewChain(parentID).GetBlockSummary(lastOfParentRound)
+	qualitySum, err := engine.repo.NewChain(parentID).GetBlockSummary(lastOfParentRound)
 	if err != nil {
 		return nil, err
 	}
 
 	var parentQuality uint32 // quality of last round
-	if absRound := blockNum/thor.EpochLength() - engine.forkConfig.FINALITY/thor.EpochLength(); absRound == 0 {
-		parentQuality = 0
-	} else {
-		var err error
-		parentQuality, err = engine.getQuality(sum.Header.ID())
+	if absRound := blockNum/thor.EpochLength() - engine.forkConfig.FINALITY/thor.EpochLength(); absRound != 0 {
+		parentQuality, err = engine.getQuality(qualitySum.Header.ID())
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	state := engine.stater.NewState(sum.Root())
-	staker := builtin.Staker.Native(state)
-	posActive, err := staker.IsPoSActive()
+	// For deciding posActive and threshold we need the post-housekeep state of
+	// the checkpoint block. The checkpoint block itself is the one described by
+	// sum when blockNum == checkpoint; otherwise fetch it from the repo.
+	thresholdSum := sum
+	if blockNum != checkpoint {
+		thresholdSum, err = engine.repo.NewChain(parentID).GetBlockSummary(checkpoint)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	thresholdState := engine.stater.NewState(thresholdSum.Root())
+	posActive, err := builtin.Staker.Native(thresholdState).IsPoSActive()
 	if err != nil {
 		return nil, err
 	}
 
 	if posActive {
-		totalWeight, err := engine.getTotalWeight(sum)
+		totalWeight, err := engine.getTotalWeight(thresholdSum)
 		if err != nil {
 			return nil, err
 		}
-		thresholdWeight := totalWeight * 2 / 3
-		return newJustifier(parentQuality, checkpoint, 0, thresholdWeight), nil
-	} else {
-		mbp, err := engine.getMaxBlockProposers(sum)
-		if err != nil {
-			return nil, err
-		}
-		thresholdVotes := mbp * 2 / 3
-		return newJustifier(parentQuality, checkpoint, thresholdVotes, 0), nil
+		return newJustifier(parentQuality, checkpoint, 0, totalWeight*2/3), nil
 	}
+
+	// PoA threshold: max block proposers does not depend on housekeep, keep
+	// reading it from the previous round's last block (qualitySum).
+	mbp, err := engine.getMaxBlockProposers(qualitySum)
+	if err != nil {
+		return nil, err
+	}
+	return newJustifier(parentQuality, checkpoint, mbp*2/3, 0), nil
 }
 
 // AddBlock adds a new block to the set.

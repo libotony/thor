@@ -30,7 +30,10 @@ type Committer interface {
 	Finalized() thor.Bytes32
 	Justified() (thor.Bytes32, error)
 	Accepts(parentID thor.Bytes32) (bool, error)
-	Select(header *block.Header) (bool, error)
+	// Select chooses between the given block (possibly not yet in repo) and current best.
+	// header + conflicts together address the post-housekeep trie root of an epoch
+	// checkpoint block before it is persisted, so bft can read state via stater.
+	Select(header *block.Header, conflicts uint32) (bool, error)
 	CommitBlock(header *block.Header, isPacking bool) error
 	ShouldVote(parentID thor.Bytes32) (bool, error)
 }
@@ -150,13 +153,16 @@ func (engine *Engine) Accepts(parentID thor.Bytes32) (bool, error) {
 }
 
 // Select selects between the new block and the current best, return true if new one is better.
-func (engine *Engine) Select(header *block.Header) (bool, error) {
-	newSt, err := engine.computeState(header)
+// header + conflicts describe the new block, which may not be in the repo yet; together they
+// address the block's post-housekeep trie root via the stater.
+func (engine *Engine) Select(header *block.Header, conflicts uint32) (bool, error) {
+	newSum := &chain.BlockSummary{Header: header, Conflicts: conflicts}
+	newSt, err := engine.computeState(newSum)
 	if err != nil {
 		return false, err
 	}
 
-	best := engine.repo.BestBlockSummary().Header
+	best := engine.repo.BestBlockSummary()
 	bestSt, err := engine.computeState(best)
 	if err != nil {
 		return false, err
@@ -166,14 +172,21 @@ func (engine *Engine) Select(header *block.Header) (bool, error) {
 		return newSt.Quality > bestSt.Quality, nil
 	}
 
-	return header.BetterThan(best), nil
+	return header.BetterThan(best.Header), nil
 }
 
 // CommitBlock commits bft state to storage.
 func (engine *Engine) CommitBlock(header *block.Header, isPacking bool) error {
+	// block is already persisted by this point (called after repo.AddBlock),
+	// so conflicts are readable from the repo for anything computeState may need.
+	sum, err := engine.repo.GetBlockSummary(header.ID())
+	if err != nil {
+		return err
+	}
+
 	// save quality and finalized at the end of each round
 	if getStorePoint(header.Number()) == header.Number() {
-		state, err := engine.computeState(header)
+		state, err := engine.computeState(sum)
 		if err != nil {
 			return err
 		}
@@ -199,7 +212,7 @@ func (engine *Engine) CommitBlock(header *block.Header, isPacking bool) error {
 
 	// mark voted if packing
 	if isPacking {
-		state, err := engine.computeState(header)
+		state, err := engine.computeState(sum)
 		if err != nil {
 			return err
 		}
@@ -233,7 +246,7 @@ func (engine *Engine) ShouldVote(parentID thor.Bytes32) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	st, err := engine.computeState(sum.Header)
+	st, err := engine.computeState(sum)
 	if err != nil {
 		return false, err
 	}
@@ -290,8 +303,11 @@ func (engine *Engine) ShouldVote(parentID thor.Bytes32) (bool, error) {
 	return true, nil
 }
 
-// computeState computes the bft state regarding the given block header to the closest checkpoint.
-func (engine *Engine) computeState(header *block.Header) (*bftState, error) {
+// computeState computes the bft state regarding the given block summary to the closest checkpoint.
+// sum may describe a block that is not yet in the repo (e.g. during bft.Select); in that case
+// sum.Header and sum.Conflicts together are enough to address the block's post-housekeep state.
+func (engine *Engine) computeState(sum *chain.BlockSummary) (*bftState, error) {
+	header := sum.Header
 	if cached, ok := engine.caches.state.Get(header.ID()); ok {
 		return cached.(*bftState), nil
 	}
@@ -311,7 +327,7 @@ func (engine *Engine) computeState(header *block.Header) (*bftState, error) {
 	} else {
 		// create a new vote set if cache missed or new block is checkpoint
 		var err error
-		js, err = engine.newJustifier(header.ParentID())
+		js, err = engine.newJustifier(sum)
 		if err != nil {
 			return nil, errors.Wrap(err, "failed to create vote set")
 		}
@@ -498,7 +514,7 @@ func (e *mockedEngine) Accepts(parentID thor.Bytes32) (bool, error) {
 	return true, nil
 }
 
-func (e *mockedEngine) Select(header *block.Header) (bool, error) {
+func (e *mockedEngine) Select(_ *block.Header, _ uint32) (bool, error) {
 	return true, nil
 }
 
@@ -606,7 +622,7 @@ func (e *soloMockedEngine) Accepts(parentID thor.Bytes32) (bool, error) {
 
 // Select always returns true in solo mode since there's no fork choice rule
 // needed - the single node always extends its own chain.
-func (e *soloMockedEngine) Select(header *block.Header) (bool, error) {
+func (e *soloMockedEngine) Select(_ *block.Header, _ uint32) (bool, error) {
 	return true, nil
 }
 

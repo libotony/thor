@@ -67,7 +67,7 @@ func (m *mockBFT) Accepts(parentID thor.Bytes32) (bool, error) {
 	return true, nil
 }
 
-func (m *mockBFT) Select(header *block.Header) (bool, error) {
+func (m *mockBFT) Select(_ *block.Header, _ uint32) (bool, error) {
 	return true, nil
 }
 

@@ -136,6 +136,41 @@ func (test *TestBFT) newBlock(parentSummary *chain.BlockSummary, master genesis.
 	return test.addBlock(parentSummary, master, shouldVote, asBest, false)
 }
 
+// newJustifierForPending is the test counterpart of Engine.newJustifier as invoked during
+// bft.Select: mint the next block without adding it to the repo, then use its summary.
+func newJustifierForPending(test *TestBFT) (*justifier, error) {
+	sum, err := test.pendingNextBlock()
+	if err != nil {
+		return nil, err
+	}
+	return test.engine.newJustifier(sum)
+}
+
+// pendingNextBlock mints the block that would extend the current best, commits its
+// state to muxdb, but does NOT add it to the repo. This mirrors what bft.Select sees:
+// the post-housekeep state is readable via stater, yet the block is not in the repo.
+func (test *TestBFT) pendingNextBlock() (*chain.BlockSummary, error) {
+	parent := test.repo.BestBlockSummary()
+	master := devAccounts[(int(parent.Header.Number())+1)%(len(devAccounts)-1)]
+	pk := packer.New(test.repo, test.stater, master.Address, &thor.Address{}, test.fc, 0)
+	flow, _, err := pk.Mock(parent, parent.Header.Timestamp()+thor.BlockInterval(), parent.Header.GasLimit())
+	if err != nil {
+		return nil, err
+	}
+	conflicts, err := test.repo.ScanConflicts(parent.Header.Number() + 1)
+	if err != nil {
+		return nil, err
+	}
+	blk, stg, _, err := flow.Pack(master.PrivateKey, conflicts, true)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := stg.Commit(); err != nil {
+		return nil, err
+	}
+	return &chain.BlockSummary{Header: blk.Header(), Conflicts: conflicts}, nil
+}
+
 func (test *TestBFT) addBlock(
 	parentSummary *chain.BlockSummary,
 	master genesis.DevAccount,
@@ -294,7 +329,7 @@ func TestNewBlock(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	newBest, err := testBFT.engine.Select(summary.Header)
+	newBest, err := testBFT.engine.Select(summary.Header, summary.Conflicts)
 	assert.Nil(t, err)
 	assert.True(t, newBest)
 
@@ -312,7 +347,7 @@ func TestNeverReachJustified(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	st, err := testBFT.engine.computeState(testBFT.repo.BestBlockSummary().Header)
+	st, err := testBFT.engine.computeState(testBFT.repo.BestBlockSummary())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -326,7 +361,7 @@ func TestNeverReachJustified(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		st, err := testBFT.engine.computeState(testBFT.repo.BestBlockSummary().Header)
+		st, err := testBFT.engine.computeState(testBFT.repo.BestBlockSummary())
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -387,7 +422,7 @@ func TestFinalized(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	st, err := testBFT.engine.computeState(sum.Header)
+	st, err := testBFT.engine.computeState(sum)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -404,7 +439,7 @@ func TestFinalized(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	st, err = testBFT.engine.computeState(sum.Header)
+	st, err = testBFT.engine.computeState(sum)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -702,7 +737,7 @@ func TestJustifier(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				vs, err := testBft.engine.newJustifier(testBft.repo.BestBlockSummary().Header.ID())
+				vs, err := newJustifierForPending(testBft)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -718,7 +753,7 @@ func TestJustifier(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				vs, err := testBft.engine.newJustifier(testBft.repo.BestBlockSummary().Header.ID())
+				vs, err := newJustifierForPending(testBft)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -736,7 +771,7 @@ func TestJustifier(t *testing.T) {
 				}
 
 				testBft.fastForward(thor.EpochLength() * 2)
-				vs, err := testBft.engine.newJustifier(testBft.repo.BestBlockSummary().Header.ID())
+				vs, err := newJustifierForPending(testBft)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -757,7 +792,7 @@ func TestJustifier(t *testing.T) {
 				}
 
 				testBft.fastForward(thor.EpochLength()*2 - 1)
-				vs, err := testBft.engine.newJustifier(testBft.repo.BestBlockSummary().Header.ID())
+				vs, err := newJustifierForPending(testBft)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -788,7 +823,7 @@ func TestJustifier(t *testing.T) {
 				}
 
 				testBft.fastForward(thor.EpochLength()*2 - 1)
-				vs, err := testBft.engine.newJustifier(testBft.repo.BestBlockSummary().Header.ID())
+				vs, err := newJustifierForPending(testBft)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -812,7 +847,7 @@ func TestJustifier(t *testing.T) {
 				}
 
 				testBft.fastForward(thor.EpochLength()*2 - 1)
-				vs, err := testBft.engine.newJustifier(testBft.repo.BestBlockSummary().Header.ID())
+				vs, err := newJustifierForPending(testBft)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -850,7 +885,7 @@ func TestJustifier(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				vs, err := testBft.engine.newJustifier(testBft.repo.BestBlockSummary().Header.ID())
+				vs, err := newJustifierForPending(testBft)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -872,7 +907,7 @@ func TestJustifier(t *testing.T) {
 				assert.Equal(t, false, vs.votes[master].isCOM)
 				assert.Equal(t, uint64(0), vs.comVotes)
 
-				vs, err = testBft.engine.newJustifier(testBft.repo.BestBlockSummary().Header.ID())
+				vs, err = newJustifierForPending(testBft)
 				if err != nil {
 					t.Fatal(err)
 				}
