@@ -15,6 +15,7 @@ import (
 
 	"github.com/vechain/thor/v2/block"
 	"github.com/vechain/thor/v2/builtin"
+	"github.com/vechain/thor/v2/cache"
 	"github.com/vechain/thor/v2/chain"
 	"github.com/vechain/thor/v2/genesis"
 	"github.com/vechain/thor/v2/packer"
@@ -940,6 +941,53 @@ func (test *TestBFT) adoptStakerTx(flow *packer.Flow, privateKey *ecdsa.PrivateK
 	return nil
 }
 
+// TestResyncWithAdvancedFinalized covers the case where a node restarts with a
+// persisted finalized that is ahead of the first PoS storePoint. Resync walks
+// storePoints forward from firstPosBlock's storePoint; for the early iterations
+// it must not feed a headID that precedes finalized into findCheckpointByQuality,
+// otherwise the uint32 range computation underflows and the chain lookup fails
+// with "not found".
+func TestResyncWithAdvancedFinalized(t *testing.T) {
+	forkCfg := &thor.ForkConfig{
+		HAYABUSA: 1,
+	}
+	hayabusaTP := uint32(1)
+	thor.SetConfig(thor.Config{HayabusaTP: &hayabusaTP})
+
+	testBFT, err := newTestBftPos(forkCfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	numBlksNeededForPos := forkCfg.HAYABUSA + thor.HayabusaTP() + 1
+	if err = testBFT.fastForward(thor.EpochLength()*3 - 1 - numBlksNeededForPos); err != nil {
+		t.Fatal(err)
+	}
+
+	// After fastForward, finalized has been advanced through normal commit
+	// flow. It must sit beyond firstPosBlock's storePoint for this regression
+	// to bite.
+	firstPosStorePoint := getStorePoint(forkCfg.HAYABUSA + thor.HayabusaTP())
+	finalizedBefore := testBFT.engine.Finalized()
+	assert.Greater(t, block.Number(finalizedBefore), firstPosStorePoint,
+		"test setup precondition: finalized must be past firstPosBlock storePoint")
+
+	// Reset the resync version so Resync() actually runs on this engine.
+	if err := testBFT.engine.data.Delete(resyncVersionKey); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := testBFT.engine.Resync(nil); err != nil {
+		t.Fatalf("Resync returned error: %v", err)
+	}
+
+	// Resync only advances finalized forward; with sp <= finalized the loop
+	// skips the find-checkpoint branch entirely, so finalized must not have
+	// regressed.
+	finalizedAfter := testBFT.engine.Finalized()
+	assert.GreaterOrEqual(t, block.Number(finalizedAfter), block.Number(finalizedBefore))
+}
+
 // TestPosThresholdReadsPostHousekeepState pins the contract that newJustifier
 // reads totalWeight from the checkpoint block (post-housekeep state), not from
 // checkpoint - 1. This is the inverse of the pre-fix bug where threshold was
@@ -1025,4 +1073,150 @@ func TestPosThresholdReadsPostHousekeepState(t *testing.T) {
 		assert.NotEqual(t, preWeight*2/3, js.thresholdWeight,
 			"thresholdWeight equals pre-housekeep value — regression in checkpoint state sourcing")
 	}
+}
+
+// TestComputeStateCheckpointPlusOneBuildVsReuseEquivalence pins the invariant
+// that, at checkpoint+1, taking the cached checkpoint justifier and appending
+// one more vote produces the same bftState as building a fresh justifier and
+// walking the loop back through the checkpoint. This was first written to
+// probe whether the (now-removed) `!isCheckPoint(parent)` guard fixed a bug;
+// the equivalence held empirically, so the guard was removed. The test stays
+// as a regression guard against any future change to newJustifier / AddBlock /
+// Summarize that would silently break this equivalence and tempt someone to
+// reintroduce a defensive guard.
+func TestComputeStateCheckpointPlusOneBuildVsReuseEquivalence(t *testing.T) {
+	forkCfg := &thor.ForkConfig{
+		HAYABUSA: 1,
+	}
+	hayabusaTP := uint32(1)
+	thor.SetConfig(thor.Config{HayabusaTP: &hayabusaTP})
+
+	testBFT, err := newTestBftPos(forkCfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Advance past the first PoS checkpoint so both checkpoint and
+	// checkpoint+1 are real blocks in the repo.
+	numBlksNeededForPos := forkCfg.HAYABUSA + thor.HayabusaTP() + 1
+	if err = testBFT.fastForward(thor.EpochLength() + 5 - numBlksNeededForPos); err != nil {
+		t.Fatal(err)
+	}
+
+	checkpointID, err := testBFT.repo.NewBestChain().GetBlockID(thor.EpochLength())
+	if err != nil {
+		t.Fatal(err)
+	}
+	checkpointSum, err := testBFT.repo.GetBlockSummary(checkpointID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	plusOneID, err := testBFT.repo.NewBestChain().GetBlockID(thor.EpochLength() + 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	plusOneSum, err := testBFT.repo.GetBlockSummary(plusOneID)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Path A: real code path. computeState at checkpoint populates the cache;
+	// then computeState at checkpoint+1 reuses the cached checkpoint justifier
+	// and appends one vote.
+	testBFT.engine.caches.state.Purge()
+	testBFT.engine.caches.justifier = cache.NewPrioCache(16)
+
+	if _, err := testBFT.engine.computeState(checkpointSum); err != nil {
+		t.Fatalf("computeState(checkpoint): %v", err)
+	}
+	stateReal, err := testBFT.engine.computeState(plusOneSum)
+	if err != nil {
+		t.Fatalf("computeState(checkpoint+1): %v", err)
+	}
+
+	// Path B: manual reproduction. Reset caches, process checkpoint to seed
+	// the cache, then take checkpoint's cached justifier and apply only
+	// checkpoint+1's vote on top — exactly what the loop with end=header.Number()
+	// does internally.
+	testBFT.engine.caches.state.Purge()
+	testBFT.engine.caches.justifier = cache.NewPrioCache(16)
+
+	if _, err := testBFT.engine.computeState(checkpointSum); err != nil {
+		t.Fatalf("re-computeState(checkpoint): %v", err)
+	}
+	entry := testBFT.engine.caches.justifier.Remove(checkpointSum.Header.ID())
+	if entry == nil {
+		t.Fatal("expected checkpoint justifier in cache")
+	}
+	reusedJs := entry.Value.(*justifier)
+
+	// Apply checkpoint+1's vote, mirroring the AddBlock the loop would have
+	// done with end=header.Number() in the OLD code path.
+	signer, _ := plusOneSum.Header.Signer()
+	parentSum, err := testBFT.repo.GetBlockSummary(plusOneSum.Header.ParentID())
+	if err != nil {
+		t.Fatal(err)
+	}
+	state := testBFT.engine.stater.NewState(parentSum.Root())
+	staker := builtin.Staker.Native(state)
+	posActive, _ := staker.IsPoSActive()
+	var weight uint64
+	if posActive {
+		val, err := staker.GetValidation(signer)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if val == nil {
+			t.Fatal("validator not found")
+		}
+		weight = val.Weight
+	}
+	reusedJs.AddBlock(signer, plusOneSum.Header.COM(), weight)
+	stateManual := reusedJs.Summarize()
+
+	// Contract: real code path and the manual reproduction must produce
+	// identical bftState. Any divergence means newJustifier / AddBlock /
+	// Summarize gained new semantics that break the "append one vote == loop
+	// back through checkpoint" equivalence.
+	assert.Equal(t, *stateReal, *stateManual,
+		"computeState(checkpoint+1) diverges from manual reproduction; "+
+			"vote / threshold / quality semantics changed")
+}
+
+// TestFindCheckpointByQualityRejectsHeadBeforeFinalized pins the second-layer
+// defense added in 7b2caf8c: findCheckpointByQuality must reject a (headID,
+// finalized) pair where headID precedes finalized, instead of silently
+// underflowing the uint32 range computation and looking up nonexistent blocks.
+//
+// The resync caller-side epoch guard (engine.go:187) prevents this pair from
+// ever reaching the function during normal flow, so TestResyncWithAdvancedFinalized
+// does not exercise the inner check. This micro-test invokes the function
+// directly to keep the precondition assertion honest.
+func TestFindCheckpointByQualityRejectsHeadBeforeFinalized(t *testing.T) {
+	forkCfg := &thor.ForkConfig{
+		HAYABUSA: 1,
+	}
+	hayabusaTP := uint32(1)
+	thor.SetConfig(thor.Config{HayabusaTP: &hayabusaTP})
+
+	testBFT, err := newTestBftPos(forkCfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = testBFT.fastForward(thor.EpochLength() * 2); err != nil {
+		t.Fatal(err)
+	}
+
+	finalizedID, err := testBFT.repo.NewBestChain().GetBlockID(thor.EpochLength())
+	if err != nil {
+		t.Fatal(err)
+	}
+	headID, err := testBFT.repo.NewBestChain().GetBlockID(thor.EpochLength() - 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = testBFT.engine.findCheckpointByQuality(1, finalizedID, headID)
+	assert.Error(t, err, "headID precedes finalized must be rejected")
+	assert.Contains(t, err.Error(), "headID precedes finalized")
 }

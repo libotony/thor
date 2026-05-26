@@ -312,6 +312,16 @@ func defaultAction(_ context.Context, ctx *cli.Command) error {
 	if err != nil {
 		return errors.Wrap(err, "init bft engine")
 	}
+	// Resync needs to read historical state at every storePoint back to
+	// HAYABUSA+HayabusaTP; with the pruner enabled that state is gone, so
+	// skip the pass. Stale historical quality values are functionally dead
+	// (only forward search from finalized is ever consulted), so leaving
+	// them on disk is safe.
+	if ctx.Bool(disablePrunerFlag.Name) {
+		if err := resyncBFT(bftEngine); err != nil {
+			return errors.Wrap(err, "resync bft")
+		}
+	}
 
 	apiURL, srvCloser, err := httpserver.StartAPIServer(
 		ctx.String(apiAddrFlag.Name),
@@ -694,6 +704,14 @@ func reprocessAction(_ context.Context, ctx *cli.Command) error {
 	bftEngine, err := bft.NewEngine(repo, mainDB, forkConfig, thor.Address{})
 	if err != nil {
 		return errors.Wrap(err, "init bft engine")
+	}
+	// Resync needs historical state back to HAYABUSA+HayabusaTP. Pruner-enabled
+	// instances no longer have that state, so skip the pass; stale historical
+	// quality values are functionally dead (see defaultAction for full reasoning).
+	if ctx.Bool(disablePrunerFlag.Name) {
+		if err := resyncBFT(bftEngine); err != nil {
+			return errors.Wrap(err, "resync bft")
+		}
 	}
 
 	if !ctx.Bool(disablePrunerFlag.Name) {
