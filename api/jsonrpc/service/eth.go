@@ -9,6 +9,8 @@ import (
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
+
+	"github.com/vechain/thor/v2/thor"
 )
 
 // Eth implements the eth_* JSON-RPC namespace.
@@ -25,4 +27,17 @@ func (a *Eth) ChainId() (*hexutil.Big, error) { //nolint:revive // must be Chain
 // BlockNumber implements eth_blockNumber.
 func (a *Eth) BlockNumber() (hexutil.Uint64, error) {
 	return hexutil.Uint64(a.b.repo.BestBlockSummary().Header.Number()), nil
+}
+
+// GetBalance implements eth_getBalance.
+func (a *Eth) GetBalance(addr thor.Address, blockTag *string) (*hexutil.Big, error) {
+	sum, err := a.b.summaryAt(blockTag)
+	if err != nil {
+		return nil, err
+	}
+	bal, err := a.b.stater.NewState(sum.Root()).GetBalance(addr)
+	if err != nil {
+		return nil, err
+	}
+	return (*hexutil.Big)(bal), nil
 }

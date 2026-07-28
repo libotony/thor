@@ -6,13 +6,18 @@
 package service
 
 import (
+	"math/big"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/vechain/thor/v2/genesis"
+	"github.com/vechain/thor/v2/test/datagen"
 	"github.com/vechain/thor/v2/test/testchain"
+	"github.com/vechain/thor/v2/thor"
+	"github.com/vechain/thor/v2/tx"
 )
 
 func newTestBackend(t *testing.T) *Backend {
@@ -36,4 +41,51 @@ func TestExampleMethods(t *testing.T) {
 
 	version := NewNet(b).Version()
 	require.NotEmpty(t, version)
+}
+
+func TestGetBalance(t *testing.T) {
+	b := newTestBackend(t)
+	eth := NewEth(b)
+
+	addr := genesis.DevAccounts()[0].Address
+	want, ok := new(big.Int).SetString(genesis.InitialDevAccountBalance, 10)
+	require.True(t, ok)
+
+	for _, tag := range []*string{nil, new("latest"), new("earliest"), new("finalized")} {
+		bal, err := eth.GetBalance(addr, tag)
+		require.NoError(t, err)
+		assert.Zero(t, want.Cmp((*big.Int)(bal)))
+	}
+
+	// account absent from genesis has zero balance
+	bal, err := eth.GetBalance(thor.Address{}, nil)
+	require.NoError(t, err)
+	assert.Zero(t, (*big.Int)(bal).Sign())
+
+	// unknown block -> error, not zero balance
+	_, err = eth.GetBalance(addr, new("0x5"))
+	assert.Error(t, err)
+}
+
+func TestGetBalanceAtHistory(t *testing.T) {
+	tc, err := testchain.NewDefault()
+	require.NoError(t, err)
+	b := NewBackend(tc.Repo(), tc.Stater(), tc.Engine())
+	eth := NewEth(b)
+
+	sender := genesis.DevAccounts()[0]
+	recipient := datagen.RandAddress()
+	transferred := big.NewInt(1000)
+
+	clause := tx.NewClause(&recipient).WithValue(transferred)
+	require.NoError(t, tc.MintClauses(sender, []*tx.Clause{clause}))
+
+	// state must be opened at the requested block's root, not always best
+	bal, err := eth.GetBalance(recipient, new("earliest"))
+	require.NoError(t, err)
+	assert.Zero(t, (*big.Int)(bal).Sign())
+
+	bal, err = eth.GetBalance(recipient, new("latest"))
+	require.NoError(t, err)
+	assert.Zero(t, transferred.Cmp((*big.Int)(bal)))
 }

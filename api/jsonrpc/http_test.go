@@ -6,16 +6,20 @@
 package jsonrpc
 
 import (
+	"fmt"
 	"io"
+	"math/big"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/vechain/thor/v2/genesis"
 	"github.com/vechain/thor/v2/test/testchain"
 )
 
@@ -59,4 +63,23 @@ func TestHTTPSingleAndBatch(t *testing.T) {
 	// unknown method -> -32601
 	resp := post(t, url, `{"jsonrpc":"2.0","id":9,"method":"eth_nope"}`)
 	assert.Contains(t, resp, "-32601")
+}
+
+func TestHTTPGetBalance(t *testing.T) {
+	ts := newHTTPServer(t)
+	defer ts.Close()
+	url := ts.URL + "/rpc"
+
+	addr := genesis.DevAccounts()[0].Address.String()
+	want, _ := new(big.Int).SetString(genesis.InitialDevAccountBalance, 10)
+
+	// block param omitted -> latest
+	assert.JSONEq(t,
+		fmt.Sprintf(`{"jsonrpc":"2.0","id":1,"result":"%s"}`, (*hexutil.Big)(want).String()),
+		post(t, url, fmt.Sprintf(`{"jsonrpc":"2.0","id":1,"method":"eth_getBalance","params":["%s"]}`, addr)))
+
+	// thor tag rejected
+	resp := post(t, url, fmt.Sprintf(`{"jsonrpc":"2.0","id":2,"method":"eth_getBalance","params":["%s","best"]}`, addr))
+	assert.Contains(t, resp, "-32602")
+	assert.NotContains(t, resp, "result")
 }
