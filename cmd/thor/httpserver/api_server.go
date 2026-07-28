@@ -133,7 +133,7 @@ func StartAPIServer(
 	subs.Mount(router, "/subscriptions")
 
 	if config.EnableRPC {
-		jsonrpc.New(repo).Mount(router, "/rpc")
+		jsonrpc.New(repo, stater, bft).Mount(router, "/rpc")
 	}
 
 	// middlewares

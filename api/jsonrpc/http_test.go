@@ -23,7 +23,7 @@ func newHTTPServer(t *testing.T) *httptest.Server {
 	tc, err := testchain.NewDefault()
 	require.NoError(t, err)
 	router := mux.NewRouter()
-	New(tc.Repo()).Mount(router, "/rpc")
+	New(tc.Repo(), tc.Stater(), tc.Engine()).Mount(router, "/rpc")
 	return httptest.NewServer(router)
 }
 

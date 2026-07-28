@@ -18,7 +18,7 @@ import (
 func newTestBackend(t *testing.T) *Backend {
 	tc, err := testchain.NewDefault()
 	require.NoError(t, err)
-	return NewBackend(tc.Repo())
+	return NewBackend(tc.Repo(), tc.Stater(), tc.Engine())
 }
 
 func TestExampleMethods(t *testing.T) {

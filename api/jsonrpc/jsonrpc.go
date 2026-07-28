@@ -13,7 +13,9 @@ import (
 
 	"github.com/vechain/thor/v2/api/jsonrpc/server"
 	"github.com/vechain/thor/v2/api/jsonrpc/service"
+	"github.com/vechain/thor/v2/bft"
 	"github.com/vechain/thor/v2/chain"
+	"github.com/vechain/thor/v2/state"
 )
 
 // JSONRPC composes the JSON-RPC engine (server) with the thor business services.
@@ -22,9 +24,9 @@ type JSONRPC struct {
 }
 
 // New creates a JSONRPC instance with the eth and net namespaces registered.
-func New(repo *chain.Repository) *JSONRPC {
+func New(repo *chain.Repository, stater *state.Stater, bft bft.Committer) *JSONRPC {
 	srv := server.New()
-	b := service.NewBackend(repo)
+	b := service.NewBackend(repo, stater, bft)
 
 	for _, reg := range []struct {
 		namespace string
