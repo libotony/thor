@@ -14,6 +14,7 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/vechain/thor/v2/api"
+	"github.com/vechain/thor/v2/api/convert"
 	"github.com/vechain/thor/v2/api/restutil"
 	"github.com/vechain/thor/v2/chain"
 	"github.com/vechain/thor/v2/logdb"
@@ -39,7 +40,7 @@ func New(repo *chain.Repository, db *logdb.LogDB, maxLimit uint64, maxOffset uin
 
 // Filter query logs with option
 func (t *Transfers) filter(ctx context.Context, filter *api.TransferFilter) ([]*api.FilteredTransfer, error) {
-	rng, err := api.ConvertRange(t.repo.NewBestChain(), filter.Range)
+	rng, err := convert.ConvertRange(t.repo.NewBestChain(), filter.Range)
 	if err != nil {
 		return nil, err
 	}

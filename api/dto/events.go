@@ -1,0 +1,96 @@
+// Copyright (c) 2018 The VeChainThor developers
+
+// Distributed under the GNU Lesser General Public License v3.0 software license, see the accompanying
+// file LICENSE or <https://www.gnu.org/licenses/lgpl-3.0.html>
+
+package dto
+
+import (
+	"fmt"
+
+	"github.com/vechain/thor/v2/logdb"
+	"github.com/vechain/thor/v2/thor"
+)
+
+// FilteredEvent only comes from one contract
+type FilteredEvent struct {
+	Address thor.Address    `json:"address"`
+	Topics  []*thor.Bytes32 `json:"topics"`
+	Data    string          `json:"data"`
+	Meta    LogMeta         `json:"meta"`
+}
+
+type TopicSet struct {
+	Topic0 *thor.Bytes32 `json:"topic0"`
+	Topic1 *thor.Bytes32 `json:"topic1"`
+	Topic2 *thor.Bytes32 `json:"topic2"`
+	Topic3 *thor.Bytes32 `json:"topic3"`
+	Topic4 *thor.Bytes32 `json:"topic4"`
+}
+
+type EventCriteria struct {
+	Address *thor.Address `json:"address"`
+	TopicSet
+}
+
+type Options struct {
+	Offset         uint64  `json:"offset,omitempty"`
+	Limit          *uint64 `json:"limit,omitempty"`
+	IncludeIndexes bool    `json:"includeIndexes,omitempty"`
+}
+
+func (o *Options) Validate(limit uint64, offset uint64) error {
+	if o == nil {
+		return nil
+	}
+	if o.Limit != nil && *o.Limit > limit {
+		return fmt.Errorf("options.limit exceeds the maximum allowed value of %d", limit)
+	}
+
+	if o.Offset > offset {
+		return fmt.Errorf("options.offset exceeds the maximum allowed value of %d", offset)
+	}
+
+	return nil
+}
+
+// EventFilter.Order stays logdb.Order until Task 17 removes the logdb import here.
+type EventFilter struct {
+	CriteriaSet []*EventCriteria `json:"criteriaSet,omitempty"`
+	Range       *Range           `json:"range,omitempty"`
+	Options     *Options         `json:"options,omitempty"`
+	Order       logdb.Order      `json:"order,omitempty"`
+}
+
+type RangeType string
+
+const (
+	BlockRangeType RangeType = "block"
+	TimeRangeType  RangeType = "time"
+)
+
+type Range struct {
+	Unit RangeType `json:"unit,omitempty"`
+	From *uint64   `json:"from,omitempty"`
+	To   *uint64   `json:"to,omitempty"`
+}
+
+func (r *Range) Validate() error {
+	if r == nil {
+		return nil
+	}
+	if r.Unit != "" {
+		if r.Unit != BlockRangeType && r.Unit != TimeRangeType {
+			return fmt.Errorf("filter.Range.Unit must be either 'block' or 'time', got '%s'", r.Unit)
+		}
+	}
+
+	if r.From == nil || r.To == nil {
+		return nil // No range specified, which is valid
+	}
+	if *r.From > *r.To {
+		return fmt.Errorf("filter.Range.To must be greater than or equal to filter.Range.From")
+	}
+
+	return nil
+}
