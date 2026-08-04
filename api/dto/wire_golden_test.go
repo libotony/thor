@@ -21,7 +21,7 @@ import (
 	"github.com/vechain/thor/v2/thor"
 )
 
-// golden marshals v and compares it against api/testdata/<name>.json. Missing
+// golden marshals v and compares it against testdata/<name>.json. Missing
 // baselines are generated on first run and must be spot-checked against
 // api/doc/thor.yaml before being committed.
 func golden(t *testing.T, name string, v any) {
@@ -155,7 +155,7 @@ func fullBlockSummary() *dto.BlockSummary {
 	}
 }
 
-func fullJSONOutput() *dto.Output {
+func fullOutput() *dto.Output {
 	addr := thor.BytesToAddress([]byte{20})
 	return &dto.Output{
 		ContractAddress: &addr,
@@ -172,6 +172,7 @@ func fullJSONOutput() *dto.Output {
 	}
 }
 
+// Fixtures are shape-only for omitempty coverage; they fill mutually-exclusive fee fields no real converter emits together.
 func fullEmbeddedTx() *dto.EmbeddedTx {
 	coef := uint8(1)
 	delegator := thor.BytesToAddress([]byte{30})
@@ -198,20 +199,20 @@ func fullEmbeddedTx() *dto.EmbeddedTx {
 		Paid:                 (*math.HexOrDecimal256)(big.NewInt(12)),
 		Reward:               (*math.HexOrDecimal256)(big.NewInt(13)),
 		Reverted:             true,
-		Outputs:              []*dto.Output{fullJSONOutput()},
+		Outputs:              []*dto.Output{fullOutput()},
 	}
 }
 
-func TestGoldenJSONBlockSummary(t *testing.T) {
+func TestGoldenBlockSummary(t *testing.T) {
 	golden(t, "block_summary", fullBlockSummary())
 	golden(t, "block_summary_min", &dto.BlockSummary{})
 }
 
-func TestGoldenJSONRawBlockSummary(t *testing.T) {
+func TestGoldenRawBlockSummary(t *testing.T) {
 	golden(t, "raw_block_summary", &dto.RawBlockSummary{Raw: "0x616263"})
 }
 
-func TestGoldenJSONCollapsedBlock(t *testing.T) {
+func TestGoldenCollapsedBlock(t *testing.T) {
 	golden(t, "collapsed_block", &dto.CollapsedBlock{
 		BlockSummary: fullBlockSummary(),
 		Transactions: []thor.Bytes32{thor.BytesToBytes32([]byte{15})},
@@ -219,12 +220,12 @@ func TestGoldenJSONCollapsedBlock(t *testing.T) {
 	golden(t, "collapsed_block_min", &dto.CollapsedBlock{})
 }
 
-func TestGoldenJSONEmbeddedTx(t *testing.T) {
+func TestGoldenEmbeddedTx(t *testing.T) {
 	golden(t, "embedded_tx", fullEmbeddedTx())
 	golden(t, "embedded_tx_min", &dto.EmbeddedTx{})
 }
 
-func TestGoldenJSONExpandedBlock(t *testing.T) {
+func TestGoldenExpandedBlock(t *testing.T) {
 	golden(t, "expanded_block", &dto.ExpandedBlock{
 		BlockSummary: fullBlockSummary(),
 		Transactions: []*dto.EmbeddedTx{fullEmbeddedTx()},
