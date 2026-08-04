@@ -90,7 +90,7 @@ func TestOption(t *testing.T) {
 	res, statusCode, err = tclient.RawHTTPClient().RawHTTPPost("/logs/transfer", filter)
 	require.NoError(t, err)
 	assert.Equal(t, http.StatusOK, statusCode)
-	var tLogs []*dto.FilteredEvent
+	var tLogs []*dto.FilteredTransfer
 	if err := json.Unmarshal(res, &tLogs); err != nil {
 		t.Fatal(err)
 	}

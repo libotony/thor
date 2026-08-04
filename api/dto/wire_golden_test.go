@@ -32,7 +32,7 @@ func golden(t *testing.T, name string, v any) {
 	want, rerr := os.ReadFile(path)
 	if os.IsNotExist(rerr) {
 		require.NoError(t, os.MkdirAll("testdata", 0o755))
-		require.NoError(t, os.WriteFile(path, data, 0o644))
+		require.NoError(t, os.WriteFile(path, data, 0o600))
 		t.Fatalf("golden %s generated; verify against api/doc/thor.yaml then re-run", path)
 	}
 	require.NoError(t, rerr)

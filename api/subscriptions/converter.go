@@ -50,7 +50,13 @@ func ConvertBlock(b *chain.ExtendedBlock) (*dto.BlockMessage, error) {
 	}, nil
 }
 
-func ConvertSubscriptionTransfer(header *block.Header, tx *tx.Transaction, clauseIndex uint32, transfer *tx.Transfer, obsolete bool) (*dto.TransferMessage, error) {
+func ConvertSubscriptionTransfer(
+	header *block.Header,
+	tx *tx.Transaction,
+	clauseIndex uint32,
+	transfer *tx.Transfer,
+	obsolete bool,
+) (*dto.TransferMessage, error) {
 	origin, err := tx.Origin()
 	if err != nil {
 		return nil, err
