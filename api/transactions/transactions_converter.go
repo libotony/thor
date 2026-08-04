@@ -16,27 +16,11 @@ import (
 	"github.com/vechain/thor/v2/tx"
 )
 
-type Transaction struct {
-	ID                   thor.Bytes32          `json:"id"`
-	Type                 uint8                 `json:"type"`
-	ChainTag             byte                  `json:"chainTag"`
-	BlockRef             string                `json:"blockRef"`
-	Expiration           uint32                `json:"expiration"`
-	Clauses              dto.Clauses           `json:"clauses"`
-	GasPriceCoef         *uint8                `json:"gasPriceCoef,omitempty"`
-	Gas                  uint64                `json:"gas"`
-	MaxFeePerGas         *math.HexOrDecimal256 `json:"maxFeePerGas,omitempty"`
-	MaxPriorityFeePerGas *math.HexOrDecimal256 `json:"maxPriorityFeePerGas,omitempty"`
-	Origin               thor.Address          `json:"origin"`
-	Delegator            *thor.Address         `json:"delegator"`
-	Nonce                math.HexOrDecimal64   `json:"nonce"`
-	DependsOn            *thor.Bytes32         `json:"dependsOn"`
-	Size                 uint32                `json:"size"`
-	Meta                 *dto.TxMeta           `json:"meta"`
-}
+// Transaction is an alias of dto.Transaction, kept for thorclient backward compatibility.
+type Transaction = dto.Transaction
 
 // ConvertTransaction convert a raw transaction into a json format transaction
-func ConvertTransaction(trx *tx.Transaction, header *block.Header) *Transaction {
+func ConvertTransaction(trx *tx.Transaction, header *block.Header) *dto.Transaction {
 	// tx origin
 	origin, _ := trx.Origin()
 	delegator, _ := trx.Delegator()
