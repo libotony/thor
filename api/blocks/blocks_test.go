@@ -22,7 +22,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/vechain/thor/v2/api"
+	"github.com/vechain/thor/v2/api/dto"
 	"github.com/vechain/thor/v2/block"
 	"github.com/vechain/thor/v2/genesis"
 	"github.com/vechain/thor/v2/test/testchain"
@@ -94,7 +94,7 @@ func testMutuallyExclusiveQueries(t *testing.T) {
 func testGetBestBlock(t *testing.T) {
 	res, statusCode, err := tclient.RawHTTPClient().RawHTTPGet("/blocks/best")
 	require.NoError(t, err)
-	rb := new(api.JSONCollapsedBlock)
+	rb := new(dto.JSONCollapsedBlock)
 	if err := json.Unmarshal(res, &rb); err != nil {
 		t.Fatal(err)
 	}
@@ -105,7 +105,7 @@ func testGetBestBlock(t *testing.T) {
 func testGetRawBlock(t *testing.T) {
 	res, statusCode, err := tclient.RawHTTPClient().RawHTTPGet("/blocks/best?raw=true")
 	require.NoError(t, err)
-	rawBlock := new(api.JSONRawBlockSummary)
+	rawBlock := new(dto.JSONRawBlockSummary)
 	if err := json.Unmarshal(res, &rawBlock); err != nil {
 		t.Fatal(err)
 	}
@@ -140,7 +140,7 @@ func testGetRawBlock(t *testing.T) {
 func testGetBlockByHeight(t *testing.T) {
 	res, statusCode, err := tclient.RawHTTPClient().RawHTTPGet("/blocks/2")
 	require.NoError(t, err)
-	rb := new(api.JSONCollapsedBlock)
+	rb := new(dto.JSONCollapsedBlock)
 	if err := json.Unmarshal(res, &rb); err != nil {
 		t.Fatal(err)
 	}
@@ -151,7 +151,7 @@ func testGetBlockByHeight(t *testing.T) {
 func testGetFinalizedBlock(t *testing.T) {
 	res, statusCode, err := tclient.RawHTTPClient().RawHTTPGet("/blocks/finalized")
 	require.NoError(t, err)
-	finalized := new(api.JSONCollapsedBlock)
+	finalized := new(dto.JSONCollapsedBlock)
 	if err := json.Unmarshal(res, &finalized); err != nil {
 		t.Fatal(err)
 	}
@@ -165,7 +165,7 @@ func testGetFinalizedBlock(t *testing.T) {
 func testGetJustifiedBlock(t *testing.T) {
 	res, statusCode, err := tclient.RawHTTPClient().RawHTTPGet("/blocks/justified")
 	require.NoError(t, err)
-	justified := new(api.JSONCollapsedBlock)
+	justified := new(dto.JSONCollapsedBlock)
 	require.NoError(t, json.Unmarshal(res, &justified))
 
 	assert.Equal(t, http.StatusOK, statusCode)
@@ -176,7 +176,7 @@ func testGetJustifiedBlock(t *testing.T) {
 func testGetBlockByID(t *testing.T) {
 	res, statusCode, err := tclient.RawHTTPClient().RawHTTPGet("/blocks/" + blk.Header().ID().String())
 	require.NoError(t, err)
-	rb := new(api.JSONCollapsedBlock)
+	rb := new(dto.JSONCollapsedBlock)
 	if err := json.Unmarshal(res, rb); err != nil {
 		t.Fatal(err)
 	}
@@ -196,7 +196,7 @@ func testGetExpandedBlockByID(t *testing.T) {
 	res, statusCode, err := tclient.RawHTTPClient().RawHTTPGet("/blocks/" + blk.Header().ID().String() + "?expanded=true")
 	require.NoError(t, err)
 
-	rb := new(api.JSONExpandedBlock)
+	rb := new(dto.JSONExpandedBlock)
 	if err := json.Unmarshal(res, rb); err != nil {
 		t.Fatal(err)
 	}
@@ -279,7 +279,7 @@ func initBlockServer(t *testing.T) {
 	ts = httptest.NewServer(router)
 }
 
-func checkCollapsedBlock(t *testing.T, expBl *block.Block, actBl *api.JSONCollapsedBlock) {
+func checkCollapsedBlock(t *testing.T, expBl *block.Block, actBl *dto.JSONCollapsedBlock) {
 	header := expBl.Header()
 	assert.Equal(t, header.Number(), actBl.Number, "Number should be equal")
 	assert.Equal(t, header.ID(), actBl.ID, "Hash should be equal")
@@ -298,7 +298,7 @@ func checkCollapsedBlock(t *testing.T, expBl *block.Block, actBl *api.JSONCollap
 	assert.Equal(t, (*hexMath.HexOrDecimal256)(header.BaseFee()), actBl.BaseFeePerGas, "BaseFee should be equal")
 }
 
-func checkExpandedBlock(t *testing.T, expBl *block.Block, actBl *api.JSONExpandedBlock) {
+func checkExpandedBlock(t *testing.T, expBl *block.Block, actBl *dto.JSONExpandedBlock) {
 	header := expBl.Header()
 	assert.Equal(t, header.Number(), actBl.Number, "Number should be equal")
 	assert.Equal(t, header.ID(), actBl.ID, "Hash should be equal")
