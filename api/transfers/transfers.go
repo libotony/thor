@@ -45,14 +45,18 @@ func (t *Transfers) filter(ctx context.Context, filter *dto.TransferFilter) ([]*
 		return nil, err
 	}
 
+	criteria := convert.MapSlice(filter.CriteriaSet, func(c *dto.TransferCriteria) *logdb.TransferCriteria {
+		return &logdb.TransferCriteria{TxOrigin: c.TxOrigin, Sender: c.Sender, Recipient: c.Recipient}
+	})
+
 	transfers, err := t.db.FilterTransfers(ctx, &logdb.TransferFilter{
-		CriteriaSet: filter.CriteriaSet,
+		CriteriaSet: criteria,
 		Range:       rng,
 		Options: &logdb.Options{
 			Offset: filter.Options.Offset,
 			Limit:  *filter.Options.Limit,
 		},
-		Order: filter.Order,
+		Order: logdb.Order(filter.Order),
 	})
 	if err != nil {
 		return nil, err

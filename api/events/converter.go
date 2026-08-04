@@ -56,7 +56,7 @@ func ConvertEventFilter(chain *chain.Chain, filter *dto.EventFilter) (*logdb.Eve
 			// validated or default value set at the API level
 			Limit: *filter.Options.Limit,
 		},
-		Order: filter.Order,
+		Order: logdb.Order(filter.Order),
 	}
 	if len(filter.CriteriaSet) > 0 {
 		f.CriteriaSet = make([]*logdb.EventCriteria, len(filter.CriteriaSet))

@@ -8,8 +8,15 @@ package dto
 import (
 	"fmt"
 
-	"github.com/vechain/thor/v2/logdb"
 	"github.com/vechain/thor/v2/thor"
+)
+
+// Order is the result ordering of log queries; wire-compatible with logdb.Order.
+type Order string
+
+const (
+	ASC  Order = "asc"
+	DESC Order = "desc"
 )
 
 // FilteredEvent only comes from one contract
@@ -54,12 +61,11 @@ func (o *Options) Validate(limit uint64, offset uint64) error {
 	return nil
 }
 
-// EventFilter.Order stays logdb.Order until Task 17 removes the logdb import here.
 type EventFilter struct {
 	CriteriaSet []*EventCriteria `json:"criteriaSet,omitempty"`
 	Range       *Range           `json:"range,omitempty"`
 	Options     *Options         `json:"options,omitempty"`
-	Order       logdb.Order      `json:"order,omitempty"`
+	Order       Order            `json:"order,omitempty"`
 }
 
 type RangeType string

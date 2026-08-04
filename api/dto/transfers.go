@@ -8,7 +8,6 @@ package dto
 import (
 	"github.com/ethereum/go-ethereum/common/math"
 
-	"github.com/vechain/thor/v2/logdb"
 	"github.com/vechain/thor/v2/thor"
 )
 
@@ -19,10 +18,15 @@ type FilteredTransfer struct {
 	Meta      LogMeta               `json:"meta"`
 }
 
-// TransferFilter.CriteriaSet and Order stay logdb types until Task 17 removes the logdb import here.
+type TransferCriteria struct {
+	TxOrigin  *thor.Address `json:"txOrigin"`
+	Sender    *thor.Address `json:"sender"`
+	Recipient *thor.Address `json:"recipient"`
+}
+
 type TransferFilter struct {
-	CriteriaSet []*logdb.TransferCriteria `json:"criteriaSet,omitempty"`
-	Range       *Range                    `json:"range,omitempty"`
-	Options     *Options                  `json:"options,omitempty"`
-	Order       logdb.Order               `json:"order,omitempty"`
+	CriteriaSet []*TransferCriteria `json:"criteriaSet,omitempty"`
+	Range       *Range              `json:"range,omitempty"`
+	Options     *Options            `json:"options,omitempty"`
+	Order       Order               `json:"order,omitempty"`
 }
