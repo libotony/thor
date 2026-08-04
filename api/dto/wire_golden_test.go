@@ -133,8 +133,8 @@ func TestGoldenLogLevelResponse(t *testing.T) {
 
 // ---- blocks ----
 
-func fullBlockSummary() *dto.JSONBlockSummary {
-	return &dto.JSONBlockSummary{
+func fullBlockSummary() *dto.BlockSummary {
+	return &dto.BlockSummary{
 		Number:        1,
 		ID:            thor.BytesToBytes32([]byte{1}),
 		Size:          2,
@@ -173,12 +173,12 @@ func fullJSONOutput() *dto.Output {
 	}
 }
 
-func fullEmbeddedTx() *dto.JSONEmbeddedTx {
+func fullEmbeddedTx() *dto.EmbeddedTx {
 	coef := uint8(1)
 	delegator := thor.BytesToAddress([]byte{30})
 	dependsOn := thor.BytesToBytes32([]byte{31})
 	to := thor.BytesToAddress([]byte{32})
-	return &dto.JSONEmbeddedTx{
+	return &dto.EmbeddedTx{
 		ID:                   thor.BytesToBytes32([]byte{33}),
 		Type:                 1,
 		ChainTag:             2,
@@ -205,32 +205,32 @@ func fullEmbeddedTx() *dto.JSONEmbeddedTx {
 
 func TestGoldenJSONBlockSummary(t *testing.T) {
 	golden(t, "block_summary", fullBlockSummary())
-	golden(t, "block_summary_min", &dto.JSONBlockSummary{})
+	golden(t, "block_summary_min", &dto.BlockSummary{})
 }
 
 func TestGoldenJSONRawBlockSummary(t *testing.T) {
-	golden(t, "raw_block_summary", &dto.JSONRawBlockSummary{Raw: "0x616263"})
+	golden(t, "raw_block_summary", &dto.RawBlockSummary{Raw: "0x616263"})
 }
 
 func TestGoldenJSONCollapsedBlock(t *testing.T) {
-	golden(t, "collapsed_block", &dto.JSONCollapsedBlock{
-		JSONBlockSummary: fullBlockSummary(),
-		Transactions:     []thor.Bytes32{thor.BytesToBytes32([]byte{15})},
+	golden(t, "collapsed_block", &dto.CollapsedBlock{
+		BlockSummary: fullBlockSummary(),
+		Transactions: []thor.Bytes32{thor.BytesToBytes32([]byte{15})},
 	})
-	golden(t, "collapsed_block_min", &dto.JSONCollapsedBlock{})
+	golden(t, "collapsed_block_min", &dto.CollapsedBlock{})
 }
 
 func TestGoldenJSONEmbeddedTx(t *testing.T) {
 	golden(t, "embedded_tx", fullEmbeddedTx())
-	golden(t, "embedded_tx_min", &dto.JSONEmbeddedTx{})
+	golden(t, "embedded_tx_min", &dto.EmbeddedTx{})
 }
 
 func TestGoldenJSONExpandedBlock(t *testing.T) {
-	golden(t, "expanded_block", &dto.JSONExpandedBlock{
-		JSONBlockSummary: fullBlockSummary(),
-		Transactions:     []*dto.JSONEmbeddedTx{fullEmbeddedTx()},
+	golden(t, "expanded_block", &dto.ExpandedBlock{
+		BlockSummary: fullBlockSummary(),
+		Transactions: []*dto.EmbeddedTx{fullEmbeddedTx()},
 	})
-	golden(t, "expanded_block_min", &dto.JSONExpandedBlock{})
+	golden(t, "expanded_block_min", &dto.ExpandedBlock{})
 }
 
 // ---- common ----

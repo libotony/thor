@@ -11,7 +11,7 @@ import (
 	"github.com/vechain/thor/v2/thor"
 )
 
-type JSONBlockSummary struct {
+type BlockSummary struct {
 	Number        uint32                `json:"number"`
 	ID            thor.Bytes32          `json:"id"`
 	Size          uint32                `json:"size"`
@@ -32,16 +32,16 @@ type JSONBlockSummary struct {
 	BaseFeePerGas *math.HexOrDecimal256 `json:"baseFeePerGas,omitempty"`
 }
 
-type JSONRawBlockSummary struct {
+type RawBlockSummary struct {
 	Raw string `json:"raw"`
 }
 
-type JSONCollapsedBlock struct {
-	*JSONBlockSummary
+type CollapsedBlock struct {
+	*BlockSummary
 	Transactions []thor.Bytes32 `json:"transactions"`
 }
 
-type JSONEmbeddedTx struct {
+type EmbeddedTx struct {
 	ID                   thor.Bytes32          `json:"id"`
 	Type                 uint8                 `json:"type"`
 	ChainTag             byte                  `json:"chainTag"`
@@ -67,7 +67,7 @@ type JSONEmbeddedTx struct {
 	Outputs  []*Output             `json:"outputs"`
 }
 
-type JSONExpandedBlock struct {
-	*JSONBlockSummary
-	Transactions []*JSONEmbeddedTx `json:"transactions"`
+type ExpandedBlock struct {
+	*BlockSummary
+	Transactions []*EmbeddedTx `json:"transactions"`
 }

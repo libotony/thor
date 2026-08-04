@@ -15,11 +15,11 @@ import (
 	"github.com/vechain/thor/v2/tx"
 )
 
-func BuildJSONBlockSummary(summary *chain.BlockSummary, isTrunk bool, isFinalized bool) *dto.JSONBlockSummary {
+func ConvertBlockSummary(summary *chain.BlockSummary, isTrunk bool, isFinalized bool) *dto.BlockSummary {
 	header := summary.Header
 	signer, _ := header.Signer()
 
-	return &dto.JSONBlockSummary{
+	return &dto.BlockSummary{
 		Number:        header.Number(),
 		ID:            header.ID(),
 		ParentID:      header.ParentID(),
@@ -41,7 +41,7 @@ func BuildJSONBlockSummary(summary *chain.BlockSummary, isTrunk bool, isFinalize
 	}
 }
 
-func buildJSONOutput(txID thor.Bytes32, index uint32, c *tx.Clause, o *tx.Output) *dto.Output {
+func convertOutput(txID thor.Bytes32, index uint32, c *tx.Clause, o *tx.Output) *dto.Output {
 	jo := &dto.Output{
 		ContractAddress: nil,
 		Events:          make([]*dto.Event, 0, len(o.Events)),
@@ -68,8 +68,8 @@ func buildJSONOutput(txID thor.Bytes32, index uint32, c *tx.Clause, o *tx.Output
 	return jo
 }
 
-func BuildJSONEmbeddedTxs(txs tx.Transactions, receipts tx.Receipts) []*dto.JSONEmbeddedTx {
-	jTxs := make([]*dto.JSONEmbeddedTx, 0, len(txs))
+func ConvertEmbeddedTxs(txs tx.Transactions, receipts tx.Receipts) []*dto.EmbeddedTx {
+	jTxs := make([]*dto.EmbeddedTx, 0, len(txs))
 	for itx, trx := range txs {
 		receipt := receipts[itx]
 
@@ -88,11 +88,11 @@ func BuildJSONEmbeddedTxs(txs tx.Transactions, receipts tx.Receipts) []*dto.JSON
 				Data:  hexutil.Encode(c.Data()),
 			})
 			if !receipt.Reverted {
-				jos = append(jos, buildJSONOutput(trx.ID(), uint32(i), c, receipt.Outputs[i]))
+				jos = append(jos, convertOutput(trx.ID(), uint32(i), c, receipt.Outputs[i]))
 			}
 		}
 
-		embedTx := &dto.JSONEmbeddedTx{
+		embedTx := &dto.EmbeddedTx{
 			ID:         trx.ID(),
 			Type:       trx.Type(),
 			ChainTag:   trx.ChainTag(),

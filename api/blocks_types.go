@@ -8,12 +8,12 @@ package api
 import "github.com/vechain/thor/v2/api/dto"
 
 type (
-	JSONBlockSummary    = dto.JSONBlockSummary
-	JSONRawBlockSummary = dto.JSONRawBlockSummary
-	JSONCollapsedBlock  = dto.JSONCollapsedBlock
+	JSONBlockSummary    = dto.BlockSummary
+	JSONRawBlockSummary = dto.RawBlockSummary
+	JSONCollapsedBlock  = dto.CollapsedBlock
 	JSONEvent           = dto.Event
 	JSONTransfer        = dto.Transfer
 	JSONOutput          = dto.Output
-	JSONEmbeddedTx      = dto.JSONEmbeddedTx
-	JSONExpandedBlock   = dto.JSONExpandedBlock
+	JSONEmbeddedTx      = dto.EmbeddedTx
+	JSONExpandedBlock   = dto.ExpandedBlock
 )

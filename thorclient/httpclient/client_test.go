@@ -284,7 +284,7 @@ func TestClient_GetExpandedBlock(t *testing.T) {
 func TestClient_GetBlock(t *testing.T) {
 	blockID := "123"
 	expectedBlock := &api.JSONCollapsedBlock{
-		JSONBlockSummary: &api.JSONBlockSummary{
+		BlockSummary: &api.JSONBlockSummary{
 			Number:      123456,
 			ID:          thor.Bytes32{0x01},
 			GasLimit:    1000,

@@ -65,7 +65,7 @@ func (b *Blocks) handleGetBlock(w http.ResponseWriter, req *http.Request) error 
 		if err != nil {
 			return err
 		}
-		return restutil.WriteJSON(w, &dto.JSONRawBlockSummary{
+		return restutil.WriteJSON(w, &dto.RawBlockSummary{
 			Raw: fmt.Sprintf("0x%s", hex.EncodeToString(rlpEncoded)),
 		})
 	}
@@ -83,7 +83,7 @@ func (b *Blocks) handleGetBlock(w http.ResponseWriter, req *http.Request) error 
 		}
 	}
 
-	jSummary := BuildJSONBlockSummary(summary, isTrunk, isFinalized)
+	jSummary := ConvertBlockSummary(summary, isTrunk, isFinalized)
 	if expanded {
 		txs, err := b.repo.GetBlockTransactions(summary.Header.ID())
 		if err != nil {
@@ -94,15 +94,15 @@ func (b *Blocks) handleGetBlock(w http.ResponseWriter, req *http.Request) error 
 			return err
 		}
 
-		return restutil.WriteJSON(w, &dto.JSONExpandedBlock{
-			JSONBlockSummary: jSummary,
-			Transactions:     BuildJSONEmbeddedTxs(txs, receipts),
+		return restutil.WriteJSON(w, &dto.ExpandedBlock{
+			BlockSummary: jSummary,
+			Transactions: ConvertEmbeddedTxs(txs, receipts),
 		})
 	}
 
-	return restutil.WriteJSON(w, &dto.JSONCollapsedBlock{
-		JSONBlockSummary: jSummary,
-		Transactions:     summary.Txs,
+	return restutil.WriteJSON(w, &dto.CollapsedBlock{
+		BlockSummary: jSummary,
+		Transactions: summary.Txs,
 	})
 }
 
