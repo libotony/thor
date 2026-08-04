@@ -41,25 +41,25 @@ func BuildJSONBlockSummary(summary *chain.BlockSummary, isTrunk bool, isFinalize
 	}
 }
 
-func buildJSONOutput(txID thor.Bytes32, index uint32, c *tx.Clause, o *tx.Output) *dto.JSONOutput {
-	jo := &dto.JSONOutput{
+func buildJSONOutput(txID thor.Bytes32, index uint32, c *tx.Clause, o *tx.Output) *dto.Output {
+	jo := &dto.Output{
 		ContractAddress: nil,
-		Events:          make([]*dto.JSONEvent, 0, len(o.Events)),
-		Transfers:       make([]*dto.JSONTransfer, 0, len(o.Transfers)),
+		Events:          make([]*dto.Event, 0, len(o.Events)),
+		Transfers:       make([]*dto.Transfer, 0, len(o.Transfers)),
 	}
 	if c.To() == nil {
 		addr := thor.CreateContractAddress(txID, index, 0)
 		jo.ContractAddress = &addr
 	}
 	for _, e := range o.Events {
-		jo.Events = append(jo.Events, &dto.JSONEvent{
+		jo.Events = append(jo.Events, &dto.Event{
 			Address: e.Address,
 			Data:    hexutil.Encode(e.Data),
 			Topics:  e.Topics,
 		})
 	}
 	for _, t := range o.Transfers {
-		jo.Transfers = append(jo.Transfers, &dto.JSONTransfer{
+		jo.Transfers = append(jo.Transfers, &dto.Transfer{
 			Sender:    t.Sender,
 			Recipient: t.Recipient,
 			Amount:    (*math.HexOrDecimal256)(t.Amount),
@@ -79,7 +79,7 @@ func BuildJSONEmbeddedTxs(txs tx.Transactions, receipts tx.Receipts) []*dto.JSON
 		delegator, _ := trx.Delegator()
 
 		jcs := make([]*dto.Clause, 0, len(clauses))
-		jos := make([]*dto.JSONOutput, 0, len(receipt.Outputs))
+		jos := make([]*dto.Output, 0, len(receipt.Outputs))
 
 		for i, c := range clauses {
 			jcs = append(jcs, &dto.Clause{

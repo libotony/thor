@@ -41,24 +41,6 @@ type JSONCollapsedBlock struct {
 	Transactions []thor.Bytes32 `json:"transactions"`
 }
 
-type JSONTransfer struct {
-	Sender    thor.Address          `json:"sender"`
-	Recipient thor.Address          `json:"recipient"`
-	Amount    *math.HexOrDecimal256 `json:"amount"`
-}
-
-type JSONEvent struct {
-	Address thor.Address   `json:"address"`
-	Topics  []thor.Bytes32 `json:"topics"`
-	Data    string         `json:"data"`
-}
-
-type JSONOutput struct {
-	ContractAddress *thor.Address   `json:"contractAddress"`
-	Events          []*JSONEvent    `json:"events"`
-	Transfers       []*JSONTransfer `json:"transfers"`
-}
-
 type JSONEmbeddedTx struct {
 	ID                   thor.Bytes32          `json:"id"`
 	Type                 uint8                 `json:"type"`
@@ -82,7 +64,7 @@ type JSONEmbeddedTx struct {
 	Paid     *math.HexOrDecimal256 `json:"paid"`
 	Reward   *math.HexOrDecimal256 `json:"reward"`
 	Reverted bool                  `json:"reverted"`
-	Outputs  []*JSONOutput         `json:"outputs"`
+	Outputs  []*Output             `json:"outputs"`
 }
 
 type JSONExpandedBlock struct {

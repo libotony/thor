@@ -11,9 +11,9 @@ type (
 	JSONBlockSummary    = dto.JSONBlockSummary
 	JSONRawBlockSummary = dto.JSONRawBlockSummary
 	JSONCollapsedBlock  = dto.JSONCollapsedBlock
-	JSONEvent           = dto.JSONEvent
-	JSONTransfer        = dto.JSONTransfer
-	JSONOutput          = dto.JSONOutput
+	JSONEvent           = dto.Event
+	JSONTransfer        = dto.Transfer
+	JSONOutput          = dto.Output
 	JSONEmbeddedTx      = dto.JSONEmbeddedTx
 	JSONExpandedBlock   = dto.JSONExpandedBlock
 )

@@ -156,16 +156,16 @@ func fullBlockSummary() *dto.JSONBlockSummary {
 	}
 }
 
-func fullJSONOutput() *dto.JSONOutput {
+func fullJSONOutput() *dto.Output {
 	addr := thor.BytesToAddress([]byte{20})
-	return &dto.JSONOutput{
+	return &dto.Output{
 		ContractAddress: &addr,
-		Events: []*dto.JSONEvent{{
+		Events: []*dto.Event{{
 			Address: thor.BytesToAddress([]byte{21}),
 			Topics:  []thor.Bytes32{thor.BytesToBytes32([]byte{22})},
 			Data:    "0x616263",
 		}},
-		Transfers: []*dto.JSONTransfer{{
+		Transfers: []*dto.Transfer{{
 			Sender:    thor.BytesToAddress([]byte{23}),
 			Recipient: thor.BytesToAddress([]byte{24}),
 			Amount:    (*math.HexOrDecimal256)(big.NewInt(25)),
@@ -199,7 +199,7 @@ func fullEmbeddedTx() *dto.JSONEmbeddedTx {
 		Paid:                 (*math.HexOrDecimal256)(big.NewInt(12)),
 		Reward:               (*math.HexOrDecimal256)(big.NewInt(13)),
 		Reverted:             true,
-		Outputs:              []*dto.JSONOutput{fullJSONOutput()},
+		Outputs:              []*dto.Output{fullJSONOutput()},
 	}
 }
 
