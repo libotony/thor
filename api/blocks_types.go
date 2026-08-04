@@ -44,12 +44,6 @@ type JSONCollapsedBlock struct {
 	Transactions []thor.Bytes32 `json:"transactions"`
 }
 
-type JSONClause struct {
-	To    *thor.Address        `json:"to"`
-	Value math.HexOrDecimal256 `json:"value"`
-	Data  string               `json:"data"`
-}
-
 type JSONTransfer struct {
 	Sender    thor.Address          `json:"sender"`
 	Recipient thor.Address          `json:"recipient"`
@@ -167,9 +161,9 @@ func BuildJSONEmbeddedTxs(txs tx.Transactions, receipts tx.Receipts) []*JSONEmbe
 
 		for i, c := range clauses {
 			jcs = append(jcs, &Clause{
-				c.To(),
-				(*math.HexOrDecimal256)(c.Value()),
-				hexutil.Encode(c.Data()),
+				To:    c.To(),
+				Value: (*math.HexOrDecimal256)(c.Value()),
+				Data:  hexutil.Encode(c.Data()),
 			})
 			if !receipt.Reverted {
 				jos = append(jos, buildJSONOutput(trx.ID(), uint32(i), c, receipt.Outputs[i]))

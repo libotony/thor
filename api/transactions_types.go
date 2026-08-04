@@ -85,11 +85,11 @@ func ConvertReceipt(txReceipt *tx.Receipt, header *block.Header, tx *tx.Transact
 		Reward:   &reward,
 		Reverted: txReceipt.Reverted,
 		Meta: ReceiptMeta{
-			header.ID(),
-			header.Number(),
-			header.Timestamp(),
-			tx.ID(),
-			origin,
+			BlockID:        header.ID(),
+			BlockNumber:    header.Number(),
+			BlockTimestamp: header.Timestamp(),
+			TxID:           tx.ID(),
+			TxOrigin:       origin,
 		},
 	}
 	txClauses := tx.Clauses()
@@ -102,9 +102,9 @@ func ConvertReceipt(txReceipt *tx.Receipt, header *block.Header, tx *tx.Transact
 			contractAddr = &cAddr
 		}
 		otp := &Output{
-			contractAddr,
-			make([]*Event, len(output.Events)),
-			make([]*Transfer, len(output.Transfers)),
+			ContractAddress: contractAddr,
+			Events:          make([]*Event, len(output.Events)),
+			Transfers:       make([]*Transfer, len(output.Transfers)),
 		}
 		for j, txEvent := range output.Events {
 			event := &Event{
