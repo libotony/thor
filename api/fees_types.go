@@ -5,19 +5,9 @@
 
 package api
 
-import (
-	"github.com/ethereum/go-ethereum/common/hexutil"
+import "github.com/vechain/thor/v2/api/dto"
 
-	"github.com/vechain/thor/v2/thor"
+type (
+	FeesHistory  = dto.FeesHistory
+	FeesPriority = dto.FeesPriority
 )
-
-type FeesHistory struct {
-	OldestBlock   thor.Bytes32     `json:"oldestBlock"`
-	BaseFeePerGas []*hexutil.Big   `json:"baseFeePerGas"`
-	GasUsedRatio  []float64        `json:"gasUsedRatio"`
-	Reward        [][]*hexutil.Big `json:"reward,omitempty"`
-}
-
-type FeesPriority struct {
-	MaxPriorityFeePerGas *hexutil.Big `json:"maxPriorityFeePerGas"`
-}
