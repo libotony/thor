@@ -5,44 +5,9 @@
 
 package api
 
-import (
-	"github.com/vechain/thor/v2/comm"
-	"github.com/vechain/thor/v2/thor"
+import "github.com/vechain/thor/v2/api/dto"
+
+type (
+	Status    = dto.Status
+	PeerStats = dto.PeerStats
 )
-
-type Network interface {
-	PeersStats() []*comm.PeerStats
-}
-
-type Status struct {
-	Amount uint `json:"amount"`
-}
-
-type PeerStats struct {
-	Name        string       `json:"name"`
-	BestBlockID thor.Bytes32 `json:"bestBlockID"`
-	TotalScore  uint64       `json:"totalScore"`
-	PeerID      string       `json:"peerID"`
-	NetAddr     string       `json:"netAddr"`
-	Inbound     bool         `json:"inbound"`
-	Duration    uint64       `json:"duration"`
-}
-
-func ConvertPeersStats(ss []*comm.PeerStats) []*PeerStats {
-	if len(ss) == 0 {
-		return nil
-	}
-	peersStats := make([]*PeerStats, len(ss))
-	for i, peerStats := range ss {
-		peersStats[i] = &PeerStats{
-			Name:        peerStats.Name,
-			BestBlockID: peerStats.BestBlockID,
-			TotalScore:  peerStats.TotalScore,
-			PeerID:      peerStats.PeerID,
-			NetAddr:     peerStats.NetAddr,
-			Inbound:     peerStats.Inbound,
-			Duration:    peerStats.Duration,
-		}
-	}
-	return peersStats
-}
