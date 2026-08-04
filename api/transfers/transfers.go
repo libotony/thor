@@ -13,8 +13,8 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/pkg/errors"
 
-	"github.com/vechain/thor/v2/api"
 	"github.com/vechain/thor/v2/api/convert"
+	"github.com/vechain/thor/v2/api/dto"
 	"github.com/vechain/thor/v2/api/restutil"
 	"github.com/vechain/thor/v2/chain"
 	"github.com/vechain/thor/v2/logdb"
@@ -39,7 +39,7 @@ func New(repo *chain.Repository, db *logdb.LogDB, maxLimit uint64, maxOffset uin
 }
 
 // Filter query logs with option
-func (t *Transfers) filter(ctx context.Context, filter *api.TransferFilter) ([]*api.FilteredTransfer, error) {
+func (t *Transfers) filter(ctx context.Context, filter *dto.TransferFilter) ([]*dto.FilteredTransfer, error) {
 	rng, err := convert.ConvertRange(t.repo.NewBestChain(), filter.Range)
 	if err != nil {
 		return nil, err
@@ -57,15 +57,15 @@ func (t *Transfers) filter(ctx context.Context, filter *api.TransferFilter) ([]*
 	if err != nil {
 		return nil, err
 	}
-	tLogs := make([]*api.FilteredTransfer, len(transfers))
+	tLogs := make([]*dto.FilteredTransfer, len(transfers))
 	for i, trans := range transfers {
-		tLogs[i] = api.ConvertTransfer(trans, filter.Options.IncludeIndexes)
+		tLogs[i] = ConvertTransfer(trans, filter.Options.IncludeIndexes)
 	}
 	return tLogs, nil
 }
 
 func (t *Transfers) handleFilterTransferLogs(w http.ResponseWriter, req *http.Request) error {
-	var filter api.TransferFilter
+	var filter dto.TransferFilter
 	if err := restutil.ParseJSON(req.Body, &filter); err != nil {
 		return restutil.BadRequest(errors.WithMessage(err, "body"))
 	}
@@ -89,7 +89,7 @@ func (t *Transfers) handleFilterTransferLogs(w http.ResponseWriter, req *http.Re
 		)
 	}
 	if filter.Options == nil {
-		filter.Options = &api.Options{}
+		filter.Options = &dto.Options{}
 	}
 	if filter.Options.Limit == nil {
 		// if filter.Options.Limit is nil, set to the default limit +1

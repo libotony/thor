@@ -20,6 +20,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/vechain/thor/v2/api"
+	"github.com/vechain/thor/v2/api/dto"
 	"github.com/vechain/thor/v2/block"
 	"github.com/vechain/thor/v2/logdb"
 	"github.com/vechain/thor/v2/test/datagen"
@@ -67,10 +68,10 @@ func TestOption(t *testing.T) {
 	insertBlocks(t, db, 5)
 
 	tclient = thorclient.New(ts.URL)
-	filter := api.TransferFilter{
+	filter := dto.TransferFilter{
 		CriteriaSet: make([]*logdb.TransferCriteria, 0),
 		Range:       nil,
-		Options:     &api.Options{Limit: new(uint64(6))},
+		Options:     &dto.Options{Limit: new(uint64(6))},
 		Order:       logdb.DESC,
 	}
 
@@ -104,10 +105,10 @@ func TestOption(t *testing.T) {
 	assert.Equal(t, http.StatusForbidden, statusCode)
 	assert.Equal(t, "the number of filtered logs exceeds the maximum allowed value of 5, please use pagination", strings.Trim(string(res), "\n"))
 
-	filter = api.TransferFilter{
+	filter = dto.TransferFilter{
 		CriteriaSet: make([]*logdb.TransferCriteria, 0),
 		Range:       nil,
-		Options:     &api.Options{Offset: defaultLogOffset, Limit: new(uint64(0))},
+		Options:     &dto.Options{Offset: defaultLogOffset, Limit: new(uint64(0))},
 		Order:       logdb.DESC,
 	}
 
@@ -148,17 +149,17 @@ func TestOptionalData(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			filter := api.TransferFilter{
+			filter := dto.TransferFilter{
 				CriteriaSet: make([]*logdb.TransferCriteria, 0),
 				Range:       nil,
-				Options:     &api.Options{Limit: new(uint64(5)), IncludeIndexes: tc.includeIndexes},
+				Options:     &dto.Options{Limit: new(uint64(5)), IncludeIndexes: tc.includeIndexes},
 				Order:       logdb.DESC,
 			}
 
 			res, statusCode, err := tclient.RawHTTPClient().RawHTTPPost("/logs/transfer", filter)
 			assert.NoError(t, err)
 			assert.Equal(t, http.StatusOK, statusCode)
-			var tLogs []*api.FilteredTransfer
+			var tLogs []*dto.FilteredTransfer
 			if err := json.Unmarshal(res, &tLogs); err != nil {
 				t.Fatal(err)
 			}
@@ -211,10 +212,10 @@ func testTransferBadRequest(t *testing.T) {
 		}
 	}
 
-	emptyFilter := api.TransferFilter{
+	emptyFilter := dto.TransferFilter{
 		CriteriaSet: criteriaSet,
 		Range:       nil,
-		Options:     &api.Options{Limit: new(uint64(6))},
+		Options:     &dto.Options{Limit: new(uint64(6))},
 		Order:       logdb.DESC,
 	}
 
@@ -225,7 +226,7 @@ func testTransferBadRequest(t *testing.T) {
 }
 
 func testTransferWithEmptyDb(t *testing.T) {
-	emptyFilter := api.TransferFilter{
+	emptyFilter := dto.TransferFilter{
 		CriteriaSet: make([]*logdb.TransferCriteria, 0),
 		Range:       nil,
 		Options:     nil,
@@ -234,7 +235,7 @@ func testTransferWithEmptyDb(t *testing.T) {
 
 	res, statusCode, err := tclient.RawHTTPClient().RawHTTPPost("/logs/transfer", emptyFilter)
 	require.NoError(t, err)
-	var tLogs []*api.FilteredTransfer
+	var tLogs []*dto.FilteredTransfer
 	if err := json.Unmarshal(res, &tLogs); err != nil {
 		t.Fatal(err)
 	}
@@ -244,7 +245,7 @@ func testTransferWithEmptyDb(t *testing.T) {
 }
 
 func testTransferWithBlocks(t *testing.T, expectedBlocks int) {
-	emptyFilter := api.TransferFilter{
+	emptyFilter := dto.TransferFilter{
 		CriteriaSet: make([]*logdb.TransferCriteria, 0),
 		Range:       nil,
 		Options:     nil,
@@ -253,7 +254,7 @@ func testTransferWithBlocks(t *testing.T, expectedBlocks int) {
 
 	res, statusCode, err := tclient.RawHTTPClient().RawHTTPPost("/logs/transfer", emptyFilter)
 	require.NoError(t, err)
-	var tLogs []*api.FilteredTransfer
+	var tLogs []*dto.FilteredTransfer
 	if err := json.Unmarshal(res, &tLogs); err != nil {
 		t.Fatal(err)
 	}
