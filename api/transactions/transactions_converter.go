@@ -10,6 +10,8 @@ import (
 	"github.com/ethereum/go-ethereum/common/math"
 
 	"github.com/vechain/thor/v2/api"
+	"github.com/vechain/thor/v2/api/convert"
+	"github.com/vechain/thor/v2/api/dto"
 	"github.com/vechain/thor/v2/block"
 	"github.com/vechain/thor/v2/thor"
 	"github.com/vechain/thor/v2/tx"
@@ -21,7 +23,7 @@ type Transaction struct {
 	ChainTag             byte                  `json:"chainTag"`
 	BlockRef             string                `json:"blockRef"`
 	Expiration           uint32                `json:"expiration"`
-	Clauses              api.Clauses           `json:"clauses"`
+	Clauses              dto.Clauses           `json:"clauses"`
 	GasPriceCoef         *uint8                `json:"gasPriceCoef,omitempty"`
 	Gas                  uint64                `json:"gas"`
 	MaxFeePerGas         *math.HexOrDecimal256 `json:"maxFeePerGas,omitempty"`
@@ -40,9 +42,9 @@ func ConvertTransaction(trx *tx.Transaction, header *block.Header) *Transaction 
 	origin, _ := trx.Origin()
 	delegator, _ := trx.Delegator()
 
-	cls := make(api.Clauses, len(trx.Clauses()))
+	cls := make(dto.Clauses, len(trx.Clauses()))
 	for i, c := range trx.Clauses() {
-		clause := api.ConvertClause(c)
+		clause := convert.ConvertClause(c)
 		cls[i] = &clause
 	}
 	br := trx.BlockRef()
