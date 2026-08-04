@@ -5,35 +5,12 @@
 
 package api
 
-import (
-	"time"
+import "github.com/vechain/thor/v2/api/dto"
+
+type (
+	LogStatus        = dto.LogStatus
+	ToggleStatus     = dto.ToggleStatus
+	HealthStatus     = dto.HealthStatus
+	LogLevelRequest  = dto.LogLevelRequest
+	LogLevelResponse = dto.LogLevelResponse
 )
-
-type LogStatus struct {
-	Enabled bool `json:"enabled"`
-}
-
-// ToggleStatus carries an enabled flag plus an optional TTL after which
-// the flag will automatically be set back to false. A zero TTL means no
-// auto-disable. Used by admin toggles like /admin/pprof and /admin/txpool-api.
-type ToggleStatus struct {
-	Enabled    bool `json:"enabled"`
-	TTLSeconds int  `json:"ttlSeconds,omitempty"`
-}
-
-type HealthStatus struct {
-	Healthy              bool       `json:"healthy"`
-	BestBlockTime        *time.Time `json:"bestBlockTime"`
-	PeerCount            int        `json:"peerCount"`
-	IsNetworkProgressing bool       `json:"isNetworkProgressing"`
-	NodeMaster           *string    `json:"nodeMaster"`
-	Beneficiary          *string    `json:"beneficiary"`
-}
-
-type LogLevelRequest struct {
-	Level string `json:"level"`
-}
-
-type LogLevelResponse struct {
-	CurrentLevel string `json:"currentLevel"`
-}
