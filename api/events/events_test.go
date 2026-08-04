@@ -17,7 +17,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/vechain/thor/v2/api"
 	"github.com/vechain/thor/v2/api/dto"
 	"github.com/vechain/thor/v2/builtin"
 	"github.com/vechain/thor/v2/genesis"
@@ -86,17 +85,17 @@ func TestOptionalIndexes(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			filter := api.EventFilter{
-				CriteriaSet: make([]*api.EventCriteria, 0),
+			filter := dto.EventFilter{
+				CriteriaSet: make([]*dto.EventCriteria, 0),
 				Range:       nil,
-				Options:     &api.Options{Limit: new(uint64(6)), IncludeIndexes: tc.includeIndexes},
+				Options:     &dto.Options{Limit: new(uint64(6)), IncludeIndexes: tc.includeIndexes},
 				Order:       dto.DESC,
 			}
 
 			res, statusCode, err := tclient.RawHTTPClient().RawHTTPPost("/logs/event", filter)
 			assert.NoError(t, err)
 			assert.Equal(t, http.StatusOK, statusCode)
-			var tLogs []*api.FilteredEvent
+			var tLogs []*dto.FilteredEvent
 			if err := json.Unmarshal(res, &tLogs); err != nil {
 				t.Fatal(err)
 			}
@@ -127,7 +126,7 @@ func TestEvents_WithOptionsNoLimit(t *testing.T) {
 	tclient = thorclient.New(ts.URL)
 	res, statusCode, err := tclient.RawHTTPClient().RawHTTPPost("/logs/event", []byte(request))
 	require.NoError(t, err)
-	var tLogs []*api.FilteredEvent
+	var tLogs []*dto.FilteredEvent
 	if err := json.Unmarshal(res, &tLogs); err != nil {
 		t.Fatal(err)
 	}
@@ -141,10 +140,10 @@ func TestOption(t *testing.T) {
 	insertBlocks(t, thorChain, 5)
 
 	tclient = thorclient.New(ts.URL)
-	filter := api.EventFilter{
-		CriteriaSet: make([]*api.EventCriteria, 0),
+	filter := dto.EventFilter{
+		CriteriaSet: make([]*dto.EventCriteria, 0),
 		Range:       nil,
-		Options:     &api.Options{Limit: new(uint64(6))},
+		Options:     &dto.Options{Limit: new(uint64(6))},
 		Order:       dto.DESC,
 	}
 
@@ -164,7 +163,7 @@ func TestOption(t *testing.T) {
 	res, statusCode, err = tclient.RawHTTPClient().RawHTTPPost("/logs/event", filter)
 	require.NoError(t, err)
 	assert.Equal(t, http.StatusOK, statusCode)
-	var tLogs []*api.FilteredEvent
+	var tLogs []*dto.FilteredEvent
 	if err := json.Unmarshal(res, &tLogs); err != nil {
 		t.Fatal(err)
 	}
@@ -179,19 +178,19 @@ func TestOption(t *testing.T) {
 	assert.Equal(t, "the number of filtered logs exceeds the maximum allowed value of 5, please use pagination", strings.Trim(string(res), "\n"))
 
 	transferTopic := thor.MustParseBytes32("0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef")
-	criteriaSet := make([]*api.EventCriteria, 11)
+	criteriaSet := make([]*dto.EventCriteria, 11)
 	for i := range 11 {
-		criteriaSet[i] = &api.EventCriteria{
-			TopicSet: api.TopicSet{
+		criteriaSet[i] = &dto.EventCriteria{
+			TopicSet: dto.TopicSet{
 				Topic0: &transferTopic,
 			},
 		}
 	}
 
 	from := uint64(0)
-	filter = api.EventFilter{
+	filter = dto.EventFilter{
 		CriteriaSet: criteriaSet,
-		Range:       &api.Range{From: &from},
+		Range:       &dto.Range{From: &from},
 		Options:     nil,
 		Order:       dto.DESC,
 	}
@@ -201,10 +200,10 @@ func TestOption(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, statusCode)
 	assert.Equal(t, "number of criteria in criteriaSet: 11 cannot be greater than: 10\n", string(res))
 
-	filter = api.EventFilter{
-		CriteriaSet: make([]*api.EventCriteria, 0),
+	filter = dto.EventFilter{
+		CriteriaSet: make([]*dto.EventCriteria, 0),
 		Range:       nil,
-		Options:     &api.Options{Offset: defaultLogOffset, Limit: new(uint64(0))},
+		Options:     &dto.Options{Offset: defaultLogOffset, Limit: new(uint64(0))},
 		Order:       dto.DESC,
 	}
 
@@ -226,25 +225,25 @@ func TestZeroFrom(t *testing.T) {
 
 	tclient = thorclient.New(ts.URL)
 	transferTopic := thor.MustParseBytes32("0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef")
-	criteria := []*api.EventCriteria{
+	criteria := []*dto.EventCriteria{
 		{
-			TopicSet: api.TopicSet{
+			TopicSet: dto.TopicSet{
 				Topic0: &transferTopic,
 			},
 		},
 	}
 
 	from := uint64(0)
-	filter := api.EventFilter{
+	filter := dto.EventFilter{
 		CriteriaSet: criteria,
-		Range:       &api.Range{From: &from},
+		Range:       &dto.Range{From: &from},
 		Options:     nil,
 		Order:       dto.DESC,
 	}
 
 	res, statusCode, err := tclient.RawHTTPClient().RawHTTPPost("/logs/event", filter)
 	require.NoError(t, err)
-	var tLogs []*api.FilteredEvent
+	var tLogs []*dto.FilteredEvent
 	if err := json.Unmarshal(res, &tLogs); err != nil {
 		t.Fatal(err)
 	}
@@ -283,8 +282,8 @@ func testEventsBadRequest(t *testing.T) {
 }
 
 func testEventWithEmptyDb(t *testing.T) {
-	emptyFilter := api.EventFilter{
-		CriteriaSet: make([]*api.EventCriteria, 0),
+	emptyFilter := dto.EventFilter{
+		CriteriaSet: make([]*dto.EventCriteria, 0),
 		Range:       nil,
 		Options:     nil,
 		Order:       dto.DESC,
@@ -292,7 +291,7 @@ func testEventWithEmptyDb(t *testing.T) {
 
 	res, statusCode, err := tclient.RawHTTPClient().RawHTTPPost("/logs/event", emptyFilter)
 	require.NoError(t, err)
-	var tLogs []*api.FilteredEvent
+	var tLogs []*dto.FilteredEvent
 	if err := json.Unmarshal(res, &tLogs); err != nil {
 		t.Fatal(err)
 	}
@@ -302,8 +301,8 @@ func testEventWithEmptyDb(t *testing.T) {
 }
 
 func testEventWithBlocks(t *testing.T, expectedBlocks int) {
-	emptyFilter := api.EventFilter{
-		CriteriaSet: make([]*api.EventCriteria, 0),
+	emptyFilter := dto.EventFilter{
+		CriteriaSet: make([]*dto.EventCriteria, 0),
 		Range:       nil,
 		Options:     nil,
 		Order:       dto.DESC,
@@ -311,7 +310,7 @@ func testEventWithBlocks(t *testing.T, expectedBlocks int) {
 
 	res, statusCode, err := tclient.RawHTTPClient().RawHTTPPost("/logs/event", emptyFilter)
 	require.NoError(t, err)
-	var tLogs []*api.FilteredEvent
+	var tLogs []*dto.FilteredEvent
 	if err := json.Unmarshal(res, &tLogs); err != nil {
 		t.Fatal(err)
 	}
@@ -325,10 +324,10 @@ func testEventWithBlocks(t *testing.T, expectedBlocks int) {
 	transferEvent := thor.MustParseBytes32("0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef")
 
 	// Test with matching filter
-	matchingFilter := api.EventFilter{
-		CriteriaSet: []*api.EventCriteria{{
+	matchingFilter := dto.EventFilter{
+		CriteriaSet: []*dto.EventCriteria{{
 			Address: &builtin.Energy.Address,
-			TopicSet: api.TopicSet{
+			TopicSet: dto.TopicSet{
 				Topic0: &transferEvent,
 			},
 		}},

@@ -19,7 +19,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/vechain/thor/v2/api"
 	"github.com/vechain/thor/v2/api/dto"
 	"github.com/vechain/thor/v2/block"
 	"github.com/vechain/thor/v2/logdb"
@@ -91,7 +90,7 @@ func TestOption(t *testing.T) {
 	res, statusCode, err = tclient.RawHTTPClient().RawHTTPPost("/logs/transfer", filter)
 	require.NoError(t, err)
 	assert.Equal(t, http.StatusOK, statusCode)
-	var tLogs []*api.FilteredEvent
+	var tLogs []*dto.FilteredEvent
 	if err := json.Unmarshal(res, &tLogs); err != nil {
 		t.Fatal(err)
 	}

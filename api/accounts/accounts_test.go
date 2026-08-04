@@ -21,7 +21,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/vechain/thor/v2/api"
 	"github.com/vechain/thor/v2/api/dto"
 	"github.com/vechain/thor/v2/block"
 	"github.com/vechain/thor/v2/builtin"
@@ -438,13 +437,13 @@ func batchCall(t *testing.T) {
 
 	// Request body is not a valid BatchCallData
 	badBody := &dto.BatchCallData{
-		Clauses: api.Clauses{
-			&api.Clause{
+		Clauses: dto.Clauses{
+			&dto.Clause{
 				To:    &contractAddr,
 				Data:  "data1",
 				Value: nil,
 			},
-			&api.Clause{
+			&dto.Clause{
 				To:    &contractAddr,
 				Data:  "data2",
 				Value: nil,
@@ -492,13 +491,13 @@ func batchCall(t *testing.T) {
 		t.Fatal(err)
 	}
 	reqBody := &dto.BatchCallData{
-		Clauses: api.Clauses{
-			&api.Clause{
+		Clauses: dto.Clauses{
+			&dto.Clause{
 				To:    &contractAddr,
 				Data:  hexutil.Encode(input),
 				Value: nil,
 			},
-			&api.Clause{
+			&dto.Clause{
 				To:    &contractAddr,
 				Data:  hexutil.Encode(input),
 				Value: nil,
@@ -534,7 +533,7 @@ func batchCall(t *testing.T) {
 	// Valid request
 	big := math.HexOrDecimal256(*big.NewInt(1000))
 	fullBody := &dto.BatchCallData{
-		Clauses:    api.Clauses{},
+		Clauses:    dto.Clauses{},
 		Gas:        21000,
 		GasPrice:   &big,
 		ProvedWork: &big,
@@ -549,7 +548,7 @@ func batchCall(t *testing.T) {
 
 	// Request with not enough gas
 	tooMuchGasBody := &dto.BatchCallData{
-		Clauses:    api.Clauses{},
+		Clauses:    dto.Clauses{},
 		Gas:        math.MaxUint64,
 		GasPrice:   &big,
 		ProvedWork: &big,

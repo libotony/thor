@@ -16,9 +16,6 @@ import (
 	"github.com/vechain/thor/v2/tx"
 )
 
-// Transaction is an alias of dto.Transaction, kept for thorclient backward compatibility.
-type Transaction = dto.Transaction
-
 // ConvertTransaction convert a raw transaction into a json format transaction
 func ConvertTransaction(trx *tx.Transaction, header *block.Header) *dto.Transaction {
 	// tx origin
@@ -31,7 +28,7 @@ func ConvertTransaction(trx *tx.Transaction, header *block.Header) *dto.Transact
 		cls[i] = &clause
 	}
 	br := trx.BlockRef()
-	t := &Transaction{
+	t := &dto.Transaction{
 		ChainTag:   trx.ChainTag(),
 		Type:       trx.Type(),
 		ID:         trx.ID(),
