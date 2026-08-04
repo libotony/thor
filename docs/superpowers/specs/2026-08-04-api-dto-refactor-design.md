@@ -26,9 +26,9 @@ wire 冻结:REST 响应 JSON 的字段名/顺序/`omitempty`/编码类型**逐�
 | 执行阶段 | 0–5 全做 + B+(logdb 清零) | — |
 | `TransferCriteria` json tag | **加** `json:"txOrigin"`/`sender`/`recipient` | 现状 `logdb.TransferCriteria` 无 tag,靠 `encoding/json` 大小写不敏感匹配才接受 OpenAPI 声明的 lowerCamel(`api/doc/thor.yaml:2288`)。加 tag 后仍兼容 `TxOrigin` 写法(不敏感匹配 tag),且与文档对齐 |
 | 命名统一方向 | **去掉** `JSON` 前缀 | 包名 `dto` 已表明是 wire 模型,前缀冗余;与现有无前缀的 `Receipt`/`Clause`/`FilteredEvent` 一致 |
-| Go API 破坏 | **接受**,阶段 5 删除全部 alias、顶层 `api` 包消失 | 按 semver 属 major(v2→v3),需在 PR/release note 明确标注 breaking change |
+| Go API 破坏 | **接受**。阶段 5 删除全部 alias、顶层 `api` 包消失 | module path **保持 `/v2` 不动,不升 major**。后果如实记录:下游直接 import 顶层 `api` 的第三方代码在升级到含本次改动的 v2 版本后会编译失败;仅在 PR 描述与 release note 标注 breaking change。thor 主体是节点二进制而非库,不为此付 major 迁移成本 |
 | wire 基线 | 入库 golden 文件 | 长期回归保护,对后续 JSON-RPC 工作同样有用 |
-| 交付粒度 | **待定**(默认单 PR、按阶段+域分 commit,每个 commit 可编译可测) | review 时确认 |
+| 交付粒度 | 单 PR,按阶段+域分 commit,每个 commit 可编译可测 | 阶段间有强顺序依赖(golden 基线 → 迁移 → 改名 → 删 alias),拆多 PR 会拉长 alias 过渡期并要多轮 rebase |
 
 ---
 
@@ -165,7 +165,9 @@ handler 侧新增 dto→logdb 转换。`logdb.Range`/`logdb.EventFilter` 等只�
 - `go list -deps ./thorclient/...` 不含上述任一包
 - golden testdata 零 diff
 - `go test ./...` 全过
-- `api/doc/thor.yaml` 无需修改(wire 未变);PR 描述标注 breaking change 与受影响的导出标识符清单
+- `api/doc/thor.yaml` 无需修改(wire 未变)
+- `go.mod` module path 仍为 `github.com/vechain/thor/v2`(不升 major)
+- PR 描述标注 breaking change 与受影响的导出标识符清单(`api.X`→`dto.X` 对应表)
 
 ---
 
@@ -174,7 +176,7 @@ handler 侧新增 dto→logdb 转换。`logdb.Range`/`logdb.EventFilter` 等只�
 | | 风险 | 缓解 |
 |---|---|---|
 | R1 | wire 漂移 | golden 基线(§8),阶段 4 尤其依赖它 |
-| R2 | Go API 破坏影响外部 SDK | 已接受;阶段 4/5 与阶段 0–3 分 commit,release note 列出全部消失的标识符 |
+| R2 | Go API 破坏影响外部 SDK(且不升 major,下游 `go get -u` 会踩到) | 已接受;阶段 4/5 与阶段 0–3 分 commit,release note 列出全部消失的导出标识符,给出 `api.X`→`dto.X` 的对应表供下游一次替换 |
 | R3 | import cycle | `api/dto` 禁止 import 任何 handler/server-only 包;`go list -deps` 断言 |
 | R4 | `TransferCriteria` 加 tag 后 unmarshal 行为变化 | 显式单测覆盖 `TxOrigin`/`txOrigin` 两种输入 |
 | R5 | 阶段 2 一次移动 60 个类型难 review | 按域分 commit,每个 commit 可编译可测 |
