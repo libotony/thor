@@ -65,16 +65,18 @@ func ConvertSubscriptionTransfer(
 	}
 
 	return &dto.TransferMessage{
-		Sender:    transfer.Sender,
-		Recipient: transfer.Recipient,
-		Amount:    (*math.HexOrDecimal256)(transfer.Amount),
-		Meta: dto.LogMeta{
-			BlockID:        header.ID(),
-			BlockNumber:    header.Number(),
-			BlockTimestamp: header.Timestamp(),
-			TxID:           tx.ID(),
-			TxOrigin:       origin,
-			ClauseIndex:    clauseIndex,
+		FilteredTransfer: dto.FilteredTransfer{
+			Sender:    transfer.Sender,
+			Recipient: transfer.Recipient,
+			Amount:    (*math.HexOrDecimal256)(transfer.Amount),
+			Meta: dto.LogMeta{
+				BlockID:        header.ID(),
+				BlockNumber:    header.Number(),
+				BlockTimestamp: header.Timestamp(),
+				TxID:           tx.ID(),
+				TxOrigin:       origin,
+				ClauseIndex:    clauseIndex,
+			},
 		},
 		Obsolete: obsolete,
 	}, nil
@@ -86,17 +88,19 @@ func ConvertSubscriptionEvent(header *block.Header, tx *tx.Transaction, clauseIn
 		return nil, err
 	}
 	return &dto.EventMessage{
-		Address: event.Address,
-		Data:    hexutil.Encode(event.Data),
-		Meta: dto.LogMeta{
-			BlockID:        header.ID(),
-			BlockNumber:    header.Number(),
-			BlockTimestamp: header.Timestamp(),
-			TxID:           tx.ID(),
-			TxOrigin:       signer,
-			ClauseIndex:    clauseIndex,
+		FilteredEvent: dto.FilteredEvent{
+			Address: event.Address,
+			Data:    hexutil.Encode(event.Data),
+			Meta: dto.LogMeta{
+				BlockID:        header.ID(),
+				BlockNumber:    header.Number(),
+				BlockTimestamp: header.Timestamp(),
+				TxID:           tx.ID(),
+				TxOrigin:       signer,
+				ClauseIndex:    clauseIndex,
+			},
+			Topics: event.Topics,
 		},
-		Topics:   event.Topics,
 		Obsolete: obsolete,
 	}, nil
 }

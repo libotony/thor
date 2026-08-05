@@ -150,7 +150,7 @@ func TestClient_FilterEvents(t *testing.T) {
 	req := &dto.EventFilter{}
 	expectedEvents := []dto.FilteredEvent{{
 		Address: thor.Address{0x01},
-		Topics:  []*thor.Bytes32{{0x01}},
+		Topics:  []thor.Bytes32{{0x01}},
 		Data:    "data",
 		Meta:    dto.LogMeta{},
 	}}

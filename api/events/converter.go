@@ -35,10 +35,10 @@ func ConvertEvent(event *logdb.Event, addIndexes bool) *dto.FilteredEvent {
 		fe.Meta.LogIndex = &event.LogIndex
 	}
 
-	fe.Topics = make([]*thor.Bytes32, 0)
+	fe.Topics = make([]thor.Bytes32, 0)
 	for i := range 5 {
 		if event.Topics[i] != nil {
-			fe.Topics = append(fe.Topics, event.Topics[i])
+			fe.Topics = append(fe.Topics, *event.Topics[i])
 		}
 	}
 	return fe

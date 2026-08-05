@@ -300,7 +300,7 @@ func TestGoldenFilteredEvent(t *testing.T) {
 	topic := thor.BytesToBytes32([]byte{2})
 	golden(t, "filtered_event", &dto.FilteredEvent{
 		Address: thor.BytesToAddress([]byte{1}),
-		Topics:  []*thor.Bytes32{&topic},
+		Topics:  []thor.Bytes32{topic},
 		Data:    "0x616263",
 		Meta: dto.LogMeta{
 			BlockID:        thor.BytesToBytes32([]byte{3}),
@@ -383,18 +383,20 @@ func TestGoldenBlockMessage(t *testing.T) {
 func TestGoldenTransferMessage(t *testing.T) {
 	ti, li := uint32(1), uint32(2)
 	golden(t, "transfer_message", &dto.TransferMessage{
-		Sender:    thor.BytesToAddress([]byte{1}),
-		Recipient: thor.BytesToAddress([]byte{2}),
-		Amount:    (*math.HexOrDecimal256)(big.NewInt(3)),
-		Meta: dto.LogMeta{
-			BlockID:        thor.BytesToBytes32([]byte{4}),
-			BlockNumber:    5,
-			BlockTimestamp: 6,
-			TxID:           thor.BytesToBytes32([]byte{7}),
-			TxOrigin:       thor.BytesToAddress([]byte{8}),
-			ClauseIndex:    9,
-			TxIndex:        &ti,
-			LogIndex:       &li,
+		FilteredTransfer: dto.FilteredTransfer{
+			Sender:    thor.BytesToAddress([]byte{1}),
+			Recipient: thor.BytesToAddress([]byte{2}),
+			Amount:    (*math.HexOrDecimal256)(big.NewInt(3)),
+			Meta: dto.LogMeta{
+				BlockID:        thor.BytesToBytes32([]byte{4}),
+				BlockNumber:    5,
+				BlockTimestamp: 6,
+				TxID:           thor.BytesToBytes32([]byte{7}),
+				TxOrigin:       thor.BytesToAddress([]byte{8}),
+				ClauseIndex:    9,
+				TxIndex:        &ti,
+				LogIndex:       &li,
+			},
 		},
 		Obsolete: true,
 	})
@@ -404,18 +406,20 @@ func TestGoldenTransferMessage(t *testing.T) {
 func TestGoldenEventMessage(t *testing.T) {
 	ti, li := uint32(1), uint32(2)
 	golden(t, "event_message", &dto.EventMessage{
-		Address: thor.BytesToAddress([]byte{1}),
-		Topics:  []thor.Bytes32{thor.BytesToBytes32([]byte{2})},
-		Data:    "0x616263",
-		Meta: dto.LogMeta{
-			BlockID:        thor.BytesToBytes32([]byte{3}),
-			BlockNumber:    4,
-			BlockTimestamp: 5,
-			TxID:           thor.BytesToBytes32([]byte{6}),
-			TxOrigin:       thor.BytesToAddress([]byte{7}),
-			ClauseIndex:    8,
-			TxIndex:        &ti,
-			LogIndex:       &li,
+		FilteredEvent: dto.FilteredEvent{
+			Address: thor.BytesToAddress([]byte{1}),
+			Topics:  []thor.Bytes32{thor.BytesToBytes32([]byte{2})},
+			Data:    "0x616263",
+			Meta: dto.LogMeta{
+				BlockID:        thor.BytesToBytes32([]byte{3}),
+				BlockNumber:    4,
+				BlockTimestamp: 5,
+				TxID:           thor.BytesToBytes32([]byte{6}),
+				TxOrigin:       thor.BytesToAddress([]byte{7}),
+				ClauseIndex:    8,
+				TxIndex:        &ti,
+				LogIndex:       &li,
+			},
 		},
 		Obsolete: true,
 	})

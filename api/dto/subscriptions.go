@@ -21,20 +21,14 @@ type BlockMessage struct {
 
 // TransferMessage transfer piped by websocket
 type TransferMessage struct {
-	Sender    thor.Address          `json:"sender"`
-	Recipient thor.Address          `json:"recipient"`
-	Amount    *math.HexOrDecimal256 `json:"amount"`
-	Meta      LogMeta               `json:"meta"`
-	Obsolete  bool                  `json:"obsolete"`
+	FilteredTransfer
+	Obsolete bool `json:"obsolete"`
 }
 
 // EventMessage event piped by websocket
 type EventMessage struct {
-	Address  thor.Address   `json:"address"`
-	Topics   []thor.Bytes32 `json:"topics"`
-	Data     string         `json:"data"`
-	Meta     LogMeta        `json:"meta"`
-	Obsolete bool           `json:"obsolete"`
+	FilteredEvent
+	Obsolete bool `json:"obsolete"`
 }
 
 // SubscriptionEventFilter contains options for contract event filtering.
