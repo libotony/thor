@@ -601,3 +601,17 @@ func TestTransferCriteriaUnmarshalCasing(t *testing.T) {
 		require.Equal(t, thor.BytesToAddress([]byte{3}), *c.Recipient)
 	}
 }
+
+func TestStorageRangeOptionUnmarshalCasing(t *testing.T) {
+	for _, in := range []string{
+		`{"address":"0x0000000000000000000000000000000000000001","keyStart":"0x00","maxResult":10,"target":"t"}`,
+		`{"Address":"0x0000000000000000000000000000000000000001","KeyStart":"0x00","MaxResult":10,"Target":"t"}`,
+	} {
+		var o dto.StorageRangeOption
+		require.NoError(t, json.Unmarshal([]byte(in), &o))
+		require.Equal(t, thor.BytesToAddress([]byte{1}), o.Address)
+		require.Equal(t, "0x00", o.KeyStart)
+		require.Equal(t, 10, o.MaxResult)
+		require.Equal(t, "t", o.Target)
+	}
+}

@@ -35,10 +35,10 @@ type TraceCallOption struct {
 }
 
 type StorageRangeOption struct {
-	Address   thor.Address
-	KeyStart  string
-	MaxResult int
-	Target    string
+	Address   thor.Address `json:"address"`
+	KeyStart  string       `json:"keyStart"`
+	MaxResult int          `json:"maxResult"`
+	Target    string       `json:"target"`
 }
 
 type StorageRangeResult struct {
