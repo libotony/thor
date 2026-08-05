@@ -9,12 +9,20 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/common/math"
 
-	"github.com/vechain/thor/v2/api/convert"
 	"github.com/vechain/thor/v2/api/dto"
 	"github.com/vechain/thor/v2/block"
 	"github.com/vechain/thor/v2/thor"
 	"github.com/vechain/thor/v2/tx"
 )
+
+// convertClause convert a raw clause into a json format clause
+func convertClause(c *tx.Clause) dto.Clause {
+	return dto.Clause{
+		To:    c.To(),
+		Value: (*math.HexOrDecimal256)(c.Value()),
+		Data:  hexutil.Encode(c.Data()),
+	}
+}
 
 // ConvertTransaction convert a raw transaction into a json format transaction
 func ConvertTransaction(trx *tx.Transaction, header *block.Header) *dto.Transaction {
@@ -24,7 +32,7 @@ func ConvertTransaction(trx *tx.Transaction, header *block.Header) *dto.Transact
 
 	cls := make(dto.Clauses, len(trx.Clauses()))
 	for i, c := range trx.Clauses() {
-		clause := convert.ConvertClause(c)
+		clause := convertClause(c)
 		cls[i] = &clause
 	}
 	br := trx.BlockRef()
