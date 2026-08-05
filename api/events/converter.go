@@ -49,29 +49,21 @@ func ConvertEventFilter(chain *chain.Chain, filter *dto.EventFilter) (*logdb.Eve
 	if err != nil {
 		return nil, err
 	}
-	f := &logdb.EventFilter{
+	criteria := convert.MapSlice(filter.CriteriaSet, func(c *dto.EventCriteria) *logdb.EventCriteria {
+		return &logdb.EventCriteria{
+			Address: c.Address,
+			Topics:  [5]*thor.Bytes32{c.Topic0, c.Topic1, c.Topic2, c.Topic3, c.Topic4},
+		}
+	})
+
+	return &logdb.EventFilter{
 		Range: rng,
 		Options: &logdb.Options{
 			Offset: filter.Options.Offset,
 			// validated or default value set at the API level
 			Limit: *filter.Options.Limit,
 		},
-		Order: logdb.Order(filter.Order),
-	}
-	if len(filter.CriteriaSet) > 0 {
-		f.CriteriaSet = make([]*logdb.EventCriteria, len(filter.CriteriaSet))
-		for i, criterion := range filter.CriteriaSet {
-			var topics [5]*thor.Bytes32
-			topics[0] = criterion.Topic0
-			topics[1] = criterion.Topic1
-			topics[2] = criterion.Topic2
-			topics[3] = criterion.Topic3
-			topics[4] = criterion.Topic4
-			f.CriteriaSet[i] = &logdb.EventCriteria{
-				Address: criterion.Address,
-				Topics:  topics,
-			}
-		}
-	}
-	return f, nil
+		Order:       logdb.Order(filter.Order),
+		CriteriaSet: criteria,
+	}, nil
 }

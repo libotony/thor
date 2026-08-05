@@ -16,10 +16,19 @@ import (
 	"github.com/ethereum/go-ethereum/crypto/secp256k1"
 	"github.com/stretchr/testify/assert"
 
+	"github.com/vechain/thor/v2/api/dto"
 	"github.com/vechain/thor/v2/block"
 	"github.com/vechain/thor/v2/thor"
 	"github.com/vechain/thor/v2/tx"
 )
+
+func convertClause(c *tx.Clause) dto.Clause {
+	return dto.Clause{
+		To:    c.To(),
+		Value: (*math.HexOrDecimal256)(c.Value()),
+		Data:  hexutil.Encode(c.Data()),
+	}
+}
 
 func TestConvertLegacyTransaction_Success(t *testing.T) {
 	addr := thor.BytesToAddress([]byte("to"))

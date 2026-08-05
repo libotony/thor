@@ -9,6 +9,7 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/common/math"
 
+	"github.com/vechain/thor/v2/api/convert"
 	"github.com/vechain/thor/v2/api/dto"
 	"github.com/vechain/thor/v2/block"
 	"github.com/vechain/thor/v2/chain"
@@ -29,24 +30,7 @@ func ConvertBlock(b *chain.ExtendedBlock) (*dto.BlockMessage, error) {
 		txIDs[i] = tx.ID()
 	}
 	return &dto.BlockMessage{
-		BlockBase: dto.BlockBase{
-			Number:        header.Number(),
-			ID:            header.ID(),
-			ParentID:      header.ParentID(),
-			Timestamp:     header.Timestamp(),
-			TotalScore:    header.TotalScore(),
-			GasLimit:      header.GasLimit(),
-			GasUsed:       header.GasUsed(),
-			BaseFeePerGas: (*math.HexOrDecimal256)(header.BaseFee()),
-			Beneficiary:   header.Beneficiary(),
-			Signer:        signer,
-			Size:          uint32(b.Size()),
-			StateRoot:     header.StateRoot(),
-			ReceiptsRoot:  header.ReceiptsRoot(),
-			TxsRoot:       header.TxsRoot(),
-			TxsFeatures:   uint32(header.TxsFeatures()),
-			COM:           header.COM(),
-		},
+		BlockBase:    convert.ConvertBlockBase(header, uint32(b.Size()), signer),
 		Transactions: txIDs,
 		Obsolete:     b.Obsolete,
 	}, nil
