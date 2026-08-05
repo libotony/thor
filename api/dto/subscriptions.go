@@ -14,24 +14,9 @@ import (
 
 // BlockMessage block piped by websocket
 type BlockMessage struct {
-	Number        uint32                `json:"number"`
-	ID            thor.Bytes32          `json:"id"`
-	Size          uint32                `json:"size"`
-	ParentID      thor.Bytes32          `json:"parentID"`
-	Timestamp     uint64                `json:"timestamp"`
-	GasLimit      uint64                `json:"gasLimit"`
-	Beneficiary   thor.Address          `json:"beneficiary"`
-	GasUsed       uint64                `json:"gasUsed"`
-	BaseFeePerGas *math.HexOrDecimal256 `json:"baseFeePerGas,omitempty"`
-	TotalScore    uint64                `json:"totalScore"`
-	TxsRoot       thor.Bytes32          `json:"txsRoot"`
-	TxsFeatures   uint32                `json:"txsFeatures"`
-	StateRoot     thor.Bytes32          `json:"stateRoot"`
-	ReceiptsRoot  thor.Bytes32          `json:"receiptsRoot"`
-	COM           bool                  `json:"com"`
-	Signer        thor.Address          `json:"signer"`
-	Transactions  []thor.Bytes32        `json:"transactions"`
-	Obsolete      bool                  `json:"obsolete"`
+	BlockBase
+	Transactions []thor.Bytes32 `json:"transactions"`
+	Obsolete     bool           `json:"obsolete"`
 }
 
 // TransferMessage transfer piped by websocket

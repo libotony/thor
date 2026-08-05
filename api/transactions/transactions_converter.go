@@ -29,18 +29,20 @@ func ConvertTransaction(trx *tx.Transaction, header *block.Header) *dto.Transact
 	}
 	br := trx.BlockRef()
 	t := &dto.Transaction{
-		ChainTag:   trx.ChainTag(),
-		Type:       trx.Type(),
-		ID:         trx.ID(),
-		Origin:     origin,
-		BlockRef:   hexutil.Encode(br[:]),
-		Expiration: trx.Expiration(),
-		Nonce:      math.HexOrDecimal64(trx.Nonce()),
-		Size:       uint32(trx.Size()),
-		Gas:        trx.Gas(),
-		DependsOn:  trx.DependsOn(),
-		Clauses:    cls,
-		Delegator:  delegator,
+		TransactionBase: dto.TransactionBase{
+			ChainTag:   trx.ChainTag(),
+			Type:       trx.Type(),
+			ID:         trx.ID(),
+			Origin:     origin,
+			BlockRef:   hexutil.Encode(br[:]),
+			Expiration: trx.Expiration(),
+			Nonce:      math.HexOrDecimal64(trx.Nonce()),
+			Size:       uint32(trx.Size()),
+			Gas:        trx.Gas(),
+			DependsOn:  trx.DependsOn(),
+			Clauses:    cls,
+			Delegator:  delegator,
+		},
 	}
 
 	switch trx.Type() {
