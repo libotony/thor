@@ -57,8 +57,8 @@ func TestGoldenGetStorageResult(t *testing.T) {
 	golden(t, "get_storage_result", &dto.GetStorageResult{Value: "0x616263"})
 }
 
-func TestGoldenGetRawStorageResponse(t *testing.T) {
-	golden(t, "get_raw_storage_response", &dto.GetRawStorageResponse{Value: "0x616263"})
+func TestGoldenGetRawStorageResult(t *testing.T) {
+	golden(t, "get_raw_storage_response", &dto.GetRawStorageResult{Value: "0x616263"})
 }
 
 func TestGoldenCallResult(t *testing.T) {
@@ -333,7 +333,7 @@ func TestGoldenFeesPriority(t *testing.T) {
 // ---- node ----
 
 func TestGoldenNodeStatus(t *testing.T) {
-	golden(t, "node_status", &dto.Status{Amount: 1})
+	golden(t, "node_status", &dto.TxPoolStatus{Amount: 1})
 }
 
 func TestGoldenPeerStats(t *testing.T) {

@@ -477,7 +477,7 @@ func (c *Client) AccountStorage(addr *thor.Address, key *thor.Bytes32, opts ...O
 //   - opts: Optional parameters (Revision)
 //
 // Returns:
-//   - *dto.GetRawStorageResponse: Contains the 32-byte storage value as a hex string
+//   - *dto.GetRawStorageResult: Contains the 32-byte storage value as a hex string
 //   - error: Error if the request fails or parameters are invalid
 //
 // Example:
@@ -489,7 +489,7 @@ func (c *Client) AccountStorage(addr *thor.Address, key *thor.Bytes32, opts ...O
 //		return err
 //	}
 //	fmt.Printf("Storage value: %s\n", storageResult.Value)
-func (c *Client) RawAccountStorage(addr *thor.Address, key *thor.Bytes32, opts ...Option) (*dto.GetRawStorageResponse, error) {
+func (c *Client) RawAccountStorage(addr *thor.Address, key *thor.Bytes32, opts ...Option) (*dto.GetRawStorageResult, error) {
 	options := applyOptions(opts)
 	return c.httpConn.GetRawAccountStorage(addr, key, options.revision)
 }
@@ -1415,7 +1415,7 @@ func (c *Client) PoolTransactions(origin *thor.Address) ([]*dto.Transaction, err
 }
 
 // TxPoolStatus retrieves the current status of the transaction pool.
-func (c *Client) TxPoolStatus() (*dto.Status, error) {
+func (c *Client) TxPoolStatus() (*dto.TxPoolStatus, error) {
 	return c.httpConn.GetTxPoolStatus()
 }
 

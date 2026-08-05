@@ -11,7 +11,6 @@ import (
 	"github.com/vechain/thor/v2/thor"
 )
 
-// Account for marshal account
 type Account struct {
 	Balance *math.HexOrDecimal256 `json:"balance"`
 	Energy  *math.HexOrDecimal256 `json:"energy"`
@@ -35,7 +34,7 @@ type GetStorageResult struct {
 	Value string `json:"value"`
 }
 
-type GetRawStorageResponse struct {
+type GetRawStorageResult struct {
 	Value string `json:"value"`
 }
 

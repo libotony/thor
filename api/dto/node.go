@@ -9,7 +9,7 @@ import (
 	"github.com/vechain/thor/v2/thor"
 )
 
-type Status struct {
+type TxPoolStatus struct {
 	Amount uint `json:"amount"`
 }
 

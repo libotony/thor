@@ -62,7 +62,7 @@ type SubscriptionEventFilter struct {
 	Topic4  *thor.Bytes32
 }
 
-// Match returs whether event matches filter
+// Match returns whether event matches filter
 func (ef *SubscriptionEventFilter) Match(event *tx.Event) bool {
 	if (ef.Address != nil) && (*ef.Address != event.Address) {
 		return false
@@ -95,7 +95,7 @@ type SubscriptionTransferFilter struct {
 	Recipient *thor.Address // who received tokens
 }
 
-// Match returs whether transfer matches filter
+// Match returns whether transfer matches filter
 func (tf *SubscriptionTransferFilter) Match(transfer *tx.Transfer, origin thor.Address) bool {
 	if (tf.TxOrigin != nil) && (*tf.TxOrigin != origin) {
 		return false

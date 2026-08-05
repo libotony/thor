@@ -46,16 +46,16 @@ type Options struct {
 	IncludeIndexes bool    `json:"includeIndexes,omitempty"`
 }
 
-func (o *Options) Validate(limit uint64, offset uint64) error {
+func (o *Options) Validate(maxLimit uint64, maxOffset uint64) error {
 	if o == nil {
 		return nil
 	}
-	if o.Limit != nil && *o.Limit > limit {
-		return fmt.Errorf("options.limit exceeds the maximum allowed value of %d", limit)
+	if o.Limit != nil && *o.Limit > maxLimit {
+		return fmt.Errorf("options.limit exceeds the maximum allowed value of %d", maxLimit)
 	}
 
-	if o.Offset > offset {
-		return fmt.Errorf("options.offset exceeds the maximum allowed value of %d", offset)
+	if o.Offset > maxOffset {
+		return fmt.Errorf("options.offset exceeds the maximum allowed value of %d", maxOffset)
 	}
 
 	return nil

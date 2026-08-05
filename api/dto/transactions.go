@@ -23,11 +23,11 @@ func (rtx *RawTx) Decode() (*tx.Transaction, error) {
 		return nil, err
 	}
 
-	tx := new(tx.Transaction)
-	if err := tx.UnmarshalBinary(data); err != nil {
+	trx := new(tx.Transaction)
+	if err := trx.UnmarshalBinary(data); err != nil {
 		return nil, err
 	}
-	return tx, nil
+	return trx, nil
 }
 
 type RawTransaction struct {
@@ -68,7 +68,6 @@ type ReceiptMeta struct {
 	TxOrigin       thor.Address `json:"txOrigin"`
 }
 
-// Receipt for json marshal
 type Receipt struct {
 	Type     uint8                 `json:"type,omitempty"`
 	GasUsed  uint64                `json:"gasUsed"`

@@ -132,7 +132,7 @@ func (c *Client) GetAccountStorage(addr *thor.Address, key *thor.Bytes32, revisi
 }
 
 // GetRawAccountStorage retrieves the storage value for the given address and key at the specified revision.
-func (c *Client) GetRawAccountStorage(addr *thor.Address, key *thor.Bytes32, revision string) (*dto.GetRawStorageResponse, error) {
+func (c *Client) GetRawAccountStorage(addr *thor.Address, key *thor.Bytes32, revision string) (*dto.GetRawStorageResult, error) {
 	url := c.url + "/accounts/" + addr.String() + "/storage/raw/" + key.String()
 	if revision != "" {
 		url += "?revision=" + revision
@@ -143,7 +143,7 @@ func (c *Client) GetRawAccountStorage(addr *thor.Address, key *thor.Bytes32, rev
 		return nil, fmt.Errorf("unable to retrieve raw account storage - %w", err)
 	}
 
-	var res dto.GetRawStorageResponse
+	var res dto.GetRawStorageResult
 	if err = json.Unmarshal(body, &res); err != nil {
 		return nil, fmt.Errorf("unable to unmarshal raw storage result - %w", err)
 	}
@@ -440,13 +440,13 @@ func (c *Client) GetExpandedTxPool(origin *thor.Address) ([]*dto.Transaction, er
 }
 
 // GetTxPoolStatus retrieves the current status of the transaction pool.
-func (c *Client) GetTxPoolStatus() (*dto.Status, error) {
+func (c *Client) GetTxPoolStatus() (*dto.TxPoolStatus, error) {
 	body, err := c.httpGET(c.url + "/node/txpool/status")
 	if err != nil {
 		return nil, fmt.Errorf("unable to get txpool status - %w", err)
 	}
 
-	var status dto.Status
+	var status dto.TxPoolStatus
 	if err = json.Unmarshal(body, &status); err != nil {
 		return nil, fmt.Errorf("unable to unmarshal txpool status - %w", err)
 	}

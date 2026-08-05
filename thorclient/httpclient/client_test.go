@@ -622,7 +622,7 @@ func TestClient_GetTxPool(t *testing.T) {
 }
 
 func TestClient_GetTxPoolStatus(t *testing.T) {
-	expectedStatus := &dto.Status{
+	expectedStatus := &dto.TxPoolStatus{
 		Amount: 42,
 	}
 
@@ -731,7 +731,7 @@ func TestClient_Errors(t *testing.T) {
 		{
 			name:     "TxPoolStatus",
 			path:     "/node/txpool/status",
-			function: func(client *Client) (*dto.Status, error) { return client.GetTxPoolStatus() },
+			function: func(client *Client) (*dto.TxPoolStatus, error) { return client.GetTxPoolStatus() },
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
