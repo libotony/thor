@@ -10,6 +10,7 @@ import (
 
 	"github.com/vechain/thor/v2/abi"
 	"github.com/vechain/thor/v2/builtin/authority"
+	"github.com/vechain/thor/v2/builtin/contracts"
 	"github.com/vechain/thor/v2/builtin/energy"
 	"github.com/vechain/thor/v2/builtin/gen"
 	"github.com/vechain/thor/v2/builtin/params"
@@ -23,18 +24,18 @@ import (
 
 // Builtin contracts binding.
 var (
-	Params    = &paramsContract{mustLoadContract("Params")}
-	Authority = &authorityContract{mustLoadContract("Authority")}
-	Energy    = &energyContract{mustLoadContract("Energy")}
-	Executor  = &executorContract{mustLoadContract("Executor")}
-	Prototype = &prototypeContract{mustLoadContract("Prototype")}
+	Params    = &paramsContract{contracts.Params}
+	Authority = &authorityContract{contracts.Authority}
+	Energy    = &energyContract{contracts.Energy}
+	Executor  = &executorContract{contracts.Executor}
+	Prototype = &prototypeContract{contracts.Prototype}
 	Extension = &extensionContract{
-		mustLoadContract("Extension"),
-		mustLoadContract("ExtensionV2"),
-		mustLoadContract("ExtensionV3"),
+		contracts.Extension,
+		contracts.ExtensionV2,
+		contracts.ExtensionV3,
 	}
-	Staker  = &stakerContract{mustLoadContract("Staker")}
-	Measure = mustLoadContract("Measure")
+	Staker  = &stakerContract{contracts.Staker}
+	Measure = contracts.Measure
 
 	// return gas map maintains the builtin contracts that can be made native call cheaper
 	// only the 0.4.24 compiled contracts are allowed to return gas, as the newer compiler
@@ -50,17 +51,17 @@ var (
 )
 
 type (
-	paramsContract    struct{ *contract }
-	authorityContract struct{ *contract }
-	energyContract    struct{ *contract }
-	executorContract  struct{ *contract }
-	prototypeContract struct{ *contract }
+	paramsContract    struct{ *contracts.Contract }
+	authorityContract struct{ *contracts.Contract }
+	energyContract    struct{ *contracts.Contract }
+	executorContract  struct{ *contracts.Contract }
+	prototypeContract struct{ *contracts.Contract }
 	extensionContract struct {
-		*contract
-		V2 *contract
-		V3 *contract
+		*contracts.Contract
+		V2 *contracts.Contract
+		V3 *contracts.Contract
 	}
-	stakerContract struct{ *contract }
+	stakerContract struct{ *contracts.Contract }
 )
 
 func (p *paramsContract) Native(state *state.State) *params.Params {

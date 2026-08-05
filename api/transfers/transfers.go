@@ -13,7 +13,8 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/pkg/errors"
 
-	"github.com/vechain/thor/v2/api"
+	"github.com/vechain/thor/v2/api/convert"
+	"github.com/vechain/thor/v2/api/dto"
 	"github.com/vechain/thor/v2/api/restutil"
 	"github.com/vechain/thor/v2/chain"
 	"github.com/vechain/thor/v2/logdb"
@@ -38,33 +39,37 @@ func New(repo *chain.Repository, db *logdb.LogDB, maxLimit uint64, maxOffset uin
 }
 
 // Filter query logs with option
-func (t *Transfers) filter(ctx context.Context, filter *api.TransferFilter) ([]*api.FilteredTransfer, error) {
-	rng, err := api.ConvertRange(t.repo.NewBestChain(), filter.Range)
+func (t *Transfers) filter(ctx context.Context, filter *dto.TransferFilter) ([]*dto.FilteredTransfer, error) {
+	rng, err := convert.ConvertRange(t.repo.NewBestChain(), filter.Range)
 	if err != nil {
 		return nil, err
 	}
 
+	criteria := convert.MapSlice(filter.CriteriaSet, func(c *dto.TransferCriteria) *logdb.TransferCriteria {
+		return &logdb.TransferCriteria{TxOrigin: c.TxOrigin, Sender: c.Sender, Recipient: c.Recipient}
+	})
+
 	transfers, err := t.db.FilterTransfers(ctx, &logdb.TransferFilter{
-		CriteriaSet: filter.CriteriaSet,
+		CriteriaSet: criteria,
 		Range:       rng,
 		Options: &logdb.Options{
 			Offset: filter.Options.Offset,
 			Limit:  *filter.Options.Limit,
 		},
-		Order: filter.Order,
+		Order: logdb.Order(filter.Order),
 	})
 	if err != nil {
 		return nil, err
 	}
-	tLogs := make([]*api.FilteredTransfer, len(transfers))
+	tLogs := make([]*dto.FilteredTransfer, len(transfers))
 	for i, trans := range transfers {
-		tLogs[i] = api.ConvertTransfer(trans, filter.Options.IncludeIndexes)
+		tLogs[i] = ConvertTransfer(trans, filter.Options.IncludeIndexes)
 	}
 	return tLogs, nil
 }
 
 func (t *Transfers) handleFilterTransferLogs(w http.ResponseWriter, req *http.Request) error {
-	var filter api.TransferFilter
+	var filter dto.TransferFilter
 	if err := restutil.ParseJSON(req.Body, &filter); err != nil {
 		return restutil.BadRequest(errors.WithMessage(err, "body"))
 	}
@@ -88,7 +93,7 @@ func (t *Transfers) handleFilterTransferLogs(w http.ResponseWriter, req *http.Re
 		)
 	}
 	if filter.Options == nil {
-		filter.Options = &api.Options{}
+		filter.Options = &dto.Options{}
 	}
 	if filter.Options.Limit == nil {
 		// if filter.Options.Limit is nil, set to the default limit +1
