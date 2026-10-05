@@ -33,17 +33,18 @@ func initLogger(lvl int) *slog.LevelVar {
 	useColor := (isatty.IsTerminal(os.Stderr.Fd()) || isatty.IsCygwinTerminal(os.Stderr.Fd())) && os.Getenv("TERM") != "dumb"
 	handler := log.NewTerminalHandlerWithLevel(output, &level, useColor)
 	log.SetDefault(log.NewLogger(handler))
-	ethlog.SetDefault(ethlog.NewLogger(&ethLogger{logger: log.WithContext("pkg", "geth")}))
+	ethlog.SetDefault(ethlog.NewLogger(&ethLogger{logger: log.WithContext("pkg", "geth"), level: &level}))
 
 	return &level
 }
 
 type ethLogger struct {
 	logger log.Logger
+	level  *slog.LevelVar
 }
 
-// Enabled accepts every level; disco delegates level filtering to thor's logger.
-func (h *ethLogger) Enabled(_ context.Context, _ slog.Level) bool { return true }
+// Enabled filters by disco's verbosity so geth skips building records that thor's logger would drop.
+func (h *ethLogger) Enabled(_ context.Context, lvl slog.Level) bool { return lvl >= h.level.Level() }
 
 // Handle forwards geth log records to thor's logger. Slog attrs are dropped:
 // thor's logger consumes only the message string.
