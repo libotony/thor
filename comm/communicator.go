@@ -7,6 +7,7 @@ package comm
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
 	"sort"
@@ -226,6 +227,11 @@ func (c *Communicator) runPeer(peer *Peer) {
 	}
 	if peer.Version() > proto.V1 {
 		if err := c.forkFilter(status.ForkID); err != nil {
+			reason := "local_incompatible"
+			if errors.Is(err, forkid.ErrRemoteStale) {
+				reason = "remote_stale"
+			}
+			metricForkIDRejectedCounter().AddWithLabel(1, map[string]string{"reason": reason})
 			peer.logger.Debug("fork id rejected", "err", err)
 			return
 		}
