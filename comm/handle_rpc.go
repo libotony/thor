@@ -42,7 +42,7 @@ func (c *Communicator) handleRPC(peer *Peer, msg *p2p.Msg, write func(any), txsT
 		}
 
 		best := c.repo.BestBlockSummary().Header
-		write(&proto.Status{
+		write(&proto.StatusV1{
 			GenesisBlockID: c.repo.GenesisBlock().Header().ID(),
 			SysTimestamp:   uint64(time.Now().Unix()),
 			TotalScore:     best.TotalScore(),
