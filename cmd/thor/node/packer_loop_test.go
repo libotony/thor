@@ -62,7 +62,7 @@ func getFlowAndNode(t *testing.T, forkConfig *thor.ForkConfig) (*packer.Flow, *N
 	logdb, err := logdb.NewMem()
 	assert.NoError(t, err)
 
-	comm := comm2.New(repo, pool)
+	comm := comm2.New(repo, pool, nil)
 
 	n := &Node{
 		txPool:     pool,

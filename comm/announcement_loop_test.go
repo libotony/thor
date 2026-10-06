@@ -68,9 +68,9 @@ func fetchBlockByIDResult(t *testing.T, served rlp.RawValue, want thor.Bytes32) 
 	pool := txpool.New(chain.Repo(), chain.Stater(), txpool.Options{Limit: 10, LimitPerAccount: 2, MaxLifetime: time.Minute}, &thor.SoloFork)
 	defer pool.Close()
 
-	c := New(chain.Repo(), pool)
+	c := New(chain.Repo(), pool, nil)
 	rw := &replyRW{read: make(chan p2p.Msg, 1), result: served}
-	peer := newPeer(p2p.NewPeer(discover.NodeID{}, "test", nil), rw)
+	peer := newPeer(p2p.NewPeer(discover.NodeID{}, "test", nil), rw, proto.Version)
 	go peer.Serve(func(*p2p.Msg, func(any)) error { return nil }, proto.MaxMsgSize)
 
 	events := make(chan *NewBlockEvent, 1)

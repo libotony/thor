@@ -37,8 +37,8 @@ func TestHandleRPC_MsgNewTx(t *testing.T) {
 	}, &thor.SoloFork)
 	defer pool.Close()
 
-	comm := New(repo, pool)
-	peer := newPeer(p2p.NewPeer(discover.NodeID{}, "test", nil), stubMsgReadWriter{})
+	comm := New(repo, pool, nil)
+	peer := newPeer(p2p.NewPeer(discover.NodeID{}, "test", nil), stubMsgReadWriter{}, proto.Version)
 
 	to, _ := thor.ParseAddress("0x7567d83b7b8d80addcb281a71d54fc7b3364ffed")
 	chainTag := repo.ChainTag()
