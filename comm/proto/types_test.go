@@ -6,12 +6,16 @@
 package proto
 
 import (
+	"encoding/hex"
 	"runtime"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/vechain/thor/v2/forkid"
+	"github.com/vechain/thor/v2/thor"
 )
 
 func TestBlockByIDResult_DecodeRLP(t *testing.T) {
@@ -114,4 +118,46 @@ func TestBlocksFromNumberResult_DecodeRLP(t *testing.T) {
 		require.NoError(t, rlp.DecodeBytes(data, &result))
 		assert.Len(t, result, MaxBlocksFromNumber)
 	})
+}
+
+func TestStatusRLP(t *testing.T) {
+	// ForkID sublist is encoded as [4-byte string, uint], identical to forkid.ID in geth's eth/64 Status
+	id := forkid.ID{Hash: [4]byte{0xbb, 0xf3, 0x87, 0x04}, Next: 0}
+	data, err := rlp.EncodeToBytes(&id)
+	assert.NoError(t, err)
+	assert.Equal(t, "c684bbf3870480", hex.EncodeToString(data))
+
+	// v2 Status round trip
+	s := Status{
+		GenesisBlockID: thor.Bytes32{1}, SysTimestamp: 2,
+		BestBlockID: thor.Bytes32{3}, TotalScore: 4, ForkID: id,
+	}
+	enc, err := rlp.EncodeToBytes(&s)
+	assert.NoError(t, err)
+	var dec Status
+	assert.NoError(t, rlp.DecodeBytes(enc, &dec))
+	assert.Equal(t, s, dec)
+
+	// a 4-element payload (StatusV1 bytes) must fail strict decoding as v2
+	v1 := StatusV1{GenesisBlockID: thor.Bytes32{1}, SysTimestamp: 2, BestBlockID: thor.Bytes32{3}, TotalScore: 4}
+	encV1, err := rlp.EncodeToBytes(&v1)
+	assert.NoError(t, err)
+	assert.Error(t, rlp.DecodeBytes(encV1, &dec))
+
+	// a 6-element payload (one trailing extra field) must fail strict decoding too
+	extra := struct {
+		A thor.Bytes32
+		B uint64
+		C thor.Bytes32
+		D uint64
+		E forkid.ID
+		F uint64
+	}{thor.Bytes32{1}, 2, thor.Bytes32{3}, 4, id, 5}
+	encX, err := rlp.EncodeToBytes(&extra)
+	assert.NoError(t, err)
+	assert.Error(t, rlp.DecodeBytes(encX, &dec))
+
+	// v1 peer's view: decoding the new 5-element payload into the old struct also fails (pinned existing behavior)
+	var decV1 StatusV1
+	assert.Error(t, rlp.DecodeBytes(enc, &decV1))
 }

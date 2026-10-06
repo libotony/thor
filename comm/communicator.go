@@ -182,7 +182,7 @@ func (c *Communicator) runPeer(peer *Peer) {
 	ctx, cancel := context.WithTimeout(c.ctx, time.Second*5)
 	defer cancel()
 
-	status, err := proto.GetStatus(ctx, peer)
+	status, err := proto.GetStatus(ctx, peer, proto.Version)
 	if err != nil {
 		peer.logger.Debug("failed to get status", "err", err)
 		return
