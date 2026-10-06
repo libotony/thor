@@ -17,6 +17,7 @@ import (
 
 	"github.com/vechain/thor/v2/block"
 	"github.com/vechain/thor/v2/comm/proto"
+	"github.com/vechain/thor/v2/forkid"
 	"github.com/vechain/thor/v2/p2p"
 	"github.com/vechain/thor/v2/thor"
 	"github.com/vechain/thor/v2/tx"
@@ -42,12 +43,23 @@ func (c *Communicator) handleRPC(peer *Peer, msg *p2p.Msg, write func(any), txsT
 		}
 
 		best := c.repo.BestBlockSummary().Header
-		write(&proto.StatusV1{
-			GenesisBlockID: c.repo.GenesisBlock().Header().ID(),
-			SysTimestamp:   uint64(time.Now().Unix()),
-			TotalScore:     best.TotalScore(),
-			BestBlockID:    best.ID(),
-		})
+		genesisID := c.repo.GenesisBlock().Header().ID()
+		if peer.Version() >= proto.Version {
+			write(&proto.Status{
+				GenesisBlockID: genesisID,
+				SysTimestamp:   uint64(time.Now().Unix()),
+				TotalScore:     best.TotalScore(),
+				BestBlockID:    best.ID(),
+				ForkID:         forkid.NewID(genesisID, c.forkConfig, best.Number()),
+			})
+		} else {
+			write(&proto.StatusV1{
+				GenesisBlockID: genesisID,
+				SysTimestamp:   uint64(time.Now().Unix()),
+				TotalScore:     best.TotalScore(),
+				BestBlockID:    best.ID(),
+			})
+		}
 	case proto.MsgNewBlock:
 		var newBlock *block.Block
 		if err := msg.Decode(&newBlock); err != nil {

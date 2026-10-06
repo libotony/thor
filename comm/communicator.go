@@ -18,6 +18,7 @@ import (
 	"github.com/vechain/thor/v2/block"
 	"github.com/vechain/thor/v2/chain"
 	"github.com/vechain/thor/v2/comm/proto"
+	"github.com/vechain/thor/v2/forkid"
 	"github.com/vechain/thor/v2/log"
 	"github.com/vechain/thor/v2/p2p"
 	"github.com/vechain/thor/v2/p2p/discv5"
@@ -41,11 +42,14 @@ type Communicator struct {
 	feedScope      event.SubscriptionScope
 	goes           sync.WaitGroup
 	onceSynced     sync.Once
+	forkConfig     *thor.ForkConfig
+	forkFilter     func(forkid.ID) error
 }
 
 // New create a new Communicator instance.
-func New(repo *chain.Repository, txPool *txpool.TxPool) *Communicator {
+func New(repo *chain.Repository, txPool *txpool.TxPool, forkConfig *thor.ForkConfig) *Communicator {
 	ctx, cancel := context.WithCancel(context.Background())
+	genesisID := repo.GenesisBlock().Header().ID()
 	return &Communicator{
 		repo:           repo,
 		txPool:         txPool,
@@ -54,6 +58,10 @@ func New(repo *chain.Repository, txPool *txpool.TxPool) *Communicator {
 		peerSet:        newPeerSet(),
 		syncedCh:       make(chan struct{}),
 		announcementCh: make(chan *announcement),
+		forkConfig:     forkConfig,
+		forkFilter: forkid.NewFilter(genesisID, forkConfig, func() uint32 {
+			return repo.BestBlockSummary().Header.Number()
+		}),
 	}
 }
 
@@ -128,12 +136,23 @@ func (c *Communicator) Sync(ctx context.Context, handler HandleBlockStream) {
 
 // Protocols returns all supported protocols.
 func (c *Communicator) Protocols() []*p2p.Protocol {
+	run := func(version uint) func(*p2p.Peer, p2p.MsgReadWriter) error {
+		return func(peer *p2p.Peer, rw p2p.MsgReadWriter) error {
+			return c.servePeer(peer, rw, version)
+		}
+	}
 	return []*p2p.Protocol{
+		{
+			Name:    proto.Name,
+			Version: proto.V1,
+			Length:  proto.Length,
+			Run:     run(proto.V1),
+		},
 		{
 			Name:    proto.Name,
 			Version: proto.Version,
 			Length:  proto.Length,
-			Run:     c.servePeer,
+			Run:     run(proto.Version),
 		},
 	}
 }
@@ -162,8 +181,8 @@ type txsToSync struct {
 	synced bool
 }
 
-func (c *Communicator) servePeer(p *p2p.Peer, rw p2p.MsgReadWriter) error {
-	peer := newPeer(p, rw)
+func (c *Communicator) servePeer(p *p2p.Peer, rw p2p.MsgReadWriter, version uint) error {
+	peer := newPeer(p, rw, version)
 	c.goes.Go(func() {
 		c.runPeer(peer)
 	})
@@ -182,7 +201,7 @@ func (c *Communicator) runPeer(peer *Peer) {
 	ctx, cancel := context.WithTimeout(c.ctx, time.Second*5)
 	defer cancel()
 
-	status, err := proto.GetStatus(ctx, peer, proto.Version)
+	status, err := proto.GetStatus(ctx, peer, peer.Version())
 	if err != nil {
 		peer.logger.Debug("failed to get status", "err", err)
 		return
@@ -201,6 +220,12 @@ func (c *Communicator) runPeer(peer *Peer) {
 	if diff > thor.BlockInterval()*2 {
 		peer.logger.Debug("failed to handshake", "err", "sys time diff too large")
 		return
+	}
+	if peer.Version() >= proto.Version {
+		if err := c.forkFilter(status.ForkID); err != nil {
+			peer.logger.Debug("fork id rejected", "err", err)
+			return
+		}
 	}
 
 	peer.UpdateHead(status.BestBlockID, status.TotalScore)
