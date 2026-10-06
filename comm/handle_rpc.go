@@ -44,7 +44,7 @@ func (c *Communicator) handleRPC(peer *Peer, msg *p2p.Msg, write func(any), txsT
 
 		best := c.repo.BestBlockSummary().Header
 		genesisID := c.repo.GenesisBlock().Header().ID()
-		if peer.Version() >= proto.Version {
+		if peer.Version() > proto.V1 {
 			write(&proto.Status{
 				GenesisBlockID: genesisID,
 				SysTimestamp:   uint64(time.Now().Unix()),

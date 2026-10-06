@@ -158,6 +158,9 @@ func (c *Communicator) Protocols() []*p2p.Protocol {
 }
 
 // DiscTopic returns the topic for p2p network discovery.
+// The "1" in the topic is a frozen network-isolation literal, unrelated to
+// proto.Version: never derive it from the version constant, or old and new
+// nodes would stop discovering each other.
 func (c *Communicator) DiscTopic() discv5.Topic {
 	genesisID := c.repo.GenesisBlock().Header().ID()
 	return discv5.Topic(fmt.Sprintf("%v1@%x", proto.Name, genesisID[24:]))
@@ -221,7 +224,7 @@ func (c *Communicator) runPeer(peer *Peer) {
 		peer.logger.Debug("failed to handshake", "err", "sys time diff too large")
 		return
 	}
-	if peer.Version() >= proto.Version {
+	if peer.Version() > proto.V1 {
 		if err := c.forkFilter(status.ForkID); err != nil {
 			peer.logger.Debug("fork id rejected", "err", err)
 			return
