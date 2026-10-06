@@ -46,7 +46,7 @@ func GetFunctionArguments() (*EVM, *Stack) {
 		NewContractAddress: newContractAddress,
 	},
 		statedb,
-		&ChainConfig{ChainConfig: *params.TestChainConfig}, Config{})
+		testChainConfig(), Config{})
 
 	stack := &Stack{}
 	stack.push(uint256.NewInt(uint64(math.MaxUint64)))
@@ -277,7 +277,7 @@ func newEVMWithStateDB(statedb StateDB) *EVM {
 		CanTransfer:        NoopCanTransfer,
 		Transfer:           NoopTransfer,
 		NewContractAddress: newContractAddress,
-	}, statedb, &ChainConfig{ChainConfig: *params.TestChainConfig}, Config{})
+	}, statedb, testChainConfig(), Config{})
 }
 
 func selfdestructTestContract() *Contract {

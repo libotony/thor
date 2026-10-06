@@ -27,7 +27,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/params"
 
 	"github.com/vechain/thor/v2/tracers"
 	"github.com/vechain/thor/v2/vm"
@@ -108,7 +107,7 @@ func TestTracer(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		ret, err := runTrace(tracer, testCtx(), &vm.ChainConfig{ChainConfig: *params.TestChainConfig}, contract)
+		ret, err := runTrace(tracer, testCtx(), testChainConfig(), contract)
 		if err != nil {
 			return nil, err.Error() // Stringify to allow comparison without nil checks
 		}
@@ -194,7 +193,7 @@ func TestHalt(t *testing.T) {
 		time.Sleep(1 * time.Second)
 		tracer.Stop(timeout)
 	}()
-	if _, err = runTrace(tracer, testCtx(), &vm.ChainConfig{ChainConfig: *params.TestChainConfig}, nil); !strings.Contains(err.Error(), "stahp") {
+	if _, err = runTrace(tracer, testCtx(), testChainConfig(), nil); !strings.Contains(err.Error(), "stahp") {
 		t.Errorf("Expected timeout error, got %v", err)
 	}
 }
@@ -207,7 +206,7 @@ func TestHaltBetweenSteps(t *testing.T) {
 	env := vm.NewEVM(vm.Context{
 		BlockNumber: big.NewInt(1),
 		GasPrice:    big.NewInt(1),
-	}, &dummyStatedb{}, &vm.ChainConfig{ChainConfig: *params.TestChainConfig}, vm.Config{Tracer: tracer})
+	}, &dummyStatedb{}, testChainConfig(), vm.Config{Tracer: tracer})
 	tracer.CaptureStart(env, common.Address{}, common.Address{}, false, []byte{}, 0, big.NewInt(0))
 	contract := vm.NewContract(&account{}, &account{}, big.NewInt(0), 0)
 	tracer.CaptureState(0, 0, 0, 0, nil, nil, contract, nil, 0, nil)
@@ -234,7 +233,7 @@ func TestNoStepExec(t *testing.T) {
 		env := vm.NewEVM(vm.Context{
 			BlockNumber: big.NewInt(1),
 			GasPrice:    big.NewInt(100),
-		}, &dummyStatedb{}, &vm.ChainConfig{ChainConfig: *params.TestChainConfig}, vm.Config{Tracer: tracer})
+		}, &dummyStatedb{}, testChainConfig(), vm.Config{Tracer: tracer})
 		tracer.CaptureStart(env, common.Address{}, common.Address{}, false, []byte{}, 1000, big.NewInt(0))
 		tracer.CaptureEnd(nil, 0, nil)
 		ret, err := tracer.GetResult()
@@ -258,22 +257,30 @@ func TestNoStepExec(t *testing.T) {
 	}
 }
 
+// testChainConfig matches params.TestChainConfig from the vechain/go-ethereum fork thor used before
+// switching to upstream (Constantinople off).
+func testChainConfig() *vm.ChainConfig {
+	return &vm.ChainConfig{
+		ChainID:        big.NewInt(1),
+		HomesteadBlock: big.NewInt(0),
+		EIP150Block:    big.NewInt(0),
+		EIP155Block:    big.NewInt(0),
+		EIP158Block:    big.NewInt(0),
+		ByzantiumBlock: big.NewInt(0),
+	}
+}
+
 func TestIsPrecompile(t *testing.T) {
-	cfg := &params.ChainConfig{
+	chaincfg := &vm.ChainConfig{
 		ChainID:             big.NewInt(1),
 		HomesteadBlock:      big.NewInt(0),
-		DAOForkBlock:        nil,
-		DAOForkSupport:      false,
 		EIP150Block:         big.NewInt(0),
 		EIP155Block:         big.NewInt(0),
 		EIP158Block:         big.NewInt(0),
 		ByzantiumBlock:      big.NewInt(100),
 		ConstantinopleBlock: big.NewInt(0),
-		Ethash:              new(params.EthashConfig),
-		Clique:              nil,
+		IstanbulBlock:       big.NewInt(200),
 	}
-	chaincfg := &vm.ChainConfig{ChainConfig: *cfg}
-	chaincfg.IstanbulBlock = big.NewInt(200)
 	tracer, err := newJsTracer(
 		"{addr: toAddress('0000000000000000000000000000000000000009'), res: null, step: function() { this.res = isPrecompiled(this.addr); }, fault: function() {}, result: function() { return this.res; }}",
 		nil,

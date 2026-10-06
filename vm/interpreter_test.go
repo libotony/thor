@@ -10,7 +10,6 @@ import (
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -30,7 +29,7 @@ func GetNewInterpreter(jumpTable *JumpTable) *Interpreter {
 		NewContractAddress: newContractAddress,
 	},
 		statedb,
-		&ChainConfig{ChainConfig: *params.TestChainConfig}, evmConfig)
+		testChainConfig(), evmConfig)
 
 	interpreter := NewInterpreter(evm, evmConfig)
 

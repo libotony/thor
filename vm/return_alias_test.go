@@ -10,7 +10,6 @@ import (
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -57,7 +56,7 @@ func newAliasEVM(statedb StateDB) *EVM {
 			NewContractAddress: newContractAddress,
 		},
 		statedb,
-		&ChainConfig{ChainConfig: *params.TestChainConfig},
+		testChainConfig(),
 		Config{},
 	)
 }

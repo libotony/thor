@@ -12,7 +12,6 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/params"
 	"github.com/pkg/errors"
 
 	"github.com/vechain/thor/v2/abi"
@@ -54,22 +53,16 @@ func init() {
 }
 
 var baseChainConfig = vm.ChainConfig{
-	ChainConfig: params.ChainConfig{
-		ChainID:             big.NewInt(0),
-		HomesteadBlock:      big.NewInt(0),
-		DAOForkBlock:        big.NewInt(0),
-		DAOForkSupport:      false,
-		EIP150Block:         big.NewInt(0),
-		EIP155Block:         big.NewInt(0),
-		EIP158Block:         big.NewInt(0),
-		ByzantiumBlock:      big.NewInt(0),
-		ConstantinopleBlock: nil,
-		Ethash:              nil,
-		Clique:              nil,
-	},
-	IstanbulBlock: nil,
-	ShanghaiBlock: nil,
-	OsakaBlock:    nil,
+	ChainID:             big.NewInt(0),
+	HomesteadBlock:      big.NewInt(0),
+	EIP150Block:         big.NewInt(0),
+	EIP155Block:         big.NewInt(0),
+	EIP158Block:         big.NewInt(0),
+	ByzantiumBlock:      big.NewInt(0),
+	ConstantinopleBlock: nil,
+	IstanbulBlock:       nil,
+	ShanghaiBlock:       nil,
+	OsakaBlock:          nil,
 }
 
 // Output output of clause execution.

@@ -22,7 +22,6 @@ import (
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/params"
 	"github.com/holiman/uint256"
 
 	"github.com/vechain/thor/v2/muxdb"
@@ -48,7 +47,7 @@ type twoOperandTest struct {
 
 func testTwoOperandOp(t *testing.T, tests []twoOperandTest, opFn func(pc *uint64, evm *EVM, contract *Contract, memory *Memory, stack *Stack) ([]byte, error)) {
 	var (
-		env   = NewEVM(Context{}, nil, &ChainConfig{ChainConfig: *params.TestChainConfig}, Config{})
+		env   = NewEVM(Context{}, nil, testChainConfig(), Config{})
 		stack = newstack()
 		pc    = uint64(0)
 	)
@@ -68,7 +67,7 @@ func testTwoOperandOp(t *testing.T, tests []twoOperandTest, opFn func(pc *uint64
 
 func TestByteOp(t *testing.T) {
 	var (
-		env   = NewEVM(Context{}, nil, &ChainConfig{ChainConfig: *params.TestChainConfig}, Config{})
+		env   = NewEVM(Context{}, nil, testChainConfig(), Config{})
 		stack = newstack()
 	)
 	tests := []struct {
@@ -161,7 +160,7 @@ func TestSAR(t *testing.T) {
 
 func TestCLZ(t *testing.T) {
 	var (
-		env   = NewEVM(Context{}, nil, &ChainConfig{ChainConfig: *params.TestChainConfig}, Config{})
+		env   = NewEVM(Context{}, nil, testChainConfig(), Config{})
 		stack = newstack()
 		pc    = uint64(0)
 	)
@@ -326,7 +325,7 @@ func TestSLT(t *testing.T) {
 
 func opBenchmark(bench *testing.B, op func(pc *uint64, evm *EVM, contract *Contract, memory *Memory, stack *Stack) ([]byte, error), args ...string) {
 	var (
-		env   = NewEVM(Context{}, nil, &ChainConfig{ChainConfig: *params.TestChainConfig}, Config{})
+		env   = NewEVM(Context{}, nil, testChainConfig(), Config{})
 		stack = newstack()
 	)
 	// convert args
@@ -566,7 +565,7 @@ func BenchmarkOpIsZero(b *testing.B) {
 
 func TestOpMstore(t *testing.T) {
 	var (
-		env   = NewEVM(Context{}, nil, &ChainConfig{ChainConfig: *params.TestChainConfig}, Config{})
+		env   = NewEVM(Context{}, nil, testChainConfig(), Config{})
 		stack = newstack()
 		mem   = NewMemory()
 	)
@@ -590,7 +589,7 @@ func TestOpMstore(t *testing.T) {
 
 func BenchmarkOpMstore(bench *testing.B) {
 	var (
-		env   = NewEVM(Context{}, nil, &ChainConfig{ChainConfig: *params.TestChainConfig}, Config{})
+		env   = NewEVM(Context{}, nil, testChainConfig(), Config{})
 		stack = newstack()
 		mem   = NewMemory()
 	)
@@ -612,7 +611,7 @@ func TestOpTstore(t *testing.T) {
 		db          = muxdb.NewMem()
 		state       = state.New(db, trie.Root{Hash: thor.Bytes32{}})
 		stateDB     = statedb.New(state)
-		env         = NewEVM(Context{}, stateDB, &ChainConfig{ChainConfig: *params.TestChainConfig}, Config{})
+		env         = NewEVM(Context{}, stateDB, testChainConfig(), Config{})
 		stack       = newstack()
 		mem         = NewMemory()
 		caller      = common.Address{0}
@@ -762,7 +761,7 @@ func TestOpSuicide(t *testing.T) {
 		BlockNumber:       big.NewInt(1),
 		GasPrice:          big.NewInt(1),
 		OnSuicideContract: suicideSpy(&calls),
-	}, stateDB, &ChainConfig{ChainConfig: *params.TestChainConfig}, Config{})
+	}, stateDB, testChainConfig(), Config{})
 
 	state.SetBalance(thor.Address(contractAddr), big.NewInt(100))
 	state.SetCode(thor.Address(contractAddr), []byte("code"))
@@ -821,7 +820,7 @@ func TestOpSuicide6780(t *testing.T) {
 				BlockNumber:       big.NewInt(1),
 				GasPrice:          big.NewInt(1),
 				OnSuicideContract: suicideSpy(&calls),
-			}, stateDB, &ChainConfig{ChainConfig: *params.TestChainConfig}, Config{})
+			}, stateDB, testChainConfig(), Config{})
 
 			if tc.createInClause {
 				evm.StateDB.CreateContract(contractAddr)

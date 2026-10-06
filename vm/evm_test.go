@@ -15,7 +15,6 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/params"
 )
 
 var _ Logger = (*noopTracer)(nil)
@@ -58,7 +57,7 @@ func setupEvmTestContract(codeAddr *common.Address) (*EVM, *Contract) {
 			NewContractAddress: newContractAddress,
 		},
 		statedb,
-		&ChainConfig{ChainConfig: *params.TestChainConfig}, evmConfig)
+		testChainConfig(), evmConfig)
 
 	contract := &Contract{
 		CallerAddress: common.HexToAddress("0x01"),
