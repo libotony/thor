@@ -16,7 +16,7 @@ import (
 // Partially copied from ethereum p2p.Config.
 type Options struct {
 	// Name sets the node name of this server.
-	// Use common.MakeName to create a name that follows existing conventions.
+	// By convention it is <name>/v<version>/<GOOS>/<Go version>, e.g. thor/v2.5.0/linux/go1.26.5.
 	Name string
 
 	// This field must be set to a valid secp256k1 private key.

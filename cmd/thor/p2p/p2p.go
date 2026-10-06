@@ -10,8 +10,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/pkg/errors"
 	"github.com/vechain/thor/v2/p2p/discover"
@@ -49,7 +49,7 @@ func New(
 	// no known nodes for p2p connection
 	// use the hardcoded fallbackDiscoveryNodes for discovery only
 	opts := &p2psrv.Options{
-		Name:                common.MakeName("thor", version),
+		Name:                fmt.Sprintf("thor/v%s/%s/%s", version, runtime.GOOS, runtime.Version()),
 		PrivateKey:          privateKey,
 		MaxPeers:            maxPeers,
 		ListenAddr:          listenAddr,

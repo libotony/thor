@@ -20,6 +20,7 @@ import (
 	"crypto/sha256"
 	"encoding/binary"
 	"errors"
+	"math"
 	"math/big"
 	"math/bits"
 
@@ -30,7 +31,6 @@ import (
 	patched_big "github.com/ethereum/go-bigmodexpfix/src/math/big" // https://github.com/golang/go/issues/77707
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/bitutil"
-	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/crypto/blake2b"
 	"github.com/ethereum/go-ethereum/crypto/bn256"
@@ -587,7 +587,7 @@ func (c *bn256Add) RequiredGas(input []byte) uint64 {
 	if c.eip1108 {
 		return Bn256AddGasEIP1108
 	}
-	return params.Bn256AddGas
+	return params.Bn256AddGasByzantium
 }
 
 func (c *bn256Add) Run(input []byte) ([]byte, error) {
@@ -614,7 +614,7 @@ func (c *bn256ScalarMul) RequiredGas(input []byte) uint64 {
 	if c.eip1108 {
 		return Bn256ScalarMulGasEIP1108
 	}
-	return params.Bn256ScalarMulGas
+	return params.Bn256ScalarMulGasByzantium
 }
 
 func (c *bn256ScalarMul) Run(input []byte) ([]byte, error) {
@@ -648,7 +648,7 @@ func (c *bn256Pairing) RequiredGas(input []byte) uint64 {
 	if c.eip1108 {
 		return Bn256PairingBaseGasEIP1108 + uint64(len(input)/192)*Bn256PairingPerPointGasEIP1108
 	}
-	return params.Bn256PairingBaseGas + uint64(len(input)/192)*params.Bn256PairingPerPointGas
+	return params.Bn256PairingBaseGasByzantium + uint64(len(input)/192)*params.Bn256PairingPerPointGasByzantium
 }
 
 func (c *bn256Pairing) Run(input []byte) ([]byte, error) {

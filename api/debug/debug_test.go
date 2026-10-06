@@ -8,13 +8,14 @@ package debug
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 	"math/big"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/common/math"
+	ethmath "github.com/ethereum/go-ethereum/common/math"
 	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -341,14 +342,14 @@ func testTraceCallNextBlock(t *testing.T) {
 
 func testHandleTraceCall(t *testing.T) {
 	addr := datagen.RandAddress()
-	provedWork := math.HexOrDecimal256(*big.NewInt(1000))
+	provedWork := ethmath.HexOrDecimal256(*big.NewInt(1000))
 	traceCallOption := &api.TraceCallOption{
 		Name:       "structLogger",
 		To:         &addr,
-		Value:      &math.HexOrDecimal256{},
+		Value:      &ethmath.HexOrDecimal256{},
 		Data:       "0x00",
 		Gas:        21000,
-		GasPrice:   &math.HexOrDecimal256{},
+		GasPrice:   &ethmath.HexOrDecimal256{},
 		ProvedWork: &provedWork,
 		Caller:     &addr,
 		GasPayer:   &addr,
@@ -436,10 +437,10 @@ func testHandleTraceCallWithInsufficientGas(t *testing.T) {
 	traceCallOption := &api.TraceCallOption{
 		Name:       "structLogger",
 		To:         &addr,
-		Value:      &math.HexOrDecimal256{},
+		Value:      &ethmath.HexOrDecimal256{},
 		Data:       "0x00",
 		Gas:        70000,
-		GasPrice:   &math.HexOrDecimal256{},
+		GasPrice:   &ethmath.HexOrDecimal256{},
 		Caller:     &addr,
 		GasPayer:   &addr,
 		Expiration: 10,
@@ -456,10 +457,10 @@ func testHandleTraceCallWithBadBlockRef(t *testing.T) {
 	traceCallOption := &api.TraceCallOption{
 		Name:       "structLogger",
 		To:         &addr,
-		Value:      &math.HexOrDecimal256{},
+		Value:      &ethmath.HexOrDecimal256{},
 		Data:       "0x00",
 		Gas:        10,
-		GasPrice:   &math.HexOrDecimal256{},
+		GasPrice:   &ethmath.HexOrDecimal256{},
 		Caller:     &addr,
 		GasPayer:   &addr,
 		Expiration: 10,
@@ -476,10 +477,10 @@ func testHandleTraceCallWithInvalidLengthBlockRef(t *testing.T) {
 	traceCallOption := &api.TraceCallOption{
 		Name:       "structLogger",
 		To:         &addr,
-		Value:      &math.HexOrDecimal256{},
+		Value:      &ethmath.HexOrDecimal256{},
 		Data:       "0x00",
 		Gas:        10,
-		GasPrice:   &math.HexOrDecimal256{},
+		GasPrice:   &ethmath.HexOrDecimal256{},
 		Caller:     &addr,
 		GasPayer:   &addr,
 		Expiration: 10,

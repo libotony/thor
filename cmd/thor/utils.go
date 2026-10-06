@@ -29,7 +29,6 @@ import (
 	"time"
 
 	"github.com/elastic/gosigar"
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/fdlimit"
 	"github.com/ethereum/go-ethereum/crypto"
 	ethlog "github.com/ethereum/go-ethereum/log"
@@ -86,36 +85,43 @@ func initLogger(ctx *cli.Command) (*slog.LevelVar, error) {
 	stakerLogger := log.New(jsonLogs, &stakerLevel).With("pkg", "staker")
 	staker.SetLogger(stakerLogger)
 
-	ethlog.Root().SetHandler(ethlog.LvlFilterHandler(ethlog.LvlWarn, &ethLogger{
-		logger: log.WithContext("pkg", "geth"),
-	}))
+	gethHandler := &ethLogger{logger: log.WithContext("pkg", "geth"), minLevel: ethlog.LevelWarn}
+	ethlog.SetDefault(ethlog.NewLogger(gethHandler))
 
 	return &level, nil
 }
 
 type ethLogger struct {
-	logger log.Logger
+	logger   log.Logger
+	minLevel slog.Level
 }
 
-func (h *ethLogger) Log(r *ethlog.Record) error {
-	switch r.Lvl {
-	case ethlog.LvlCrit:
-		h.logger.Crit(r.Msg)
-	case ethlog.LvlError:
-		h.logger.Error(r.Msg)
-	case ethlog.LvlWarn:
-		h.logger.Warn(r.Msg)
-	case ethlog.LvlInfo:
-		h.logger.Info(r.Msg)
-	case ethlog.LvlDebug:
-		h.logger.Debug(r.Msg)
-	case ethlog.LvlTrace:
-		h.logger.Trace(r.Msg)
-	default:
-		return nil
+func (h *ethLogger) Enabled(_ context.Context, lvl slog.Level) bool {
+	return lvl >= h.minLevel
+}
+
+// Handle forwards geth log records to thor's logger. Slog attrs are dropped:
+// thor's logger consumes only the message string.
+func (h *ethLogger) Handle(_ context.Context, r slog.Record) error {
+	switch r.Level {
+	case ethlog.LevelCrit:
+		h.logger.Crit(r.Message)
+	case ethlog.LevelError:
+		h.logger.Error(r.Message)
+	case ethlog.LevelWarn:
+		h.logger.Warn(r.Message)
+	case ethlog.LevelInfo:
+		h.logger.Info(r.Message)
+	case ethlog.LevelDebug:
+		h.logger.Debug(r.Message)
+	case ethlog.LevelTrace:
+		h.logger.Trace(r.Message)
 	}
 	return nil
 }
+
+func (h *ethLogger) WithAttrs(_ []slog.Attr) slog.Handler { return h }
+func (h *ethLogger) WithGroup(_ string) slog.Handler      { return h }
 
 func loadOrGeneratePrivateKey(path string) (*ecdsa.PrivateKey, error) {
 	key, err := crypto.LoadECDSA(path)
@@ -554,9 +560,9 @@ func printStartupMessage1(
 ) {
 	bestBlock := repo.BestBlockSummary()
 
-	name := common.MakeName("Thor", fullVersion())
+	name := fmt.Sprintf("Thor/v%s/%s/%s", fullVersion(), runtime.GOOS, runtime.Version())
 	if master == nil { // solo has no master
-		name = common.MakeName("Thor solo", fullVersion())
+		name = fmt.Sprintf("Thor solo/v%s/%s/%s", fullVersion(), runtime.GOOS, runtime.Version())
 	}
 
 	message := fmt.Sprintf(`Starting %v

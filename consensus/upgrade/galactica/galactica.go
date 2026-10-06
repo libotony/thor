@@ -9,7 +9,6 @@ import (
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/math"
 
 	"github.com/vechain/thor/v2/block"
 	"github.com/vechain/thor/v2/thor"
@@ -44,10 +43,13 @@ func CalcBaseFee(parent *block.Header, forkConfig *thor.ForkConfig) *big.Int {
 		// division by zero cannot happen here because of the intrinsic gas pre-check which ensures that tx gas is always
 		// greater than 0
 		y := x.Div(x, parentGasTargetBig)
-		baseFeeDelta := math.BigMax(
-			x.Div(y, baseFeeChangeDenominator),
-			common.Big1,
-		)
+		a, b := x.Div(y, baseFeeChangeDenominator), common.Big1
+		var baseFeeDelta *big.Int
+		if a.Cmp(b) >= 0 {
+			baseFeeDelta = a
+		} else {
+			baseFeeDelta = b
+		}
 
 		return x.Add(parentBaseFee, baseFeeDelta)
 	} else {
@@ -59,9 +61,10 @@ func CalcBaseFee(parent *block.Header, forkConfig *thor.ForkConfig) *big.Int {
 		baseFeeDelta := x.Div(y, baseFeeChangeDenominator)
 
 		// Setting the minimum baseFee to InitialBaseFee
-		return math.BigMax(
-			x.Sub(parentBaseFee, baseFeeDelta),
-			big.NewInt(thor.InitialBaseFee),
-		)
+		c, d := x.Sub(parentBaseFee, baseFeeDelta), big.NewInt(thor.InitialBaseFee)
+		if c.Cmp(d) >= 0 {
+			return c
+		}
+		return d
 	}
 }
