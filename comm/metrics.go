@@ -15,4 +15,5 @@ var (
 	metricReceivedTxsCount         = metrics.LazyLoadCounter("comm_sync_received_txs_counter")
 	metricHandleRPCCounter         = metrics.LazyLoadCounterVec("comm_handle_rpc_counter", []string{"method", "error"})
 	metricBlocksBroadcastedCounter = metrics.LazyLoadCounter("comm_blocks_broadcasted_counter")
+	metricForkIDRejectedCounter    = metrics.LazyLoadCounterVec("comm_fork_id_rejected_counter", []string{"reason"})
 )

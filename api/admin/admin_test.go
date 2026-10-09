@@ -54,7 +54,7 @@ func TestAdminToggleAffectsNodeAPI(t *testing.T) {
 	master := &node.Master{PrivateKey: privKey}
 	adminHandler := admin.NewHTTPHandler(
 		&slog.LevelVar{},
-		healthAPI.New(chain.Repo(), comm.New(chain.Repo(), pool)),
+		healthAPI.New(chain.Repo(), comm.New(chain.Repo(), pool, nil)),
 		apiLogsGate, txpoolGate, pprofGate,
 		master,
 	)
@@ -63,7 +63,7 @@ func TestAdminToggleAffectsNodeAPI(t *testing.T) {
 
 	// Business API server, sharing enableTxPool with the admin gate
 	nodeRouter := mux.NewRouter()
-	apinode.New(comm.New(chain.Repo(), pool), pool, enableTxPool).Mount(nodeRouter, "/node")
+	apinode.New(comm.New(chain.Repo(), pool, nil), pool, enableTxPool).Mount(nodeRouter, "/node")
 	nodeTS := httptest.NewServer(nodeRouter)
 	defer nodeTS.Close()
 

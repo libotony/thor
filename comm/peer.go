@@ -29,7 +29,8 @@ const (
 type Peer struct {
 	*p2p.Peer
 	*rpc.RPC
-	logger log.Logger
+	logger  log.Logger
+	version uint
 
 	createdTime mclock.AbsTime
 	knownTxs    *lru.Cache
@@ -41,7 +42,7 @@ type Peer struct {
 	}
 }
 
-func newPeer(peer *p2p.Peer, rw p2p.MsgReadWriter) *Peer {
+func newPeer(peer *p2p.Peer, rw p2p.MsgReadWriter, version uint) *Peer {
 	dir := "outbound"
 	if peer.Inbound() {
 		dir = "inbound"
@@ -56,10 +57,16 @@ func newPeer(peer *p2p.Peer, rw p2p.MsgReadWriter) *Peer {
 		Peer:        peer,
 		RPC:         rpc.New(peer, rw),
 		logger:      logger.New(ctx...),
+		version:     version,
 		createdTime: mclock.Now(),
 		knownTxs:    knownTxs,
 		knownBlocks: knownBlocks,
 	}
+}
+
+// Version returns the negotiated thor protocol version.
+func (p *Peer) Version() uint {
+	return p.version
 }
 
 // Head returns head block ID and total score.
