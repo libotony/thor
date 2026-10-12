@@ -159,7 +159,7 @@ func (c *Communicator) Protocols() []*p2p.Protocol {
 }
 
 // DiscTopic returns the topic for p2p network discovery.
-// The "1" in the topic is a frozen network-isolation literal, unrelated to
+// The "1" in the topic is kept for historical reasons and is unrelated to
 // proto.Version: never derive it from the version constant, or old and new
 // nodes would stop discovering each other.
 func (c *Communicator) DiscTopic() discv5.Topic {
