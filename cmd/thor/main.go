@@ -294,7 +294,7 @@ func defaultAction(_ context.Context, ctx *cli.Command) error {
 	txPool := txpool.New(repo, state.NewStater(mainDB), txpoolOpt, forkConfig)
 	defer func() { log.Info("closing tx pool..."); txPool.Close() }()
 
-	p2pCommunicator, err := newP2PCommunicator(ctx, repo, txPool, instanceDir)
+	p2pCommunicator, err := newP2PCommunicator(ctx, repo, txPool, forkConfig, instanceDir)
 	if err != nil {
 		return err
 	}
