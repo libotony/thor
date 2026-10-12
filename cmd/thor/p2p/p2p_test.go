@@ -11,13 +11,18 @@ import (
 	"crypto/rand"
 	"testing"
 
-	"github.com/vechain/thor/v2/p2p/discover"
+	"github.com/ethereum/go-ethereum/p2p/enode"
+	"github.com/ethereum/go-ethereum/p2p/enr"
 
-	"github.com/vechain/thor/v2/p2psrv"
 	"github.com/vechain/thor/v2/test/datagen"
 
 	"github.com/stretchr/testify/assert"
 )
+
+// testNode returns a node identified only by its ID.
+func testNode(b byte) *enode.Node {
+	return enode.SignNull(new(enr.Record), enode.ID{b})
+}
 
 func TestNewThorP2P(t *testing.T) {
 	// Generate a private key for testing
@@ -28,11 +33,11 @@ func TestNewThorP2P(t *testing.T) {
 		name                   string
 		maxPeers               int
 		listenAddr             string
-		allowedPeers           []*discover.Node
-		cachedPeers            []*discover.Node
-		bootstrapNodes         []*discover.Node
-		expectedKnownNodes     p2psrv.Nodes
-		expectedDiscoveryNodes p2psrv.Nodes
+		allowedPeers           []*enode.Node
+		cachedPeers            []*enode.Node
+		bootstrapNodes         []*enode.Node
+		expectedKnownNodes     []*enode.Node
+		expectedDiscoveryNodes []*enode.Node
 	}{
 		{
 			name:                   "Basic instance with no default settings",
@@ -48,43 +53,43 @@ func TestNewThorP2P(t *testing.T) {
 			name:               "Instance with allowed peers only",
 			maxPeers:           datagen.RandInt(),
 			listenAddr:         datagen.RandHostPort(),
-			allowedPeers:       []*discover.Node{{ID: discover.NodeID{1}}, {ID: discover.NodeID{2}}},
-			cachedPeers:        []*discover.Node{{ID: discover.NodeID{100}}},
-			bootstrapNodes:     []*discover.Node{{ID: discover.NodeID{200}}},
-			expectedKnownNodes: p2psrv.Nodes{{ID: discover.NodeID{1}}, {ID: discover.NodeID{2}}},
+			allowedPeers:       []*enode.Node{testNode(1), testNode(2)},
+			cachedPeers:        []*enode.Node{testNode(100)},
+			bootstrapNodes:     []*enode.Node{testNode(200)},
+			expectedKnownNodes: []*enode.Node{testNode(1), testNode(2)},
 		},
 		{
 			name:                   "Cached peers append with default fallback nodes",
 			maxPeers:               datagen.RandInt(),
 			listenAddr:             datagen.RandHostPort(),
-			cachedPeers:            []*discover.Node{{ID: discover.NodeID{2}}, {ID: discover.NodeID{3}}, {ID: discover.NodeID{4}}},
+			cachedPeers:            []*enode.Node{testNode(2), testNode(3), testNode(4)},
 			bootstrapNodes:         nil,
-			expectedKnownNodes:     p2psrv.Nodes{{ID: discover.NodeID{2}}, {ID: discover.NodeID{3}}, {ID: discover.NodeID{4}}},
+			expectedKnownNodes:     []*enode.Node{testNode(2), testNode(3), testNode(4)},
 			expectedDiscoveryNodes: fallbackDiscoveryNodes,
 		},
 		{
 			name:                   "Cached and bootstrap nodes flag are appended",
 			maxPeers:               datagen.RandInt(),
 			listenAddr:             datagen.RandHostPort(),
-			cachedPeers:            []*discover.Node{{ID: discover.NodeID{2}}, {ID: discover.NodeID{22}}, {ID: discover.NodeID{222}}},
-			bootstrapNodes:         []*discover.Node{{ID: discover.NodeID{3}}},
-			expectedDiscoveryNodes: []*discover.Node{{ID: discover.NodeID{3}}},
-			expectedKnownNodes:     p2psrv.Nodes{{ID: discover.NodeID{3}}, {ID: discover.NodeID{2}}, {ID: discover.NodeID{22}}, {ID: discover.NodeID{222}}},
+			cachedPeers:            []*enode.Node{testNode(2), testNode(22), testNode(222)},
+			bootstrapNodes:         []*enode.Node{testNode(3)},
+			expectedDiscoveryNodes: []*enode.Node{testNode(3)},
+			expectedKnownNodes:     []*enode.Node{testNode(3), testNode(2), testNode(22), testNode(222)},
 		},
 		{
 			name:       "Duplicated nodes are removed (cached and bootstrap nodes) ",
 			maxPeers:   datagen.RandInt(),
 			listenAddr: datagen.RandHostPort(),
-			cachedPeers: []*discover.Node{
-				{ID: discover.NodeID{2}},
-				{ID: discover.NodeID{5}},
-				{ID: discover.NodeID{2}},
-				{ID: discover.NodeID{2}},
-				{ID: discover.NodeID{5}},
+			cachedPeers: []*enode.Node{
+				testNode(2),
+				testNode(5),
+				testNode(2),
+				testNode(2),
+				testNode(5),
 			},
-			bootstrapNodes:         []*discover.Node{{ID: discover.NodeID{3}}, {ID: discover.NodeID{33}}, {ID: discover.NodeID{33}}, {ID: discover.NodeID{3}}},
-			expectedDiscoveryNodes: []*discover.Node{{ID: discover.NodeID{3}}, {ID: discover.NodeID{33}}, {ID: discover.NodeID{33}}, {ID: discover.NodeID{3}}},
-			expectedKnownNodes:     p2psrv.Nodes{{ID: discover.NodeID{3}}, {ID: discover.NodeID{33}}, {ID: discover.NodeID{2}}, {ID: discover.NodeID{5}}},
+			bootstrapNodes:         []*enode.Node{testNode(3), testNode(33), testNode(33), testNode(3)},
+			expectedDiscoveryNodes: []*enode.Node{testNode(3), testNode(33), testNode(33), testNode(3)},
+			expectedKnownNodes:     []*enode.Node{testNode(3), testNode(33), testNode(2), testNode(5)},
 		},
 	}
 

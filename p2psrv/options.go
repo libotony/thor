@@ -8,8 +8,9 @@ package p2psrv
 import (
 	"crypto/ecdsa"
 
+	"github.com/ethereum/go-ethereum/p2p/enode"
+	"github.com/ethereum/go-ethereum/p2p/nat"
 	"github.com/ethereum/go-ethereum/p2p/netutil"
-	"github.com/vechain/thor/v2/p2p/nat"
 )
 
 // Options options for creating p2p server.
@@ -28,6 +29,7 @@ type Options struct {
 
 	// NoDiscovery can be used to disable the peer discovery mechanism.
 	// Disabling is useful for protocol debugging (manual topology).
+	// KnownNodes then become the static (always re-dialed) peer set.
 	NoDiscovery bool
 
 	// If ListenAddr is set to a non-nil address, the server
@@ -38,12 +40,12 @@ type Options struct {
 	// the server is started.
 	ListenAddr string
 
-	KnownNodes Nodes
+	KnownNodes []*enode.Node
 
 	// DiscoveryNodes are used to establish connectivity
 	// with the rest of the network using the V5 discovery
 	// protocol.
-	DiscoveryNodes Nodes
+	DiscoveryNodes []*enode.Node
 
 	// RemoteDiscoveryList is the url of remote dynamic discovery node list.
 	RemoteDiscoveryList string
