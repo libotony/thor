@@ -8,19 +8,22 @@ package p2p
 import (
 	"crypto/ecdsa"
 	"fmt"
-	"os"
 	"path/filepath"
 	"runtime"
 
-	"github.com/ethereum/go-ethereum/rlp"
+	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/p2p/enode"
+	"github.com/ethereum/go-ethereum/p2p/nat"
 	"github.com/pkg/errors"
-	"github.com/vechain/thor/v2/p2p/discover"
-	"github.com/vechain/thor/v2/p2p/nat"
 
 	"github.com/vechain/thor/v2/comm"
 	"github.com/vechain/thor/v2/log"
 	"github.com/vechain/thor/v2/p2psrv"
 )
+
+// peersCacheFile holds the warm-start peer list (enode URLs). Not the legacy
+// peers.cache, whose RLP layout is tied to the removed discover.Node type.
+const peersCacheFile = "peers-v2.cache"
 
 type P2P struct {
 	comm           *comm.Communicator
@@ -38,12 +41,12 @@ func New(
 	maxPeers int,
 	listenPort int,
 	listenAddr string,
-	allowedPeers []*discover.Node,
-	cachedPeers []*discover.Node,
-	bootstrapNodes []*discover.Node,
+	allowedPeers []*enode.Node,
+	cachedPeers []*enode.Node,
+	bootstrapNodes []*enode.Node,
 ) *P2P {
 	// known peers will be loaded/stored from/in this file
-	peersCachePath := filepath.Join(instanceDir, "peers.cache")
+	peersCachePath := filepath.Join(instanceDir, peersCacheFile)
 
 	// default option setting
 	// no known nodes for p2p connection
@@ -81,7 +84,7 @@ func New(
 		comm:           communicator,
 		p2pSrv:         p2psrv.New(opts),
 		peersCachePath: peersCachePath,
-		enode:          fmt.Sprintf("enode://%x@[extip]:%v", discover.PubkeyID(&privateKey.PublicKey).Bytes(), listenPort),
+		enode:          fmt.Sprintf("enode://%x@[extip]:%v", crypto.FromECDSAPub(&privateKey.PublicKey)[1:], listenPort),
 	}
 }
 
@@ -102,15 +105,14 @@ func (p *P2P) Stop() {
 	p.p2pSrv.Stop()
 
 	log.Info("saving peers cache...")
-	nodes := p.p2pSrv.KnownNodes()
-	data, err := rlp.EncodeToBytes(nodes)
-	if err != nil {
-		log.Warn("failed to encode cached peers", "err", err)
-		return
-	}
-	if err := os.WriteFile(p.peersCachePath, data, 0o600); err != nil {
+	if err := saveNodesCache(p.peersCachePath, p.p2pSrv.KnownNodes()); err != nil {
 		log.Warn("failed to write peers cache", "err", err)
 	}
+}
+
+// LoadPeersCache loads the warm-start peers saved under instanceDir by a previous run.
+func LoadPeersCache(instanceDir string) []*enode.Node {
+	return loadNodesCache(filepath.Join(instanceDir, peersCacheFile))
 }
 
 func (p *P2P) Communicator() *comm.Communicator {
@@ -121,15 +123,15 @@ func (p *P2P) Enode() string {
 	return p.enode
 }
 
-func dedupNodeSlice(slice1, slice2 p2psrv.Nodes) p2psrv.Nodes {
-	foundMap := map[string]bool{}
-	var dedupedSlice p2psrv.Nodes
+func dedupNodeSlice(slice1, slice2 []*enode.Node) []*enode.Node {
+	foundMap := map[enode.ID]bool{}
+	var dedupedSlice []*enode.Node
 
 	for _, item := range append(slice1, slice2...) {
-		if _, ok := foundMap[item.ID.String()]; ok {
+		if _, ok := foundMap[item.ID()]; ok {
 			continue
 		}
-		foundMap[item.ID.String()] = true
+		foundMap[item.ID()] = true
 		dedupedSlice = append(dedupedSlice, item)
 	}
 

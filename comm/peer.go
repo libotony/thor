@@ -11,11 +11,11 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common/mclock"
+	"github.com/ethereum/go-ethereum/p2p"
+	"github.com/ethereum/go-ethereum/p2p/enode"
 	lru "github.com/hashicorp/golang-lru"
 
 	"github.com/vechain/thor/v2/log"
-	"github.com/vechain/thor/v2/p2p"
-	"github.com/vechain/thor/v2/p2p/discover"
 	"github.com/vechain/thor/v2/p2psrv/rpc"
 	"github.com/vechain/thor/v2/thor"
 )
@@ -144,14 +144,14 @@ func (ps Peers) Find(cond func(*Peer) bool) *Peer {
 
 // PeerSet manages a set of peers, which mapped by NodeID.
 type PeerSet struct {
-	m    map[discover.NodeID]*Peer
+	m    map[enode.ID]*Peer
 	lock sync.Mutex
 }
 
 // NewSet create a peer set instance.
 func newPeerSet() *PeerSet {
 	return &PeerSet{
-		m: make(map[discover.NodeID]*Peer),
+		m: make(map[enode.ID]*Peer),
 	}
 }
 
@@ -163,14 +163,14 @@ func (ps *PeerSet) Add(peer *Peer) {
 }
 
 // Find find peer for given nodeID.
-func (ps *PeerSet) Find(nodeID discover.NodeID) *Peer {
+func (ps *PeerSet) Find(nodeID enode.ID) *Peer {
 	ps.lock.Lock()
 	defer ps.lock.Unlock()
 	return ps.m[nodeID]
 }
 
 // Remove removes peer for given nodeID.
-func (ps *PeerSet) Remove(nodeID discover.NodeID) *Peer {
+func (ps *PeerSet) Remove(nodeID enode.ID) *Peer {
 	ps.lock.Lock()
 	defer ps.lock.Unlock()
 	if peer, ok := ps.m[nodeID]; ok {

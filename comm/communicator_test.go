@@ -7,19 +7,22 @@ package comm
 
 import (
 	"bytes"
+	"crypto/ecdsa"
 	"fmt"
 	"io"
+	"net"
 	"testing"
 	"time"
 
+	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/p2p"
+	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/vechain/thor/v2/comm/proto"
 	"github.com/vechain/thor/v2/forkid"
-	"github.com/vechain/thor/v2/p2p"
-	"github.com/vechain/thor/v2/p2p/discover"
 	"github.com/vechain/thor/v2/p2p/discv5"
 	"github.com/vechain/thor/v2/test/testchain"
 	"github.com/vechain/thor/v2/thor"
@@ -61,7 +64,7 @@ func (rw *statusRW) WriteMsg(msg p2p.Msg) error {
 func servedPeer(t *testing.T, version uint, reply any) *Peer {
 	t.Helper()
 	rw := &statusRW{read: make(chan p2p.Msg, 1), reply: reply}
-	peer := newPeer(p2p.NewPeer(discover.NodeID{}, "remote", nil), rw, version)
+	peer := newPeer(p2p.NewPeer(enode.ID{}, "remote", nil), rw, version)
 	go peer.Serve(func(*p2p.Msg, func(any)) error { return nil }, proto.MaxMsgSize)
 	t.Cleanup(func() { close(rw.read) })
 	return peer
@@ -278,8 +281,8 @@ func TestProtocolsHandshake(t *testing.T) {
 
 		rw1, rw2 := newBufPipe()
 		t.Cleanup(func() { close(rw1.closed) })
-		go c1.Protocols()[entry].Run(p2p.NewPeer(discover.NodeID{2}, "c2", nil), rw1)
-		go c2.Protocols()[entry].Run(p2p.NewPeer(discover.NodeID{1}, "c1", nil), rw2)
+		go c1.Protocols()[entry].Run(p2p.NewPeer(enode.ID{2}, "c2", nil), rw1)
+		go c2.Protocols()[entry].Run(p2p.NewPeer(enode.ID{1}, "c1", nil), rw2)
 		return c1, c2
 	}
 
@@ -298,4 +301,70 @@ func TestProtocolsHandshake(t *testing.T) {
 		// negative: bounded wait, cannot detect rejection deterministically
 		require.Never(t, func() bool { return c1.peerSet.Len() > 0 || c2.peerSet.Len() > 0 }, 500*time.Millisecond, 10*time.Millisecond)
 	})
+}
+
+// p2p.NewPeer cannot carry a pubkey, so the public peer ID format is pinned over a real
+// handshake: inbound and outbound peers must both render the remote's 128-hex pubkey,
+// and the advertised name must survive untruncated (p2p.Peer.Name cuts at 20 chars).
+func TestLegacyPeerIDFormat(t *testing.T) {
+	const longName = "name-longer-than-twenty-characters"
+
+	newServer := func(name string, peers chan<- *p2p.Peer) (*p2p.Server, *ecdsa.PrivateKey) {
+		key, err := crypto.GenerateKey()
+		require.NoError(t, err)
+		srv := &p2p.Server{Config: p2p.Config{
+			PrivateKey:  key,
+			Name:        name,
+			MaxPeers:    2,
+			NoDiscovery: true,
+			ListenAddr:  "127.0.0.1:0",
+			Protocols: []p2p.Protocol{{
+				Name:    "legacyid",
+				Version: 1,
+				Length:  1,
+				Run: func(peer *p2p.Peer, rw p2p.MsgReadWriter) error {
+					peers <- peer
+					for {
+						if _, err := rw.ReadMsg(); err != nil {
+							return err
+						}
+					}
+				},
+			}},
+		}}
+		require.NoError(t, srv.Start())
+		t.Cleanup(srv.Stop)
+		return srv, key
+	}
+	pubHex := func(key *ecdsa.PrivateKey) string {
+		return fmt.Sprintf("%x", crypto.FromECDSAPub(&key.PublicKey)[1:])
+	}
+
+	dialerPeers, listenerPeers := make(chan *p2p.Peer, 1), make(chan *p2p.Peer, 1)
+	dialer, dialerKey := newServer("dialer", dialerPeers)
+	listener, listenerKey := newServer(longName, listenerPeers)
+
+	conn, err := net.Dial("tcp", listener.ListenAddr)
+	require.NoError(t, err)
+	require.NoError(t, dialer.SetupConn(conn, 1, listener.Self()))
+
+	outbound, inbound := <-dialerPeers, <-listenerPeers
+	require.False(t, outbound.Inbound())
+	require.True(t, inbound.Inbound())
+
+	assert.Len(t, legacyPeerID(outbound), 128)
+	assert.Equal(t, pubHex(listenerKey), legacyPeerID(outbound))
+	assert.Equal(t, pubHex(dialerKey), legacyPeerID(inbound))
+	assert.Equal(t, longName, outbound.Fullname())
+	assert.NotEqual(t, longName, outbound.Name())
+
+	// the API entry point reads the same two fields
+	chain, pool := newHandshakeChain(t)
+	c := New(chain.Repo(), pool, &thor.SoloFork)
+	t.Cleanup(c.cancel)
+	c.peerSet.Add(newPeer(outbound, stubMsgReadWriter{}, proto.Version))
+	stats := c.PeersStats()
+	require.Len(t, stats, 1)
+	assert.Equal(t, pubHex(listenerKey), stats[0].PeerID)
+	assert.Equal(t, longName, stats[0].Name)
 }

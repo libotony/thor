@@ -8,10 +8,9 @@ package rpc
 import (
 	"testing"
 
+	"github.com/ethereum/go-ethereum/p2p"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/vechain/thor/v2/p2p"
 )
 
 func TestHandleResult_RejectsOversizedResultBeforeDecode(t *testing.T) {

@@ -34,6 +34,16 @@ func TestNodesCacheRoundTripAndTolerance(t *testing.T) {
 	assert.Equal(t, nodes[0].ID(), got[0].ID())
 	assert.Equal(t, nodes[0].TCP(), got[0].TCP())
 
+	// TCP != UDP survives through the discport query parameter
+	key, _ := crypto.ToECDSA(bytes.Repeat([]byte{3}, 32))
+	split := enode.NewV4(&key.PublicKey, net.IPv4(10, 0, 0, 3), 30303, 30301)
+	require.NoError(t, saveNodesCache(path, []*enode.Node{split}))
+	got = loadNodesCache(path)
+	require.Len(t, got, 1)
+	assert.Equal(t, 30303, got[0].TCP())
+	assert.Equal(t, 30301, got[0].UDP())
+	assert.True(t, split.IP().Equal(got[0].IP()))
+
 	// missing file, corrupted content and legacy RLP all yield nil without panic
 	assert.Nil(t, loadNodesCache(filepath.Join(dir, "absent")))
 	require.NoError(t, os.WriteFile(path, []byte("{broken"), 0600))
