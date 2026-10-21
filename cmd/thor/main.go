@@ -120,6 +120,7 @@ func main() {
 			natFlag,
 			bootNodeFlag,
 			allowedPeersFlag,
+			staticPeersFlag,
 			skipLogsFlag,
 			logDbAdditionalIndexesFlag,
 			logDbMaxReadConnsFlag,

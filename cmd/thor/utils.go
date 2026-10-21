@@ -32,7 +32,8 @@ import (
 	"github.com/ethereum/go-ethereum/common/fdlimit"
 	"github.com/ethereum/go-ethereum/crypto"
 	ethlog "github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/rlp"
+	"github.com/ethereum/go-ethereum/p2p/enode"
+	"github.com/ethereum/go-ethereum/p2p/nat"
 	"github.com/mattn/go-isatty"
 	"github.com/mattn/go-tty"
 	"github.com/pkg/errors"
@@ -48,9 +49,6 @@ import (
 	"github.com/vechain/thor/v2/log"
 	"github.com/vechain/thor/v2/logdb"
 	"github.com/vechain/thor/v2/muxdb"
-	"github.com/vechain/thor/v2/p2p/discover"
-	"github.com/vechain/thor/v2/p2p/nat"
-	"github.com/vechain/thor/v2/p2psrv"
 	"github.com/vechain/thor/v2/state"
 	"github.com/vechain/thor/v2/thor"
 	"github.com/vechain/thor/v2/tx"
@@ -498,9 +496,6 @@ func loadNodeMaster(ctx *cli.Command) (*node.Master, error) {
 }
 
 func newP2PCommunicator(ctx *cli.Command, repo *chain.Repository, txPool *txpool.TxPool, forkConfig *thor.ForkConfig, instanceDir string) (*p2p.P2P, error) {
-	// known peers will be loaded/stored from/in this file
-	peersCachePath := filepath.Join(instanceDir, "peers.cache")
-
 	configDir, err := makeConfigDir(ctx)
 	if err != nil {
 		return nil, err
@@ -522,18 +517,14 @@ func newP2PCommunicator(ctx *cli.Command, repo *chain.Repository, txPool *txpool
 		return nil, fmt.Errorf("unable to parse allowed peers - %w", err)
 	}
 
+	staticPeers, err := parseNodeList(strings.TrimSpace(ctx.String(staticPeersFlag.Name)))
+	if err != nil {
+		return nil, fmt.Errorf("unable to parse static peers - %w", err)
+	}
+
 	bootnodePeers, err := parseNodeList(strings.TrimSpace(ctx.String(bootNodeFlag.Name)))
 	if err != nil {
 		return nil, fmt.Errorf("unable to parse bootnode peers - %w", err)
-	}
-
-	var cachedPeers p2psrv.Nodes
-	if data, err := os.ReadFile(peersCachePath); err != nil {
-		if !os.IsNotExist(err) {
-			log.Warn("failed to load peers cache", "err", err)
-		}
-	} else if err := rlp.DecodeBytes(data, &cachedPeers); err != nil {
-		log.Warn("failed to load peers cache", "err", err)
 	}
 
 	return p2p.New(
@@ -546,9 +537,10 @@ func newP2PCommunicator(ctx *cli.Command, repo *chain.Repository, txPool *txpool
 		int(ctx.Uint64(p2pPortFlag.Name)),
 		fmt.Sprintf(":%v", ctx.Uint64(p2pPortFlag.Name)),
 		allowedPeers,
-		cachedPeers,
+		staticPeers,
+		p2p.LoadPeersCache(instanceDir),
 		bootnodePeers,
-	), nil
+	)
 }
 
 func printStartupMessage1(
@@ -663,14 +655,14 @@ func openMemLogDB() *logdb.LogDB {
 	return db
 }
 
-func parseNodeList(list string) ([]*discover.Node, error) {
+func parseNodeList(list string) ([]*enode.Node, error) {
 	inputs := strings.Split(list, ",")
-	var nodes []*discover.Node
+	var nodes []*enode.Node
 	for _, i := range inputs {
 		if i == "" {
 			continue
 		}
-		node, err := discover.ParseNode(i)
+		node, err := enode.ParseV4(i)
 		if err != nil {
 			return nil, err
 		}
