@@ -34,11 +34,13 @@ func TestNewThorP2P(t *testing.T) {
 		maxPeers               int
 		listenAddr             string
 		allowedPeers           []*enode.Node
+		staticPeers            []*enode.Node
 		cachedPeers            []*enode.Node
 		bootstrapNodes         []*enode.Node
 		expectedKnownNodes     []*enode.Node
 		expectedStaticNodes    []*enode.Node
 		expectedDiscoveryNodes []*enode.Node
+		expectedNoDiscovery    bool
 	}{
 		{
 			name:                   "Basic instance with no default settings",
@@ -59,6 +61,27 @@ func TestNewThorP2P(t *testing.T) {
 			bootstrapNodes:      []*enode.Node{testNode(200)},
 			expectedKnownNodes:  nil,
 			expectedStaticNodes: []*enode.Node{testNode(1), testNode(2)},
+			expectedNoDiscovery: true,
+		},
+		{
+			name:                   "Instance with static peers only keeps discovery",
+			maxPeers:               datagen.RandInt(),
+			listenAddr:             datagen.RandHostPort(),
+			staticPeers:            []*enode.Node{testNode(1), testNode(2)},
+			expectedKnownNodes:     nil,
+			expectedStaticNodes:    []*enode.Node{testNode(1), testNode(2)},
+			expectedDiscoveryNodes: fallbackDiscoveryNodes,
+		},
+		{
+			name:                   "Static, cached and bootstrap nodes stay in their own lists",
+			maxPeers:               datagen.RandInt(),
+			listenAddr:             datagen.RandHostPort(),
+			staticPeers:            []*enode.Node{testNode(1)},
+			cachedPeers:            []*enode.Node{testNode(2), testNode(22)},
+			bootstrapNodes:         []*enode.Node{testNode(3)},
+			expectedKnownNodes:     []*enode.Node{testNode(3), testNode(2), testNode(22)},
+			expectedStaticNodes:    []*enode.Node{testNode(1)},
+			expectedDiscoveryNodes: []*enode.Node{testNode(3)},
 		},
 		{
 			name:                   "Cached peers append with default fallback nodes",
@@ -98,7 +121,7 @@ func TestNewThorP2P(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			// Instantiate P2P
-			thor := New(
+			thor, err := New(
 				nil,
 				privateKey,
 				"/tmp/thor-instance",
@@ -108,16 +131,40 @@ func TestNewThorP2P(t *testing.T) {
 				123,
 				tc.listenAddr,
 				tc.allowedPeers,
+				tc.staticPeers,
 				tc.cachedPeers,
 				tc.bootstrapNodes,
 			)
+			assert.NoError(t, err)
 
 			assert.Equal(t, thor.p2pSrv.Options().KnownNodes, tc.expectedKnownNodes)
 			assert.Equal(t, thor.p2pSrv.Options().StaticNodes, tc.expectedStaticNodes)
 			assert.Equal(t, thor.p2pSrv.Options().DiscoveryNodes, tc.expectedDiscoveryNodes)
+			assert.Equal(t, thor.p2pSrv.Options().NoDiscovery, tc.expectedNoDiscovery)
 			assert.NotNil(t, thor, "P2P instance should not be nil")
 			assert.Equal(t, thor.p2pSrv.Options().MaxPeers, tc.maxPeers)
 			assert.Equal(t, thor.p2pSrv.Options().ListenAddr, tc.listenAddr)
 		})
 	}
+}
+
+func TestNewThorP2PAllowedAndStaticExclusive(t *testing.T) {
+	privateKey, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+
+	thor, err := New(
+		nil,
+		privateKey,
+		"/tmp/thor-instance",
+		nil,
+		"1.0",
+		10,
+		123,
+		datagen.RandHostPort(),
+		[]*enode.Node{testNode(1)},
+		[]*enode.Node{testNode(2)},
+		nil,
+		nil,
+	)
+	assert.Nil(t, thor)
+	assert.ErrorContains(t, err, "mutually exclusive")
 }
