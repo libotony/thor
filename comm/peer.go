@@ -6,6 +6,7 @@
 package comm
 
 import (
+	"fmt"
 	"math/rand/v2"
 	"sync"
 	"time"
@@ -13,6 +14,7 @@ import (
 	"github.com/ethereum/go-ethereum/common/mclock"
 	lru "github.com/hashicorp/golang-lru"
 
+	"github.com/vechain/thor/v2/comm/proto"
 	"github.com/vechain/thor/v2/log"
 	"github.com/vechain/thor/v2/p2p"
 	"github.com/vechain/thor/v2/p2p/discover"
@@ -50,6 +52,7 @@ func newPeer(peer *p2p.Peer, rw p2p.MsgReadWriter, version uint) *Peer {
 	ctx := []any{
 		"peer", peer,
 		"dir", dir,
+		"proto", fmt.Sprintf("%v/%v", proto.Name, version),
 	}
 	knownTxs, _ := lru.New(maxKnownTxs)
 	knownBlocks, _ := lru.New(maxKnownBlocks)
