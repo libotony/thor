@@ -517,6 +517,11 @@ func newP2PCommunicator(ctx *cli.Command, repo *chain.Repository, txPool *txpool
 		return nil, fmt.Errorf("unable to parse allowed peers - %w", err)
 	}
 
+	staticPeers, err := parseNodeList(strings.TrimSpace(ctx.String(staticPeersFlag.Name)))
+	if err != nil {
+		return nil, fmt.Errorf("unable to parse static peers - %w", err)
+	}
+
 	bootnodePeers, err := parseNodeList(strings.TrimSpace(ctx.String(bootNodeFlag.Name)))
 	if err != nil {
 		return nil, fmt.Errorf("unable to parse bootnode peers - %w", err)
@@ -532,9 +537,10 @@ func newP2PCommunicator(ctx *cli.Command, repo *chain.Repository, txPool *txpool
 		int(ctx.Uint64(p2pPortFlag.Name)),
 		fmt.Sprintf(":%v", ctx.Uint64(p2pPortFlag.Name)),
 		allowedPeers,
+		staticPeers,
 		p2p.LoadPeersCache(instanceDir),
 		bootnodePeers,
-	), nil
+	)
 }
 
 func printStartupMessage1(

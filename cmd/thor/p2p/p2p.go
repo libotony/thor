@@ -42,9 +42,14 @@ func New(
 	listenPort int,
 	listenAddr string,
 	allowedPeers []*enode.Node,
+	staticPeers []*enode.Node,
 	cachedPeers []*enode.Node,
 	bootstrapNodes []*enode.Node,
-) *P2P {
+) (*P2P, error) {
+	if len(allowedPeers) > 0 && len(staticPeers) > 0 {
+		return nil, errors.New("--allowed-peers and --static-peers are mutually exclusive: allowed-peers is an exclusive whitelist with discovery disabled, static-peers pins peers on top of discovery")
+	}
+
 	// known peers will be loaded/stored from/in this file
 	peersCachePath := filepath.Join(instanceDir, peersCacheFile)
 
@@ -78,6 +83,9 @@ func New(
 		if len(cachedPeers) > 0 {
 			opts.KnownNodes = dedupNodeSlice(opts.KnownNodes, cachedPeers)
 		}
+
+		// static peers are redialed on disconnect, on top of (not instead of) discovery
+		opts.StaticNodes = staticPeers
 	}
 
 	return &P2P{
@@ -85,7 +93,7 @@ func New(
 		p2pSrv:         p2psrv.New(opts),
 		peersCachePath: peersCachePath,
 		enode:          fmt.Sprintf("enode://%x@[extip]:%v", crypto.FromECDSAPub(&privateKey.PublicKey)[1:], listenPort),
-	}
+	}, nil
 }
 
 func (p *P2P) Start() error {
