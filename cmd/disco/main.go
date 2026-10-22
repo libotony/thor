@@ -14,6 +14,7 @@ import (
 	"os"
 
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/p2p/discover"
 	"github.com/ethereum/go-ethereum/p2p/nat"
 	"github.com/ethereum/go-ethereum/p2p/netutil"
 	"github.com/pkg/errors"
@@ -22,6 +23,7 @@ import (
 	"github.com/vechain/thor/v2/cmd/thor/httpserver"
 	"github.com/vechain/thor/v2/metrics"
 	"github.com/vechain/thor/v2/p2p/discv5"
+	"github.com/vechain/thor/v2/p2psrv"
 )
 
 var (
@@ -36,6 +38,7 @@ var (
 		keyHexFlag,
 		natFlag,
 		netRestrictFlag,
+		nodedbFlag,
 		verbosityFlag,
 		enableMetricsFlag,
 		metricsAddrFlag,
@@ -94,12 +97,37 @@ func run(_ context.Context, ctx *cli.Command) error {
 			realAddr = &net.UDPAddr{IP: ext, Port: realAddr.Port}
 		}
 	}
-	network, err := discv5.ListenUDP(key, conn, realAddr, "", restrictList, nil)
+	unhandled := make(chan discover.ReadPacket, 100)
+	network, err := discv5.ListenUDP(key, conn, realAddr, "", restrictList, unhandled)
 	if err != nil {
 		return err
 	}
-	defer network.Close()
+	ln, err := newLocalNode(key, realAddr, ctx.String(nodedbFlag.Name))
+	if err != nil {
+		network.Close()
+		return err
+	}
+	v5, err := discover.ListenV5(&discover.SharedUDPConn{UDPConn: conn, Unhandled: unhandled}, ln, discover.Config{
+		PrivateKey:   key,
+		NetRestrict:  restrictList,
+		V5ProtocolID: &p2psrv.V5ProtocolID,
+	})
+	if err != nil {
+		network.Close()
+		ln.Database().Close()
+		return err
+	}
+	// legacy first: v5.Close waits for its read loop, which ends only once legacy closes unhandled
+	defer func() {
+		network.Close()
+		v5.Close()
+		ln.Database().Close()
+	}()
 	fmt.Println("Running", network.Self().String())
+	fmt.Println("ENR", ln.Node().String())
+	if !ln.Node().IPAddr().IsValid() {
+		fmt.Println("warning: node record has no IP; pass --nat extip:<IP> to publish a usable ENR")
+	}
 
 	exitSignal := handleExitSignal()
 
@@ -111,7 +139,7 @@ func run(_ context.Context, ctx *cli.Command) error {
 		}
 		fmt.Println("metrics server listening", url)
 		defer closeFunc()
-		go pollMetrics(exitSignal, network)
+		go pollMetrics(exitSignal, network, v5)
 	}
 
 	<-exitSignal.Done()

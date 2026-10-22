@@ -36,13 +36,18 @@ var (
 	natFlag = &cli.StringFlag{
 		Name:    "nat",
 		Value:   "none",
-		Usage:   "port mapping mechanism (any|none|upnp|pmp|extip:<IP>)",
+		Usage:   "port mapping mechanism (any|none|upnp|pmp|extip:<IP>); extip:<IP> is required to publish a usable node record",
 		Sources: envVar("NAT"),
 	}
 	netRestrictFlag = &cli.StringFlag{
 		Name:    "netrestrict",
 		Usage:   "restrict network communication to the given IP networks (CIDR masks)",
 		Sources: envVar("NETRESTRICT"),
+	}
+	nodedbFlag = &cli.StringFlag{
+		Name:    "nodedb",
+		Usage:   "node database directory; persists the local record sequence across restarts (empty = in-memory)",
+		Sources: envVar("NODEDB"),
 	}
 	verbosityFlag = &cli.Uint64Flag{
 		Name:    "verbosity",
