@@ -6,6 +6,7 @@
 package p2psrv
 
 import (
+	"slices"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -13,6 +14,7 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/p2p"
 	"github.com/ethereum/go-ethereum/p2p/enode"
+	"github.com/ethereum/go-ethereum/p2p/enr"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -30,21 +32,57 @@ type smokeNode struct {
 	stopping atomic.Bool
 }
 
+type smokeCfg struct {
+	opts Options
+	net  uint // advertised "smoke" ENR attribute, lets filters tell test networks apart
+}
+
+func withV5Bootnodes(nodes ...*enode.Node) func(*smokeCfg) {
+	return func(c *smokeCfg) { c.opts.DiscoveryNodesV5 = nodes }
+}
+
+func withV5Filter(f func(*enode.Node) bool) func(*smokeCfg) {
+	return func(c *smokeCfg) { c.opts.V5CandidateFilter = f }
+}
+
+func withNet(n uint) func(*smokeCfg) {
+	return func(c *smokeCfg) { c.net = n }
+}
+
+func withOpts(f func(*Options)) func(*smokeCfg) {
+	return func(c *smokeCfg) { f(&c.opts) }
+}
+
+// smokeFilter accepts nodes advertising the "smoke" attribute with the wanted value.
+func smokeFilter(want uint) func(*enode.Node) bool {
+	return func(n *enode.Node) bool {
+		var got uint
+		return n.Load(enr.WithEntry("smoke", &got)) == nil && got == want
+	}
+}
+
 // startSmoke starts a loopback server running a minimal protocol (two versions, like comm.Protocols)
 // whose Run blocks until the peer disconnects. The server is stopped on cleanup.
-func startSmoke(t *testing.T, maxPeers int, noDiscovery bool) *smokeNode {
+func startSmoke(t *testing.T, maxPeers int, noDiscovery bool, mods ...func(*smokeCfg)) *smokeNode {
 	t.Helper()
 	key, err := crypto.GenerateKey()
 	require.NoError(t, err)
-	n := &smokeNode{
-		Server: New(&Options{
+	cfg := smokeCfg{
+		opts: Options{
 			Name:        "smoke",
 			PrivateKey:  key,
 			MaxPeers:    maxPeers,
 			ListenAddr:  "127.0.0.1:0",
 			NoDiscovery: noDiscovery,
-		}),
-		peers: make(chan *p2p.Peer, 4),
+		},
+		net: 1,
+	}
+	for _, mod := range mods {
+		mod(&cfg)
+	}
+	n := &smokeNode{
+		Server: New(&cfg.opts),
+		peers:  make(chan *p2p.Peer, 4),
 	}
 	run := func(peer *p2p.Peer, rw p2p.MsgReadWriter) error {
 		n.peers <- peer
@@ -54,9 +92,10 @@ func startSmoke(t *testing.T, maxPeers int, noDiscovery bool) *smokeNode {
 			}
 		}
 	}
+	attrs := []enr.Entry{enr.WithEntry("smoke", cfg.net)}
 	require.NoError(t, n.Start([]*p2p.Protocol{
-		{Name: "smoke", Version: 1, Length: 1, Run: run},
-		{Name: "smoke", Version: 2, Length: 1, Run: run},
+		{Name: "smoke", Version: 1, Length: 1, Run: run, Attributes: attrs},
+		{Name: "smoke", Version: 2, Length: 1, Run: run, Attributes: attrs},
 	}, "smoke"))
 	t.Cleanup(func() { n.stopWithin(t, smokeStopTimeout) })
 	return n
@@ -122,13 +161,13 @@ func TestSmokeInterconnect(t *testing.T) {
 	assert.Empty(t, b.KnownNodes())
 }
 
-// Every protocol entry shares the server's candidate iterator in main mode; allowed-peers mode
+// Every protocol entry shares the server's candidate mix in main mode; allowed-peers mode
 // returns before upstream registers DialCandidates, so none must be set.
 func TestSmokeDialCandidatesWiring(t *testing.T) {
 	mainMode := startSmoke(t, 10, false)
 	require.Len(t, mainMode.srv.Protocols, 2)
 	for _, p := range mainMode.srv.Protocols {
-		assert.Same(t, mainMode.candidates, p.DialCandidates, "version %d", p.Version)
+		assert.Same(t, mainMode.mix, p.DialCandidates, "version %d", p.Version)
 	}
 
 	allowed := startSmoke(t, 10, true)
@@ -136,6 +175,36 @@ func TestSmokeDialCandidatesWiring(t *testing.T) {
 	for _, p := range allowed.srv.Protocols {
 		assert.Nil(t, p.DialCandidates, "version %d", p.Version)
 	}
+}
+
+func TestSmokeV5Discovery(t *testing.T) {
+	// b learns a from a's ping and may dial back; it must carry the same filter so it never dials c.
+	b := startSmoke(t, 10, false, withV5Filter(smokeFilter(1)))
+	// c is on the wrong network: visible in a's table, never dialed. NoDial keeps c from dialing a
+	// (it has no filter) so peer counts stay deterministic.
+	c := startSmoke(t, 10, false, withNet(2), withOpts(func(o *Options) { o.NoDial = true }))
+	var rejected atomic.Int32
+	filter := func(n *enode.Node) bool {
+		ok := smokeFilter(1)(n)
+		if !ok {
+			rejected.Add(1)
+		}
+		return ok
+	}
+	a := startSmoke(t, 10, false,
+		withV5Bootnodes(b.LocalNode().Node(), c.LocalNode().Node()),
+		withV5Filter(filter))
+
+	// legacy discovery has no bootstrap here and KnownNodes is empty: v5 is the only path to b
+	require.Eventually(t, func() bool { return a.peerCount() == 1 && b.peerCount() == 1 }, smokeWait, smokeTick)
+	require.Eventually(t, func() bool { return rejected.Load() > 0 }, smokeWait, smokeTick)
+	require.Zero(t, c.peerCount())
+	bID := b.Self().ID()
+	require.Eventually(t, func() bool {
+		return slices.ContainsFunc(a.v5.AllNodes(), func(n *enode.Node) bool { return n.ID() == bID })
+	}, smokeWait, smokeTick)
+
+	a.stopWithin(t, smokeStopTimeout) // v5 lookups in flight: pins the legacy→v5→server order
 }
 
 // With every inbound slot taken, extra inbound connections are refused while the outbound
