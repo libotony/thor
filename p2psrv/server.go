@@ -17,6 +17,7 @@ import (
 	"github.com/ethereum/go-ethereum/common/mclock"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/p2p"
+	"github.com/ethereum/go-ethereum/p2p/discover"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/p2p/nat"
 
@@ -26,6 +27,13 @@ import (
 )
 
 var logger = log.WithContext("pkg", "p2psrv")
+
+const (
+	// How long the dial candidate mix waits for the fairly-chosen source before taking a node from any other.
+	discmixTimeout = 100 * time.Millisecond
+	// Nodes prefetched from the modern discv5 table so the dialer never waits on a lookup.
+	discoveryPrefetchBuffer = 32
+)
 
 // Server p2p server wraps ethereum's p2p.Server, and handles discovery v5 stuff.
 type Server struct {
@@ -37,6 +45,8 @@ type Server struct {
 	bootstrapNodes []*discv5.Node
 	knownNodes     *cache.PrioCache
 	candidates     *candidateIter
+	v5             *discover.UDPv5
+	mix            *enode.FairMix
 }
 
 // New create a p2p server.
@@ -55,14 +65,15 @@ func New(opts *Options) *Server {
 		NoDiscovery: opts.NoDiscovery,
 		// Upstream discovery stays off in both modes: peers come from the legacy discv5 topic search
 		// (fed through Protocol.DialCandidates) or from StaticNodes.
-		DiscoveryV4: false,
-		DiscoveryV5: false,
-		ListenAddr:  opts.ListenAddr,
-		NetRestrict: opts.NetRestrict,
-		NAT:         opts.NAT,
-		NoDial:      opts.NoDial,
-		DialRatio:   max(2, int(math.Sqrt(float64(opts.MaxPeers)))),
-		StaticNodes: opts.StaticNodes,
+		DiscoveryV4:  false,
+		DiscoveryV5:  false,
+		ListenAddr:   opts.ListenAddr,
+		NetRestrict:  opts.NetRestrict,
+		NAT:          opts.NAT,
+		NoDial:       opts.NoDial,
+		DialRatio:    max(2, int(math.Sqrt(float64(opts.MaxPeers)))),
+		StaticNodes:  opts.StaticNodes,
+		NodeDatabase: opts.NodeDatabase,
 	}
 	if !opts.NoDiscovery {
 		// Upstream binds a UDP socket whenever NoDiscovery is false, and 11235/udp belongs to
@@ -76,6 +87,7 @@ func New(opts *Options) *Server {
 		done:       make(chan struct{}),
 		knownNodes: knownNodes,
 		candidates: candidates,
+		mix:        enode.NewFairMix(discmixTimeout),
 	}
 }
 
@@ -83,6 +95,12 @@ func New(opts *Options) *Server {
 // Only available when server is running.
 func (s *Server) Self() *enode.Node {
 	return s.srv.Self()
+}
+
+// LocalNode returns the local node record handle.
+// Only available when server is running.
+func (s *Server) LocalNode() *enode.LocalNode {
+	return s.srv.LocalNode()
 }
 
 // Start start the server.
@@ -115,7 +133,7 @@ func (s *Server) Start(protocols []*p2p.Protocol, topic discv5.Topic) error {
 		if !s.opts.NoDiscovery {
 			// Same iterator on every entry: upstream registers a source once per protocol name,
 			// and the iterator supports a single consumer.
-			cpy.DialCandidates = s.candidates
+			cpy.DialCandidates = s.mix
 		}
 		s.srv.Protocols = append(s.srv.Protocols, cpy)
 	}
@@ -124,6 +142,9 @@ func (s *Server) Start(protocols []*p2p.Protocol, topic discv5.Topic) error {
 		return err
 	}
 	if !s.opts.NoDiscovery {
+		// Added here rather than in New: the mix pulls from the source at once, which would drain
+		// the KnownNodes seeded into candidates before anything can consume them.
+		s.mix.AddSource(s.candidates)
 		if err := s.listenDiscV5(); err != nil {
 			return err
 		}
@@ -146,8 +167,13 @@ func (s *Server) Start(protocols []*p2p.Protocol, topic discv5.Topic) error {
 
 // Stop stop the server.
 func (s *Server) Stop() {
+	// Order matters: legacy Close closes the socket, whose read loop then closes the unhandled
+	// channel; v5.Close waits for its read loop, which only returns once that channel is closed.
 	if s.discv5 != nil {
 		s.discv5.Close()
+	}
+	if s.v5 != nil {
+		s.v5.Close()
 	}
 	s.srv.Stop()
 	close(s.done)
@@ -209,10 +235,12 @@ func (s *Server) listenDiscV5() (err error) {
 		// TODO: react to external IP changes over time.
 		if ext, err := s.opts.NAT.ExternalIP(); err == nil {
 			realaddr = &net.UDPAddr{IP: ext, Port: realaddr.Port}
+			s.srv.LocalNode().SetStaticIP(ext)
 		}
 	}
 
-	network, err := discv5.ListenUDP(s.opts.PrivateKey, conn, realaddr, "", s.opts.NetRestrict, nil)
+	unhandled := make(chan discover.ReadPacket, 100)
+	network, err := discv5.ListenUDP(s.opts.PrivateKey, conn, realaddr, "", s.opts.NetRestrict, unhandled)
 	if err != nil {
 		return err
 	}
@@ -235,6 +263,9 @@ func (s *Server) listenDiscV5() (err error) {
 	}
 
 	if err := network.SetFallbackNodes(s.bootstrapNodes); err != nil {
+		return err
+	}
+	if err := s.listenV5(conn, unhandled); err != nil {
 		return err
 	}
 	s.discv5 = network
@@ -330,7 +361,13 @@ func (s *Server) fetchBootstrap() {
 }
 
 func toV5Node(n *enode.Node) *discv5.Node {
-	return discv5.NewNode(discv5.PubkeyID(n.Pubkey()), n.IP(), uint16(n.UDP()), uint16(n.TCP()))
+	// Shared-port bootnodes (disco) advertise tcp=udp in legacy discovery, so a tcp-less ENR maps to
+	// that same endpoint; legacy validateComplete would otherwise reject the whole fallback set.
+	tcp := n.TCP()
+	if tcp == 0 {
+		tcp = n.UDP()
+	}
+	return discv5.NewNode(discv5.PubkeyID(n.Pubkey()), n.IP(), uint16(n.UDP()), uint16(tcp))
 }
 
 func fromV5Node(n *discv5.Node) (*enode.Node, error) {

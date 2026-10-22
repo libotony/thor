@@ -51,6 +51,14 @@ type Options struct {
 	// protocol.
 	DiscoveryNodes []*enode.Node
 
+	// DiscoveryNodesV5 seeds the modern discv5 table. Only explicit --bootnode entries land here;
+	// hardcoded fallbacks, the remote list and KnownNodes stay legacy-only.
+	DiscoveryNodesV5 []*enode.Node
+
+	// V5CandidateFilter gates nodes leaving the modern discv5 table before they reach the dialer.
+	// nil accepts everything.
+	V5CandidateFilter func(*enode.Node) bool
+
 	// RemoteDiscoveryList is the url of remote dynamic discovery node list.
 	RemoteDiscoveryList string
 
@@ -66,4 +74,7 @@ type Options struct {
 
 	// If NoDial is true, the server will not dial any peers.
 	NoDial bool
+
+	// NodeDatabase is the path of the node database backing the local node record. It persists the record sequence across restarts; upstream discv5 does not reseed its table from it. Empty means in-memory.
+	NodeDatabase string
 }
