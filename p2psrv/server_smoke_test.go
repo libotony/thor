@@ -198,11 +198,12 @@ func TestSmokeV5Discovery(t *testing.T) {
 	// legacy discovery has no bootstrap here and KnownNodes is empty: v5 is the only path to b
 	require.Eventually(t, func() bool { return a.peerCount() == 1 && b.peerCount() == 1 }, smokeWait, smokeTick)
 	require.Eventually(t, func() bool { return rejected.Load() > 0 }, smokeWait, smokeTick)
-	require.Zero(t, c.peerCount())
+	require.Never(t, func() bool { return c.peerCount() > 0 }, time.Second, smokeTick)
 	bID := b.Self().ID()
 	require.Eventually(t, func() bool {
 		return slices.ContainsFunc(a.v5.AllNodes(), func(n *enode.Node) bool { return n.ID() == bID })
 	}, smokeWait, smokeTick)
+	require.Eventually(t, func() bool { return a.countDiscoverable() == 1 }, smokeWait, smokeTick)
 
 	a.stopWithin(t, smokeStopTimeout) // v5 lookups in flight: pins the legacy→v5→server order
 }

@@ -144,10 +144,11 @@ func (s *Server) Start(protocols []*p2p.Protocol, topic discv5.Topic) error {
 	if !s.opts.NoDiscovery {
 		// Added here rather than in New: the mix pulls from the source at once, which would drain
 		// the KnownNodes seeded into candidates before anything can consume them.
-		s.mix.AddSource(s.candidates)
+		s.mix.AddSource(countingIter{s.candidates, "legacy"})
 		if err := s.listenDiscV5(); err != nil {
 			return err
 		}
+		s.goes.Go(s.discoverableLoop)
 		logger.Debug("registering topic", "topic", topic)
 		s.goes.Go(func() {
 			s.discv5.RegisterTopic(topic, s.done)
