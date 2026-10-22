@@ -94,7 +94,7 @@ func run(_ context.Context, ctx *cli.Command) error {
 			realAddr = &net.UDPAddr{IP: ext, Port: realAddr.Port}
 		}
 	}
-	network, err := discv5.ListenUDP(key, conn, realAddr, "", restrictList)
+	network, err := discv5.ListenUDP(key, conn, realAddr, "", restrictList, nil)
 	if err != nil {
 		return err
 	}
