@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"runtime"
+	"slices"
 
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/p2p/enode"
@@ -46,6 +47,18 @@ func New(
 	cachedPeers []*enode.Node,
 	bootstrapNodes []*enode.Node,
 ) (*P2P, error) {
+	for _, n := range slices.Concat(allowedPeers, staticPeers) {
+		if n.TCP() == 0 {
+			return nil, fmt.Errorf("node %s has no tcp endpoint; --allowed-peers/--static-peers need enode:// URLs or ENRs with a tcp port", n.ID())
+		}
+	}
+
+	for _, n := range bootstrapNodes {
+		if err := n.ValidateComplete(); err != nil {
+			return nil, fmt.Errorf("bootnode %s: %w", n, err)
+		}
+	}
+
 	if len(allowedPeers) > 0 && len(staticPeers) > 0 {
 		return nil, errors.New("--allowed-peers and --static-peers are mutually exclusive: allowed-peers is an exclusive whitelist with discovery disabled, static-peers pins peers on top of discovery")
 	}
@@ -64,6 +77,10 @@ func New(
 		DiscoveryNodes:      fallbackDiscoveryNodes,
 		RemoteDiscoveryList: remoteDiscoveryNodesList,
 		NAT:                 nat,
+		NodeDatabase:        filepath.Join(instanceDir, "nodes"),
+	}
+	if communicator != nil {
+		opts.V5CandidateFilter = communicator.V5CandidateFilter()
 	}
 
 	// allowed peers flag will only allow p2psrv to connect to the designated peers
@@ -74,9 +91,11 @@ func New(
 	} else {
 		// bootstrap nodes flag will overwrite the default discovery nodes and also disable remote discovery
 		if len(bootstrapNodes) > 0 {
-			opts.RemoteDiscoveryList = ""        // disable remote discovery
-			opts.DiscoveryNodes = bootstrapNodes // overwrite the default discovery nodes
-			opts.KnownNodes = bootstrapNodes     // supplied bootstrap nodes can potentially be p2p node, add to the known nodes
+			opts.RemoteDiscoveryList = ""          // disable remote discovery
+			opts.DiscoveryNodes = bootstrapNodes   // overwrite the default discovery nodes
+			opts.DiscoveryNodesV5 = bootstrapNodes // each bootnode seeds both discovery stacks
+			// supplied bootstrap nodes can potentially be p2p node, add to the known nodes; udp-only ones are not dial candidates
+			opts.KnownNodes = slices.DeleteFunc(slices.Clone(bootstrapNodes), func(n *enode.Node) bool { return n.TCP() == 0 })
 		}
 
 		// cached peers will be appended to existing or flag-set bootstrap nodes
@@ -101,6 +120,7 @@ func (p *P2P) Start() error {
 	if err := p.p2pSrv.Start(p.comm.Protocols(), p.comm.DiscTopic()); err != nil {
 		return errors.Wrap(err, "start P2P server")
 	}
+	p.comm.StartENRUpdater(p.p2pSrv.LocalNode())
 	p.comm.Start()
 	return nil
 }

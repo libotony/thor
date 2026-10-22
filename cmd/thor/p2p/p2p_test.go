@@ -6,22 +6,53 @@
 package p2p
 
 import (
+	"bytes"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
+	"net"
+	"path/filepath"
 	"testing"
 
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/p2p/enr"
 
 	"github.com/vechain/thor/v2/test/datagen"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-// testNode returns a node identified only by its ID.
+// testNode returns a complete signed node (ip, udp, tcp), so it passes bootnode validation and counts as a dial candidate.
 func testNode(b byte) *enode.Node {
-	return enode.SignNull(new(enr.Record), enode.ID{b})
+	return signedNode(b, true)
+}
+
+// enrNode returns a signed ENR carrying ip and udp but no tcp port.
+func enrNode(b byte) *enode.Node {
+	return signedNode(b, false)
+}
+
+func signedNode(b byte, withTCP bool) *enode.Node {
+	key, err := crypto.ToECDSA(bytes.Repeat([]byte{b}, 32))
+	if err != nil {
+		panic(err)
+	}
+	var r enr.Record
+	r.Set(enr.IPv4(net.IPv4(1, 2, 3, b)))
+	r.Set(enr.UDP(55555))
+	if withTCP {
+		r.Set(enr.TCP(11235))
+	}
+	if err := enode.SignV4(&r, key); err != nil {
+		panic(err)
+	}
+	n, err := enode.New(enode.ValidSchemes, &r)
+	if err != nil {
+		panic(err)
+	}
+	return n
 }
 
 func TestNewThorP2P(t *testing.T) {
@@ -167,4 +198,45 @@ func TestNewThorP2PAllowedAndStaticExclusive(t *testing.T) {
 	)
 	assert.Nil(t, thor)
 	assert.ErrorContains(t, err, "mutually exclusive")
+}
+
+func TestNewThorP2PBootnodeSplit(t *testing.T) {
+	key, _ := crypto.GenerateKey()
+	dir := t.TempDir()
+	withTCP, noTCP := testNode(1), enrNode(2)
+	p, err := New(nil, key, dir, nil, "v", 10, 11235, ":11235", nil, nil, nil, []*enode.Node{withTCP, noTCP})
+	require.NoError(t, err)
+	opts := p.p2pSrv.Options()
+	require.Equal(t, []*enode.Node{withTCP, noTCP}, opts.DiscoveryNodesV5)
+	require.Equal(t, []*enode.Node{withTCP, noTCP}, opts.DiscoveryNodes, "shared port: an ENR bootnode also seeds legacy discovery")
+	require.Equal(t, []*enode.Node{withTCP}, opts.KnownNodes, "udp-only endpoints are not dial candidates")
+	require.Equal(t, filepath.Join(dir, "nodes"), opts.NodeDatabase)
+}
+
+func TestNewThorP2PDefaultsKeepV5Unseeded(t *testing.T) {
+	key, _ := crypto.GenerateKey()
+	p, err := New(nil, key, t.TempDir(), nil, "v", 10, 11235, ":11235", nil, nil, []*enode.Node{testNode(3)}, nil)
+	require.NoError(t, err)
+	require.Empty(t, p.p2pSrv.Options().DiscoveryNodesV5, "fallback list and cached peers never seed v5")
+}
+
+func TestNewThorP2PRejectsNoTCPPins(t *testing.T) {
+	key, _ := crypto.GenerateKey()
+	_, err := New(nil, key, t.TempDir(), nil, "v", 10, 11235, ":11235", nil, []*enode.Node{enrNode(2)}, nil, nil)
+	require.ErrorContains(t, err, "tcp")
+	_, err = New(nil, key, t.TempDir(), nil, "v", 10, 11235, ":11235", []*enode.Node{enrNode(2)}, nil, nil, nil)
+	require.ErrorContains(t, err, "tcp")
+}
+
+func TestNewThorP2PRejectsIncompleteBootnode(t *testing.T) {
+	key, _ := crypto.GenerateKey()
+	nodeKey, _ := crypto.GenerateKey()
+	var r enr.Record
+	r.Set(enr.UDP(55555))
+	require.NoError(t, enode.SignV4(&r, nodeKey))
+	n, err := enode.New(enode.ValidSchemes, &r)
+	require.NoError(t, err)
+
+	_, err = New(nil, key, t.TempDir(), nil, "v", 10, 11235, ":11235", nil, nil, nil, []*enode.Node{n})
+	require.ErrorContains(t, err, "bootnode")
 }
