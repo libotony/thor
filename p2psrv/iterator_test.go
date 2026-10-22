@@ -87,3 +87,13 @@ func TestCandidateIterConcurrent(t *testing.T) {
 	}
 	wg.Wait()
 }
+
+func TestCountingIterPassesThrough(t *testing.T) {
+	src := newCandidateIter(4)
+	src.Add(fakeNode(1))
+	it := countingIter{Iterator: src, source: "legacy"}
+	require.True(t, it.Next())
+	require.Equal(t, fakeNode(1).ID(), it.Node().ID())
+	it.Close()
+	require.False(t, it.Next())
+}

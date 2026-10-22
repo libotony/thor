@@ -8,6 +8,7 @@ package p2psrv
 import (
 	"fmt"
 	"net"
+	"time"
 
 	"github.com/ethereum/go-ethereum/p2p/discover"
 	"github.com/ethereum/go-ethereum/p2p/enode"
@@ -39,6 +40,42 @@ func (s *Server) listenV5(conn *net.UDPConn, unhandled chan discover.ReadPacket)
 	if f := s.opts.V5CandidateFilter; f != nil {
 		iter = enode.Filter(iter, f)
 	}
-	s.mix.AddSource(enode.NewBufferIter(iter, discoveryPrefetchBuffer))
+	s.mix.AddSource(countingIter{enode.NewBufferIter(iter, discoveryPrefetchBuffer), "v5"})
 	return nil
+}
+
+var discoverableSampleInterval = 5 * time.Minute
+
+// countDiscoverable returns how many connected peers the modern discv5 stack can find: peers in
+// its table, or peers the candidate filter would accept.
+func (s *Server) countDiscoverable() int {
+	if s.v5 == nil {
+		return 0
+	}
+	inTable := make(map[enode.ID]struct{})
+	for _, n := range s.v5.AllNodes() {
+		inTable[n.ID()] = struct{}{}
+	}
+	count := 0
+	for _, p := range s.srv.Peers() {
+		if _, ok := inTable[p.ID()]; ok {
+			count++
+		} else if f := s.opts.V5CandidateFilter; f != nil && f(p.Node()) {
+			count++
+		}
+	}
+	return count
+}
+
+func (s *Server) discoverableLoop() {
+	ticker := time.NewTicker(discoverableSampleInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			metricV5DiscoverablePeers().Set(int64(s.countDiscoverable()))
+		case <-s.done:
+			return
+		}
+	}
 }
