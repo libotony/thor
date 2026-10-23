@@ -149,6 +149,10 @@ func TestConfigModes(t *testing.T) {
 	// KnownNodes is a warm-start cache and must never be promoted to static nodes
 	s3 := New(&Options{MaxPeers: 25, NoDiscovery: true, KnownNodes: []*enode.Node{n}})
 	assert.Empty(t, s3.srv.Config.StaticNodes)
+
+	// the node database backs the local record and the modern discv5 table
+	s4 := New(&Options{MaxPeers: 25, NodeDatabase: "/tmp/x"})
+	assert.Equal(t, "/tmp/x", s4.srv.Config.NodeDatabase)
 }
 
 // TryDial hardcodes upstream's unexported dynDialedConn (1). This pins the static, inbound and

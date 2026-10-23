@@ -211,21 +211,21 @@ var (
 	bootNodeFlag = &cli.StringFlag{
 		Name:    "bootnode",
 		Local:   true,
-		Usage:   "comma separated list of bootstrap node IDs",
+		Usage:   "comma separated list of bootstrap nodes (enode:// URLs or enr: records); each seeds both discovery stacks",
 		Sources: envVar("BOOTNODE"),
 	}
 	allowedPeersFlag = &cli.StringFlag{
 		Name:    "allowed-peers",
 		Local:   true,
 		Hidden:  true,
-		Usage:   "comma separated list of node IDs that can be connected to",
+		Usage:   "comma separated list of enode:// URLs or enr: records (tcp port required) that can be connected to; disables discovery",
 		Sources: envVar("ALLOWED_PEERS"),
 	}
 	staticPeersFlag = &cli.StringFlag{
 		Name:    "static-peers",
 		Local:   true,
 		Hidden:  true,
-		Usage:   "comma separated list of enode URLs to stay connected to alongside discovery (dials use the outbound quota; exclusive with --allowed-peers)",
+		Usage:   "comma separated list of enode:// URLs or enr: records (tcp port required) to stay connected to alongside discovery (dials use the outbound quota; exclusive with --allowed-peers)",
 		Sources: envVar("STATIC_PEERS"),
 	}
 	targetGasLimitFlag = &cli.Uint64Flag{
