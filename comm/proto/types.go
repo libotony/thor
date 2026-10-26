@@ -12,6 +12,7 @@ import (
 	"github.com/ethereum/go-ethereum/rlp"
 
 	"github.com/vechain/thor/v2/block"
+	"github.com/vechain/thor/v2/forkid"
 	"github.com/vechain/thor/v2/thor"
 	"github.com/vechain/thor/v2/tx"
 )
@@ -28,12 +29,21 @@ const (
 
 type (
 
-	// Status result of MsgGetStatus.
+	// StatusV1 is the thor/1 handshake status (frozen; do not extend).
+	StatusV1 struct {
+		GenesisBlockID thor.Bytes32
+		SysTimestamp   uint64
+		BestBlockID    thor.Bytes32
+		TotalScore     uint64
+	}
+
+	// Status is the thor/2 handshake status.
 	Status struct {
 		GenesisBlockID thor.Bytes32
 		SysTimestamp   uint64
 		BestBlockID    thor.Bytes32
 		TotalScore     uint64
+		ForkID         forkid.ID
 	}
 )
 
@@ -95,13 +105,26 @@ func (r *blocksFromNumberResult) DecodeRLP(s *rlp.Stream) error {
 	return nil
 }
 
-// GetStatus get status of remote peer.
-func GetStatus(ctx context.Context, rpc RPC) (*Status, error) {
-	var status Status
-	if err := rpc.Call(ctx, MsgGetStatus, &struct{}{}, &status, noResultSizeLimit); err != nil {
+// GetStatus requests the peer's status; for thor/1 peers the response is
+// lifted into Status with a zero ForkID (callers must gate on version).
+func GetStatus(ctx context.Context, rpc RPC, version uint) (*Status, error) {
+	if version > V1 {
+		var status Status
+		if err := rpc.Call(ctx, MsgGetStatus, &struct{}{}, &status, noResultSizeLimit); err != nil {
+			return nil, err
+		}
+		return &status, nil
+	}
+	var v1 StatusV1
+	if err := rpc.Call(ctx, MsgGetStatus, &struct{}{}, &v1, noResultSizeLimit); err != nil {
 		return nil, err
 	}
-	return &status, nil
+	return &Status{
+		GenesisBlockID: v1.GenesisBlockID,
+		SysTimestamp:   v1.SysTimestamp,
+		BestBlockID:    v1.BestBlockID,
+		TotalScore:     v1.TotalScore,
+	}, nil
 }
 
 // NotifyNewBlockID notify new block ID to remote peer.

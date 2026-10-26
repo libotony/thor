@@ -12,6 +12,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/vechain/thor/v2/comm/proto"
 	"github.com/vechain/thor/v2/p2p"
 	"github.com/vechain/thor/v2/p2p/discover"
 	"github.com/vechain/thor/v2/thor"
@@ -23,7 +24,7 @@ func (stubMsgReadWriter) ReadMsg() (p2p.Msg, error) { return p2p.Msg{}, nil }
 func (stubMsgReadWriter) WriteMsg(p2p.Msg) error    { return nil }
 
 func TestNewPeerAndHead(t *testing.T) {
-	peer := newPeer(p2p.NewPeer(discover.NodeID{}, "test", nil), stubMsgReadWriter{})
+	peer := newPeer(p2p.NewPeer(discover.NodeID{}, "test", nil), stubMsgReadWriter{}, proto.Version)
 	assert.NotNil(t, peer)
 	id, score := peer.Head()
 	assert.Equal(t, thor.Bytes32{}, id)
@@ -31,7 +32,7 @@ func TestNewPeerAndHead(t *testing.T) {
 }
 
 func TestUpdateHead(t *testing.T) {
-	peer := newPeer(p2p.NewPeer(discover.NodeID{}, "test", nil), stubMsgReadWriter{})
+	peer := newPeer(p2p.NewPeer(discover.NodeID{}, "test", nil), stubMsgReadWriter{}, proto.Version)
 	id := thor.Bytes32{1, 2, 3}
 	peer.UpdateHead(id, 10)
 	gotID, gotScore := peer.Head()
@@ -45,7 +46,7 @@ func TestUpdateHead(t *testing.T) {
 }
 
 func TestMarkTransactionAndIsTransactionKnown(t *testing.T) {
-	peer := newPeer(p2p.NewPeer(discover.NodeID{}, "test", nil), stubMsgReadWriter{})
+	peer := newPeer(p2p.NewPeer(discover.NodeID{}, "test", nil), stubMsgReadWriter{}, proto.Version)
 	hash := thor.Bytes32{1, 2, 3}
 	peer.MarkTransaction(hash)
 	// Should be known immediately after marking
@@ -56,7 +57,7 @@ func TestMarkTransactionAndIsTransactionKnown(t *testing.T) {
 }
 
 func TestMarkBlockAndIsBlockKnown(t *testing.T) {
-	peer := newPeer(p2p.NewPeer(discover.NodeID{}, "test", nil), stubMsgReadWriter{})
+	peer := newPeer(p2p.NewPeer(discover.NodeID{}, "test", nil), stubMsgReadWriter{}, proto.Version)
 	id := thor.Bytes32{4, 5, 6}
 	peer.MarkBlock(id)
 	assert.True(t, peer.IsBlockKnown(id))
@@ -66,15 +67,15 @@ func TestMarkBlockAndIsBlockKnown(t *testing.T) {
 }
 
 func TestDuration(t *testing.T) {
-	peer := newPeer(p2p.NewPeer(discover.NodeID{}, "test", nil), stubMsgReadWriter{})
+	peer := newPeer(p2p.NewPeer(discover.NodeID{}, "test", nil), stubMsgReadWriter{}, proto.Version)
 	// Simulate some time passing
 	peer.createdTime = mclock.Now() - 100
 	assert.GreaterOrEqual(t, peer.Duration(), mclock.AbsTime(100))
 }
 
 func TestPeersFilterAndFind(t *testing.T) {
-	peer1 := newPeer(p2p.NewPeer(discover.NodeID{}, "test1", nil), stubMsgReadWriter{})
-	peer2 := newPeer(p2p.NewPeer(discover.NodeID{}, "test2", nil), stubMsgReadWriter{})
+	peer1 := newPeer(p2p.NewPeer(discover.NodeID{}, "test1", nil), stubMsgReadWriter{}, proto.Version)
+	peer2 := newPeer(p2p.NewPeer(discover.NodeID{}, "test2", nil), stubMsgReadWriter{}, proto.Version)
 	peers := Peers{peer1, peer2}
 	filtered := peers.Filter(func(p *Peer) bool { return p == peer1 })
 	assert.Equal(t, Peers{peer1}, filtered)
@@ -84,7 +85,7 @@ func TestPeersFilterAndFind(t *testing.T) {
 
 func TestPeerSetAddFindRemoveSliceLen(t *testing.T) {
 	ps := newPeerSet()
-	peer := newPeer(p2p.NewPeer(discover.NodeID{1}, "test", nil), stubMsgReadWriter{})
+	peer := newPeer(p2p.NewPeer(discover.NodeID{1}, "test", nil), stubMsgReadWriter{}, proto.Version)
 	ps.Add(peer)
 	assert.Equal(t, 1, ps.Len())
 	found := ps.Find(peer.ID())
@@ -93,8 +94,8 @@ func TestPeerSetAddFindRemoveSliceLen(t *testing.T) {
 	assert.Equal(t, peer, removed)
 	assert.Equal(t, 0, ps.Len())
 
-	peer2 := newPeer(p2p.NewPeer(discover.NodeID{2}, "test2", nil), stubMsgReadWriter{})
-	peer3 := newPeer(p2p.NewPeer(discover.NodeID{3}, "test3", nil), stubMsgReadWriter{})
+	peer2 := newPeer(p2p.NewPeer(discover.NodeID{2}, "test2", nil), stubMsgReadWriter{}, proto.Version)
+	peer3 := newPeer(p2p.NewPeer(discover.NodeID{3}, "test3", nil), stubMsgReadWriter{}, proto.Version)
 	ps.Add(peer2)
 	ps.Add(peer3)
 	slice := ps.Slice()
