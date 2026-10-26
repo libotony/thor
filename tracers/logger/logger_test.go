@@ -28,7 +28,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/params"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/assert"
 
@@ -65,7 +64,14 @@ func TestStoreCapture(t *testing.T) {
 		env               = vm.NewEVM(
 			vm.Context{},
 			&dummyStatedb{},
-			&vm.ChainConfig{ChainConfig: *params.TestChainConfig},
+			&vm.ChainConfig{
+				ChainID:        big.NewInt(1),
+				HomesteadBlock: big.NewInt(0),
+				EIP150Block:    big.NewInt(0),
+				EIP155Block:    big.NewInt(0),
+				EIP158Block:    big.NewInt(0),
+				ByzantiumBlock: big.NewInt(0),
+			},
 			vm.Config{Tracer: unCastedLogger.(*StructLogger)},
 		)
 

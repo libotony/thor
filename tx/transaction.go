@@ -460,12 +460,19 @@ func (t *Transaction) EffectiveGasPrice(baseFee *big.Int, legacyTxBaseGasPrice *
 
 	// For dynamic fee transactions, effective gas price take block base fee into account.
 	// Which is MIN(maxFeePerGas, maxPriorityFeePerGas + baseFee)
-	return math.BigMin(t.body.maxFeePerGas(), t.body.maxPriorityFeePerGas().Add(t.body.maxPriorityFeePerGas(), baseFee))
+
+	a := t.body.maxFeePerGas()
+	b := new(big.Int).Add(t.body.maxPriorityFeePerGas(), baseFee)
+	if b.Cmp(a) < 0 {
+		return b
+	}
+	return a
 }
 
 // EffectivePriorityFeePerGas returns the effective priority fee per gas for the transaction. If maxFeePerGas is less than
-// baseFee, an error is returned. For legacy transactions, the overall gas price which includes the proved work is used as both
-// maxPriorityFeePerGas and maxFeePerGas.
+// baseFee, an error is returned. For legacy transactions, the overall gas price which includes the proved work is used as
+// maxFeePerGas, while maxPriorityFeePerGas is capped at what the signer is charged (EffectiveGasPrice), so the reward
+// never exceeds the payment and no VTHO is minted.
 // It is caller's responsibility to ensure the fields are passed correctly.
 func (t *Transaction) EffectivePriorityFeePerGas(baseFee *big.Int, legacyTxBaseGasPrice *big.Int, provedWork *big.Int) *big.Int {
 	var (
@@ -474,16 +481,22 @@ func (t *Transaction) EffectivePriorityFeePerGas(baseFee *big.Int, legacyTxBaseG
 	)
 
 	if t.Type() == TypeLegacy {
-		overallGasPrice := t.OverallGasPrice(legacyTxBaseGasPrice, provedWork)
-		maxPriorityFeePerGas = overallGasPrice
-		maxFeePerGas = overallGasPrice
+		maxFeePerGas = t.OverallGasPrice(legacyTxBaseGasPrice, provedWork)
+		// cap the validator reward at what the signer is charged
+		// (EffectiveGasPrice), so no VTHO is minted regardless of
+		// base-gas-price. Proved work redirects at most one base fee per gas
+		// from burn to the validator.
+		maxPriorityFeePerGas = t.body.(*legacyTransaction).gasPrice(legacyTxBaseGasPrice)
 	} else {
 		maxPriorityFeePerGas = t.body.maxPriorityFeePerGas()
 		maxFeePerGas = t.body.maxFeePerGas()
 	}
 
 	priorityFeePerGas := new(big.Int).Sub(maxFeePerGas, baseFee)
-	return math.BigMin(priorityFeePerGas, maxPriorityFeePerGas)
+	if maxPriorityFeePerGas.Cmp(priorityFeePerGas) < 0 {
+		return maxPriorityFeePerGas
+	}
+	return priorityFeePerGas
 }
 
 // GasPriceCoef returns gas price coef.
@@ -730,7 +743,7 @@ func dataGas(data []byte) (uint64, error) {
 	if overflow {
 		return 0, errIntrinsicGasOverflow
 	}
-	nzgas, overflow := math.SafeMul(params.TxDataNonZeroGas, nz)
+	nzgas, overflow := math.SafeMul(params.TxDataNonZeroGasFrontier, nz)
 	if overflow {
 		return 0, errIntrinsicGasOverflow
 	}

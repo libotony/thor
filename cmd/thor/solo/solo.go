@@ -7,12 +7,12 @@ package solo
 
 import (
 	"context"
+	"math"
 	"math/big"
 	"math/rand/v2"
 	"sync"
 	"time"
 
-	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/pkg/errors"
 
 	"github.com/vechain/thor/v2/builtin"

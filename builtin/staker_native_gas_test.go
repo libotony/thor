@@ -20,7 +20,6 @@ import (
 	"math/big"
 	"testing"
 
-	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -381,7 +380,16 @@ func createTestSetup(t *testing.T) *testSetup {
 			Transfer:    vm.NoopTransfer,
 		},
 		vm.NoopStateDB{},
-		&vm.ChainConfig{ChainConfig: *params.TestChainConfig}, vm.Config{})
+		&vm.ChainConfig{
+			ChainID:        big.NewInt(1),
+			HomesteadBlock: big.NewInt(0),
+			EIP150Block:    big.NewInt(0),
+			EIP155Block:    big.NewInt(0),
+			EIP158Block:    big.NewInt(0),
+			ByzantiumBlock: big.NewInt(0),
+		},
+		vm.Config{},
+	)
 	contract := vm.NewContract(
 		vm.AccountRef(master),
 		vm.AccountRef(builtin.Staker.Address),

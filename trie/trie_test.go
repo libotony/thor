@@ -29,7 +29,7 @@ import (
 	"github.com/davecgh/go-spew/spew"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/ethdb"
+	"github.com/ethereum/go-ethereum/ethdb/memorydb"
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/stretchr/testify/assert"
 
@@ -48,7 +48,7 @@ func makeKey(path []byte, ver Version) []byte {
 }
 
 type memdb struct {
-	db *ethdb.MemDatabase
+	db *memorydb.Database
 }
 
 func (m *memdb) Get(path []byte, ver Version) ([]byte, error) {
@@ -60,7 +60,20 @@ func (m *memdb) Put(path []byte, ver Version, value []byte) error {
 }
 
 func newMemDatabase() *memdb {
-	return &memdb{ethdb.NewMemDatabase()}
+	return &memdb{memorydb.New()}
+}
+
+// keys returns all stored keys by scanning with a full-range iterator.
+func (m *memdb) keys() [][]byte {
+	it := m.db.NewIterator(nil, nil)
+	defer it.Release()
+	var out [][]byte
+	for it.Next() {
+		k := make([]byte, len(it.Key()))
+		copy(k, it.Key())
+		out = append(out, k)
+	}
+	return out
 }
 
 func TestEmptyTrie(t *testing.T) {

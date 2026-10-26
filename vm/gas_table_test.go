@@ -17,16 +17,18 @@
 package vm
 
 import (
+	"math"
 	"math/big"
 	"reflect"
 	"runtime"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/vechain/thor/v2/vm/internal"
 )
 
 func newContractAddress(_ *EVM, _ uint32) common.Address {
@@ -44,7 +46,7 @@ func GetFunctionArguments() (*EVM, *Stack) {
 		NewContractAddress: newContractAddress,
 	},
 		statedb,
-		&ChainConfig{ChainConfig: *params.TestChainConfig}, Config{})
+		testChainConfig(), Config{})
 
 	stack := &Stack{}
 	stack.push(uint256.NewInt(uint64(math.MaxUint64)))
@@ -75,7 +77,7 @@ func TestGasFunctions(t *testing.T) {
 	evm, stack := GetFunctionArguments()
 
 	// Define the function signature
-	type gasFuncType func(params.GasTable, *EVM, *Contract, *Stack, *Memory, uint64) (uint64, error)
+	type gasFuncType func(internal.GasTable, *EVM, *Contract, *Stack, *Memory, uint64) (uint64, error)
 
 	// Create a struct to hold a function reference and its expected result
 	type testItem struct {
@@ -111,7 +113,7 @@ func TestGasFunctions(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		result, err := test.function(params.GasTable{}, evm, &Contract{}, stack, &Memory{}, test.memerySize)
+		result, err := test.function(internal.GasTable{}, evm, &Contract{}, stack, &Memory{}, test.memerySize)
 		if err != nil {
 			t.Errorf("Function %v returned an error: %v", runtime.FuncForPC(reflect.ValueOf(test.function).Pointer()).Name(), err)
 		}
@@ -127,14 +129,14 @@ func TestGasFunctions(t *testing.T) {
 
 func TestGasCall(t *testing.T) {
 	evm, stack := GetFunctionArguments()
-	gas, _ := gasCall(params.GasTable{}, evm, &Contract{}, stack, &Memory{}, 0)
+	gas, _ := gasCall(internal.GasTable{}, evm, &Contract{}, stack, &Memory{}, 0)
 
 	assert.Equal(t, gas, uint64(0x0))
 }
 
 func TestGasCallCode(t *testing.T) {
 	evm, stack := GetFunctionArguments()
-	gas, _ := gasCallCode(params.GasTable{}, evm, &Contract{}, stack, &Memory{}, 0)
+	gas, _ := gasCallCode(internal.GasTable{}, evm, &Contract{}, stack, &Memory{}, 0)
 
 	assert.Equal(t, gas, uint64(0x0))
 }
@@ -143,7 +145,7 @@ func TestGasLog(t *testing.T) {
 	evm, stack := GetFunctionArguments()
 	gasFunc := makeGasLog(0)
 
-	gas, _ := gasFunc(params.GasTable{}, evm, &Contract{}, stack, &Memory{}, 0)
+	gas, _ := gasFunc(internal.GasTable{}, evm, &Contract{}, stack, &Memory{}, 0)
 	assert.Equal(t, gas, uint64(0x0))
 }
 
@@ -156,7 +158,7 @@ func TestGasMcopyOverflow(t *testing.T) {
 		stack.push(uint256.NewInt(0)) // src
 		stack.push(uint256.NewInt(0)) // dst
 
-		_, err := gasMcopy(params.GasTable{}, nil, nil, stack, &Memory{}, 0)
+		_, err := gasMcopy(internal.GasTable{}, nil, nil, stack, &Memory{}, 0)
 		assert.ErrorIs(t, err, ErrGasUintOverflow)
 		returnStack(stack)
 	})
@@ -168,7 +170,7 @@ func TestGasMcopyOverflow(t *testing.T) {
 		stack.push(uint256.NewInt(0))  // dst
 
 		// memorySize > 0xffffffffe0 triggers overflow in memoryGasCost
-		_, err := gasMcopy(params.GasTable{}, nil, nil, stack, &Memory{}, 0xffffffffe1)
+		_, err := gasMcopy(internal.GasTable{}, nil, nil, stack, &Memory{}, 0xffffffffe1)
 		assert.ErrorIs(t, err, ErrGasUintOverflow)
 		returnStack(stack)
 	})
@@ -250,7 +252,7 @@ func TestGasMcopy(t *testing.T) {
 				memoryGasCost(mem, uint64(tt.memLen))
 			}
 
-			gas, err := gasMcopy(params.GasTable{}, nil, nil, stack, mem, tt.memorySize)
+			gas, err := gasMcopy(internal.GasTable{}, nil, nil, stack, mem, tt.memorySize)
 			assert.NoError(t, err)
 			assert.Equal(t, tt.expected, gas)
 
@@ -275,7 +277,7 @@ func newEVMWithStateDB(statedb StateDB) *EVM {
 		CanTransfer:        NoopCanTransfer,
 		Transfer:           NoopTransfer,
 		NewContractAddress: newContractAddress,
-	}, statedb, &ChainConfig{ChainConfig: *params.TestChainConfig}, Config{})
+	}, statedb, testChainConfig(), Config{})
 }
 
 func selfdestructTestContract() *Contract {
@@ -293,17 +295,17 @@ func selfdestructTestStack() *Stack {
 func TestGasSuicideGrantsRefund(t *testing.T) {
 	sdb := &refundStateDB{}
 	evm := newEVMWithStateDB(sdb)
-	gas, err := gasSuicide(params.GasTable{}, evm, selfdestructTestContract(), selfdestructTestStack(), &Memory{}, 0)
+	gas, err := gasSuicide(internal.GasTable{}, evm, selfdestructTestContract(), selfdestructTestStack(), &Memory{}, 0)
 	assert.NoError(t, err)
 	assert.Equal(t, uint64(0), gas) // gt.Suicide == 0 for empty GasTable
-	assert.Equal(t, params.SuicideRefundGas, sdb.GetRefund())
+	assert.Equal(t, params.SelfdestructRefundGas, sdb.GetRefund())
 }
 
 // gasSuicide3529 (Cancun) grants no refund.
 func TestGasSuicide3529NoRefund(t *testing.T) {
 	sdb := &refundStateDB{}
 	evm := newEVMWithStateDB(sdb)
-	gas, err := gasSuicide3529(params.GasTable{}, evm, selfdestructTestContract(), selfdestructTestStack(), &Memory{}, 0)
+	gas, err := gasSuicide3529(internal.GasTable{}, evm, selfdestructTestContract(), selfdestructTestStack(), &Memory{}, 0)
 	assert.NoError(t, err)
 	assert.Equal(t, uint64(0), gas)
 	assert.Equal(t, uint64(0), sdb.GetRefund())
@@ -314,7 +316,7 @@ func TestGasSuicide3529RepeatedNoRefund(t *testing.T) {
 	sdb := &refundStateDB{}
 	evm := newEVMWithStateDB(sdb)
 	for range 10 {
-		_, err := gasSuicide3529(params.GasTable{}, evm, selfdestructTestContract(), selfdestructTestStack(), &Memory{}, 0)
+		_, err := gasSuicide3529(internal.GasTable{}, evm, selfdestructTestContract(), selfdestructTestStack(), &Memory{}, 0)
 		assert.NoError(t, err)
 	}
 	assert.Equal(t, uint64(0), sdb.GetRefund())
@@ -325,14 +327,14 @@ func TestCancunSelfdestructWiredNoRefund(t *testing.T) {
 	sdb := &refundStateDB{}
 	evm := newEVMWithStateDB(sdb)
 	op := NewCancunInstructionSet()[SELFDESTRUCT]
-	_, err := op.gasCost(params.GasTable{}, evm, selfdestructTestContract(), selfdestructTestStack(), &Memory{}, 0)
+	_, err := op.gasCost(internal.GasTable{}, evm, selfdestructTestContract(), selfdestructTestStack(), &Memory{}, 0)
 	assert.NoError(t, err)
 	assert.Equal(t, uint64(0), sdb.GetRefund())
 }
 
 // gas cost (excluding refund) is identical between legacy and EIP-3529.
 func TestSelfdestructGasCostUnchanged(t *testing.T) {
-	gt := params.GasTable{Suicide: 5000, CreateBySuicide: 25000}
+	gt := internal.GasTable{Suicide: 5000, CreateBySuicide: 25000}
 	g1, err1 := gasSuicide(gt, newEVMWithStateDB(&refundStateDB{}), selfdestructTestContract(), selfdestructTestStack(), &Memory{}, 0)
 	g2, err2 := gasSuicide3529(gt, newEVMWithStateDB(&refundStateDB{}), selfdestructTestContract(), selfdestructTestStack(), &Memory{}, 0)
 	assert.NoError(t, err1)

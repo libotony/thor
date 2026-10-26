@@ -147,7 +147,7 @@ func TestNodeIteratorCoverage(t *testing.T) {
 			t.Errorf("failed to retrieve reported node %x: %v", key, err)
 		}
 	}
-	for _, key := range db.db.Keys() {
+	for _, key := range db.keys() {
 		if _, ok := keys[string(key)]; !ok {
 			t.Errorf("state entry not reported %x", key)
 		}
@@ -239,7 +239,7 @@ func TestIteratorContinueAfterError(t *testing.T) {
 	ver.Major++
 	tr.Commit(db, ver, false)
 	wantNodeCount := checkIteratorNoDups(t, tr.NodeIterator(nil, Version{}), nil)
-	keys := db.db.Keys()
+	keys := db.keys()
 	t.Log("node count", wantNodeCount)
 
 	for range 20 {
