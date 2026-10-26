@@ -9,13 +9,18 @@ import (
 	"context"
 	"time"
 
+	"github.com/ethereum/go-ethereum/p2p/discover"
+
 	"github.com/vechain/thor/v2/metrics"
 	"github.com/vechain/thor/v2/p2p/discv5"
 )
 
-var metricsPeerCount = metrics.GaugeVec("disco_peercount", []string{"id"})
+var (
+	metricsPeerCount   = metrics.LazyLoadGaugeVec("disco_peercount", []string{"id"})
+	metricsV5PeerCount = metrics.LazyLoadGaugeVec("disco_v5_peercount", []string{"id"})
+)
 
-func pollMetrics(ctx context.Context, net *discv5.Network) {
+func pollMetrics(ctx context.Context, net *discv5.Network, v5 *discover.UDPv5) {
 	ticker := time.NewTicker(time.Minute)
 	defer ticker.Stop()
 
@@ -33,7 +38,9 @@ func pollMetrics(ctx context.Context, net *discv5.Network) {
 				}
 				read++
 			}
-			metricsPeerCount.SetWithLabel(read, map[string]string{"id": net.Self().ID.String()})
+			id := map[string]string{"id": net.Self().ID.String()}
+			metricsPeerCount().SetWithLabel(read, id)
+			metricsV5PeerCount().SetWithLabel(int64(len(v5.AllNodes())), id)
 		}
 	}
 }
