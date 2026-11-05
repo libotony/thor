@@ -162,7 +162,8 @@ func (s *Server) Start(protocols []*p2p.Protocol, topic discv5.Topic) error {
 		s.goes.Go(s.fetchBootstrap)
 	}
 
-	logger.Debug("start up", "self", s.Self())
+	self := s.Self()
+	logger.Debug("start up", "self", self.URLv4(), "enr", self.String())
 	return nil
 }
 
