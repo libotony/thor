@@ -6,10 +6,15 @@
 package main
 
 import (
+	"encoding/hex"
 	"math"
+	"net"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/p2p/enode"
+	"github.com/ethereum/go-ethereum/p2p/enr"
+	"github.com/stretchr/testify/require"
 
 	"github.com/vechain/thor/v2/chain"
 	"github.com/vechain/thor/v2/cmd/thor/node"
@@ -86,4 +91,21 @@ func TestReadIntFromUInt64Flag_TooLarge(t *testing.T) {
 	if _, err := readIntFromUInt64Flag(val); err == nil {
 		t.Fatalf("expected error for value > MaxInt")
 	}
+}
+
+func TestParseNodeListAcceptsENR(t *testing.T) {
+	key, _ := crypto.GenerateKey()
+	var r enr.Record
+	r.Set(enr.IPv4(net.IPv4(1, 2, 3, 4)))
+	r.Set(enr.UDP(55555))
+	require.NoError(t, enode.SignV4(&r, key))
+	n, _ := enode.New(enode.ValidSchemes, &r)
+
+	nodes, err := parseNodeList(n.String() + ",enode://" + hex.EncodeToString(crypto.FromECDSAPub(&key.PublicKey)[1:]) + "@5.6.7.8:11235")
+	require.NoError(t, err)
+	require.Len(t, nodes, 2)
+	require.Zero(t, nodes[0].TCP())
+	require.Equal(t, 11235, nodes[1].TCP())
+	_, err = parseNodeList("enr:not-base64")
+	require.Error(t, err)
 }
