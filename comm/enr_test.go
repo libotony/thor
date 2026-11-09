@@ -80,7 +80,7 @@ func TestENRUpdaterFollowsForkActivation(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(db.Close)
 	ln := enode.NewLocalNode(db, key)
-	c.StartENRUpdater(ln)
+	c.Start(ln)
 
 	var e vechainEntry
 	require.NoError(t, ln.Node().Load(&e))

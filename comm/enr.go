@@ -39,9 +39,9 @@ func (c *Communicator) V5CandidateFilter() func(*enode.Node) bool {
 	}
 }
 
-// StartENRUpdater publishes the current fork id into ln, then refreshes it on
+// startENRUpdater publishes the current fork id into ln, then refreshes it on
 // every best block change until the communicator is stopped.
-func (c *Communicator) StartENRUpdater(ln *enode.LocalNode) {
+func (c *Communicator) startENRUpdater(ln *enode.LocalNode) {
 	ticker := c.repo.NewTicker()
 	ln.Set(c.currentENREntry())
 	c.goes.Go(func() {

@@ -120,8 +120,7 @@ func (p *P2P) Start() error {
 	if err := p.p2pSrv.Start(p.comm.Protocols(), p.comm.DiscTopic()); err != nil {
 		return errors.Wrap(err, "start P2P server")
 	}
-	p.comm.StartENRUpdater(p.p2pSrv.LocalNode())
-	p.comm.Start()
+	p.comm.Start(p.p2pSrv.LocalNode())
 	return nil
 }
 
