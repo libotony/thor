@@ -36,13 +36,13 @@ func signedNode(t *testing.T, entries ...enr.Entry) *enode.Node {
 	return n
 }
 
-func TestVechainEntryTailIsForwardCompatible(t *testing.T) {
+func TestENREntryTailIsForwardCompatible(t *testing.T) {
 	id := forkid.ID{Hash: [4]byte{1, 2, 3, 4}, Next: 9}
 	n := signedNode(t, enr.WithEntry("vet", struct {
 		ForkID forkid.ID
 		Extra  string
 	}{id, "future"}))
-	var got vechainEntry
+	var got enrEntry
 	require.NoError(t, n.Load(&got))
 	require.Equal(t, id, got.ForkID)
 	require.Len(t, got.Rest, 1)
@@ -56,9 +56,9 @@ func TestV5CandidateFilter(t *testing.T) {
 	filter := c.V5CandidateFilter()
 
 	require.False(t, filter(signedNode(t)), "no vet entry")
-	require.True(t, filter(signedNode(t, &vechainEntry{ForkID: forkid.NewID(genesisID, &thor.SoloFork, head)})))
-	require.False(t, filter(signedNode(t, &vechainEntry{ForkID: forkid.NewID(genesisID, &thor.NoFork, 0)})), "remote stale")
-	require.False(t, filter(signedNode(t, &vechainEntry{ForkID: forkid.NewID(thor.Bytes32{0xff}, &thor.SoloFork, head)})), "other genesis")
+	require.True(t, filter(signedNode(t, &enrEntry{ForkID: forkid.NewID(genesisID, &thor.SoloFork, head)})))
+	require.False(t, filter(signedNode(t, &enrEntry{ForkID: forkid.NewID(genesisID, &thor.NoFork, 0)})), "remote stale")
+	require.False(t, filter(signedNode(t, &enrEntry{ForkID: forkid.NewID(thor.Bytes32{0xff}, &thor.SoloFork, head)})), "other genesis")
 	require.False(t, filter(signedNode(t, enr.WithEntry("vet", uint(7)))), "malformed vet")
 }
 
@@ -82,22 +82,22 @@ func TestENRUpdaterFollowsForkActivation(t *testing.T) {
 	ln := enode.NewLocalNode(db, key)
 	c.Start(ln)
 
-	var e vechainEntry
+	var e enrEntry
 	require.NoError(t, ln.Node().Load(&e))
 	require.Equal(t, forkid.NewID(genesisID, &fc, 2), e.ForkID)
 	require.EqualValues(t, 5, e.ForkID.Next)
 	seq := ln.Node().Seq()
 
 	// a fresh pointer with the same value must dedup; Node() forces the lazy re-sign
-	ln.Set(c.currentENREntry())
+	ln.Set(c.enrAttributes()[0])
 	require.Equal(t, seq, ln.Node().Seq(), "same-value Set must not re-sign")
 
 	require.NoError(t, chain.MintBlocks(3)) // head 5 crosses the scheduled fork
 	require.Eventually(t, func() bool {
-		var e vechainEntry
+		var e enrEntry
 		return ln.Node().Load(&e) == nil && e.ForkID == forkid.NewID(genesisID, &fc, 5)
 	}, 5*time.Second, 20*time.Millisecond)
-	var after vechainEntry
+	var after enrEntry
 	require.NoError(t, ln.Node().Load(&after))
 	require.Zero(t, after.ForkID.Next)
 	require.Equal(t, seq+1, ln.Node().Seq(), "one re-sign for one fork crossing")

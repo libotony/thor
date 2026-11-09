@@ -18,7 +18,6 @@ import (
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/p2p"
 	"github.com/ethereum/go-ethereum/p2p/enode"
-	"github.com/ethereum/go-ethereum/p2p/enr"
 
 	"github.com/vechain/thor/v2/block"
 	"github.com/vechain/thor/v2/chain"
@@ -145,20 +144,21 @@ func (c *Communicator) Protocols() []*p2p.Protocol {
 			return c.servePeer(peer, rw, version)
 		}
 	}
+	attrs := c.enrAttributes()
 	return []*p2p.Protocol{
 		{
 			Name:       proto.Name,
 			Version:    proto.V1,
 			Length:     proto.Length,
 			Run:        run(proto.V1),
-			Attributes: []enr.Entry{c.currentENREntry()},
+			Attributes: attrs,
 		},
 		{
 			Name:       proto.Name,
 			Version:    proto.Version,
 			Length:     proto.Length,
 			Run:        run(proto.Version),
-			Attributes: []enr.Entry{c.currentENREntry()},
+			Attributes: attrs,
 		},
 	}
 }

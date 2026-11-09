@@ -3,35 +3,60 @@
 // Distributed under the GNU Lesser General Public License v3.0 software license, see the accompanying
 // file LICENSE or <https://www.gnu.org/licenses/lgpl-3.0.html>
 
+// VeChain-defined ENR entry.
+//
+// Node records (EIP-778) published by thor carry one VeChain-specific key:
+//
+//	"vet" => [[hash: 4 bytes, next: uint64], ...]
+//
+// hash and next are the EIP-2124 fork id of the publishing node (package forkid):
+// hash chains the genesis ID and every activated fork height, next is the next
+// scheduled fork height or 0. The outer list leaves room for future fields; readers
+// keep and ignore anything after the fork id. Same shape as geth's "eth" entry.
+//
+// The entry is written into the local record at startup through Protocol.Attributes
+// and re-published by the updater when the local head crosses a fork height.
+// Discovery candidates without a compatible "vet" entry are not dialed.
+
 package comm
 
 import (
 	"github.com/ethereum/go-ethereum/p2p/enode"
+	"github.com/ethereum/go-ethereum/p2p/enr"
 	"github.com/ethereum/go-ethereum/rlp"
 
 	"github.com/vechain/thor/v2/forkid"
 )
 
-// vechainEntry is the "vet" ENR entry carrying the local fork id.
-type vechainEntry struct {
+const enrKey = "vet"
+
+// enrEntry is the VeChain ENR entry; see the file comment for the wire format.
+type enrEntry struct {
 	ForkID forkid.ID
-	Rest   []rlp.RawValue `rlp:"tail"` // forward compatibility
+	Rest   []rlp.RawValue `rlp:"tail"` // forward compatibility: trailing fields are kept, not rejected
 }
 
 // ENRKey implements enr.Entry.
-func (vechainEntry) ENRKey() string { return "vet" }
+func (enrEntry) ENRKey() string { return enrKey }
 
-func (c *Communicator) currentENREntry() *vechainEntry {
+// localForkID is the fork id of the local chain at its current head.
+func (c *Communicator) localForkID() forkid.ID {
 	genesisID := c.repo.GenesisBlock().Header().ID()
 	head := c.repo.BestBlockSummary().Header.Number()
-	return &vechainEntry{ForkID: forkid.NewID(genesisID, c.forkConfig, head)}
+	return forkid.NewID(genesisID, c.forkConfig, head)
 }
 
-// V5CandidateFilter returns a predicate that accepts a discv5 node only when
-// its record carries a "vet" entry whose fork id is compatible with ours.
+// enrAttributes are the entries Protocols() advertises, so the record is complete
+// before discovery starts.
+func (c *Communicator) enrAttributes() []enr.Entry {
+	return []enr.Entry{&enrEntry{ForkID: c.localForkID()}}
+}
+
+// V5CandidateFilter returns a predicate that accepts a discv5 node only when its
+// record carries a "vet" entry whose fork id is compatible with ours.
 func (c *Communicator) V5CandidateFilter() func(*enode.Node) bool {
 	return func(n *enode.Node) bool {
-		var entry vechainEntry
+		var entry enrEntry
 		if err := n.Load(&entry); err != nil {
 			return false
 		}
@@ -39,16 +64,21 @@ func (c *Communicator) V5CandidateFilter() func(*enode.Node) bool {
 	}
 }
 
-// startENRUpdater publishes the current fork id into ln, then refreshes it on
-// every best block change until the communicator is stopped.
+// startENRUpdater keeps the "vet" entry of ln in step with the local head. The fork
+// id only changes when the head crosses an activation height, so the record is only
+// touched then.
 func (c *Communicator) startENRUpdater(ln *enode.LocalNode) {
 	ticker := c.repo.NewTicker()
-	ln.Set(c.currentENREntry())
+	published := c.localForkID()
+	ln.Set(&enrEntry{ForkID: published})
 	c.goes.Go(func() {
 		for {
 			select {
 			case <-ticker.C():
-				ln.Set(c.currentENREntry())
+				if id := c.localForkID(); id != published {
+					ln.Set(&enrEntry{ForkID: id})
+					published = id
+				}
 			case <-c.ctx.Done():
 				return
 			}
