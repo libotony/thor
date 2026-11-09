@@ -7,6 +7,7 @@ package p2psrv
 
 import (
 	"net"
+	"strings"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/crypto"
@@ -80,4 +81,15 @@ func TestStartRejectsBadV5Bootnode(t *testing.T) {
 	err := s.Start(nil, "smoke")
 	require.ErrorContains(t, err, "listen discv5")
 	s.Stop() // must not hang or panic after a failed start
+}
+
+// Upstream writes Protocol.Attributes into the local record during Server.Start; thor's vet entry rides on this.
+func TestProtocolAttributesLandInLocalNode(t *testing.T) {
+	n := startSmoke(t, 1, false)
+	record := n.LocalNode().Node()
+
+	var got uint
+	require.NoError(t, record.Load(enr.WithEntry("smoke", &got)))
+	require.EqualValues(t, 1, got)
+	require.True(t, strings.HasPrefix(record.String(), "enr:"), "local record must be a signed ENR, not a synthetic v4 node")
 }
