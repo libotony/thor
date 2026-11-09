@@ -124,10 +124,8 @@ func run(_ context.Context, ctx *cli.Command) error {
 		ln.Database().Close()
 	}()
 	fmt.Println("Running", network.Self().String())
-	record := ln.Node()
-	fmt.Println("ENR    ", record.String())
-	fmt.Println("ENR URL", record.URLv4())
-	if !record.IPAddr().IsValid() {
+	fmt.Println("ENR", ln.Node().String())
+	if !ln.Node().IPAddr().IsValid() {
 		fmt.Println("warning: node record has no IP; pass --nat extip:<IP> to publish a usable ENR")
 	}
 
