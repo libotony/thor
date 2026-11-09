@@ -37,6 +37,9 @@ func (s *Server) listenV5(conn *net.UDPConn, unhandled chan discover.ReadPacket)
 	s.v5 = v5
 
 	iter := v5.RandomNodes()
+	// The filter is the protocol layer's compatibility judgment (same rule as the Status
+	// handshake). Rejected nodes are simply not dialed; they stay in the table and keep
+	// serving lookups.
 	if f := s.opts.V5CandidateFilter; f != nil {
 		iter = enode.Filter(iter, f)
 	}

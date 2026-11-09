@@ -52,12 +52,21 @@ func (c *Communicator) enrAttributes() []enr.Entry {
 	return []enr.Entry{&enrEntry{ForkID: c.localForkID()}}
 }
 
-// V5CandidateFilter returns a predicate that accepts a discv5 node only when its
-// record carries a "vet" entry whose fork id is compatible with ours.
+// V5CandidateFilter returns the predicate p2psrv applies to discv5 candidates before
+// dialing. A candidate must publish a "vet" entry (nodes without one — bootnodes,
+// non-thor nodes — are never dial targets), and its fork id must pass the same
+// EIP-2124 filter the Status handshake applies (c.forkFilter), so the record check
+// and the handshake can never disagree.
+//
+// Compatibility is deliberately not "equal to our own record": while this node is
+// syncing its head is behind, so up-to-date peers carry a hash we have not reached
+// yet and must still be accepted. Only the full fork schedule can decide that, which
+// is why the judgment lives here and not in p2psrv.
 func (c *Communicator) V5CandidateFilter() func(*enode.Node) bool {
 	return func(n *enode.Node) bool {
 		var entry enrEntry
 		if err := n.Load(&entry); err != nil {
+			// no vet entry, or one we cannot decode: not a thor peer we can talk to
 			return false
 		}
 		return c.forkFilter(entry.ForkID) == nil

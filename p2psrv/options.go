@@ -56,7 +56,8 @@ type Options struct {
 	DiscoveryNodesV5 []*enode.Node
 
 	// V5CandidateFilter gates nodes leaving the modern discv5 table before they reach the dialer.
-	// nil accepts everything.
+	// nil accepts everything. It is called from the discovery iterator goroutine and the
+	// discoverability sampler, so it must be safe for concurrent use.
 	V5CandidateFilter func(*enode.Node) bool
 
 	// RemoteDiscoveryList is the url of remote dynamic discovery node list.
