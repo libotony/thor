@@ -29,10 +29,10 @@ import (
 var logger = log.WithContext("pkg", "p2psrv")
 
 const (
-	// How long the dial candidate mix waits for the fairly-chosen source before taking a node from any other.
-	discmixTimeout = 100 * time.Millisecond
-	// Nodes prefetched from the modern discv5 table so the dialer never waits on a lookup.
-	discoveryPrefetchBuffer = 32
+	// candidateMixTimeout is how long FairMix waits on the source whose turn it is before taking a candidate from any source (geth eth uses 100ms).
+	candidateMixTimeout = 100 * time.Millisecond
+	// v5PrefetchNodeCount is how many filtered discv5 candidates are buffered ahead of the dialer (geth eth uses 32).
+	v5PrefetchNodeCount = 32
 )
 
 // Server p2p server wraps ethereum's p2p.Server, and handles discovery v5 stuff.
@@ -87,7 +87,7 @@ func New(opts *Options) *Server {
 		done:       make(chan struct{}),
 		knownNodes: knownNodes,
 		candidates: candidates,
-		mix:        enode.NewFairMix(discmixTimeout),
+		mix:        enode.NewFairMix(candidateMixTimeout),
 	}
 }
 

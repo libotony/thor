@@ -46,11 +46,11 @@ func (s *Server) listenV5(conn *net.UDPConn, unhandled chan discover.ReadPacket)
 	if f := s.opts.V5CandidateFilter; f != nil {
 		iter = enode.Filter(iter, f)
 	}
-	s.mix.AddSource(countingIter{enode.NewBufferIter(iter, discoveryPrefetchBuffer), "v5"})
+	s.mix.AddSource(countingIter{enode.NewBufferIter(iter, v5PrefetchNodeCount), "v5"})
 	return nil
 }
 
-var discoverableSampleInterval = 5 * time.Minute
+var discoveryMetricsInterval = 5 * time.Minute
 
 // countDiscoverable returns how many connected peers the modern discv5 stack can find: peers in
 // its table, or peers the candidate filter would accept.
@@ -73,9 +73,9 @@ func (s *Server) countDiscoverable() int {
 	return count
 }
 
-// discoveryMetricsLoop samples how many connected peers are reachable through modern discv5 and publishes the gauge every discoverableSampleInterval until Stop.
+// discoveryMetricsLoop samples how many connected peers are reachable through modern discv5 and publishes the gauge every discoveryMetricsInterval until Stop.
 func (s *Server) discoveryMetricsLoop() {
-	ticker := time.NewTicker(discoverableSampleInterval)
+	ticker := time.NewTicker(discoveryMetricsInterval)
 	defer ticker.Stop()
 	for {
 		select {
