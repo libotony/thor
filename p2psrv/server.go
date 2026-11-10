@@ -148,7 +148,7 @@ func (s *Server) Start(protocols []*p2p.Protocol, topic discv5.Topic) error {
 		if err := s.listenDiscV5(); err != nil {
 			return err
 		}
-		s.goes.Go(s.discoverableLoop)
+		s.goes.Go(s.discoveryMetricsLoop)
 		logger.Debug("registering topic", "topic", topic)
 		s.goes.Go(func() {
 			s.discv5.RegisterTopic(topic, s.done)

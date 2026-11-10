@@ -73,7 +73,8 @@ func (s *Server) countDiscoverable() int {
 	return count
 }
 
-func (s *Server) discoverableLoop() {
+// discoveryMetricsLoop samples how many connected peers are reachable through modern discv5 and publishes the gauge every discoverableSampleInterval until Stop.
+func (s *Server) discoveryMetricsLoop() {
 	ticker := time.NewTicker(discoverableSampleInterval)
 	defer ticker.Stop()
 	for {
