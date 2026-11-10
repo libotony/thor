@@ -52,19 +52,17 @@ func (c *Communicator) enrAttributes() []enr.Entry {
 	return []enr.Entry{&enrEntry{ForkID: c.localForkID()}}
 }
 
-// V5CandidateFilter returns the predicate p2psrv applies to discv5 candidates before
-// dialing: the candidate's advertised fork id must pass the same EIP-2124 filter the
-// Status handshake uses. Not an equality check against our own record — a syncing node
-// is behind, yet must still accept up-to-date peers.
-func (c *Communicator) V5CandidateFilter() func(*enode.Node) bool {
-	return func(n *enode.Node) bool {
-		var entry enrEntry
-		// read the candidate's own fork id from its record; none or undecodable → not a thor peer
-		if err := n.Load(&entry); err != nil {
-			return false
-		}
-		return c.forkFilter(entry.ForkID) == nil
+// AcceptV5Candidate reports whether a discv5 candidate may be dialed: its advertised
+// fork id must pass the same EIP-2124 filter the Status handshake uses. Not an equality
+// check against our own record — a syncing node is behind, yet must still accept
+// up-to-date peers. p2psrv consumes it as a method value (Options.V5CandidateFilter).
+func (c *Communicator) AcceptV5Candidate(n *enode.Node) bool {
+	var entry enrEntry
+	// read the candidate's own fork id from its record; none or undecodable → not a thor peer
+	if err := n.Load(&entry); err != nil {
+		return false
 	}
+	return c.forkFilter(entry.ForkID) == nil
 }
 
 // startENRUpdater keeps the "vet" entry of ln in step with the local head. The fork

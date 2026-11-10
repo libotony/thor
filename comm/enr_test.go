@@ -48,12 +48,12 @@ func TestENREntryTailIsForwardCompatible(t *testing.T) {
 	require.Len(t, got.Rest, 1)
 }
 
-func TestV5CandidateFilter(t *testing.T) {
+func TestAcceptV5Candidate(t *testing.T) {
 	chain, pool := newHandshakeChain(t)
 	c := New(chain.Repo(), pool, &thor.SoloFork)
 	genesisID := chain.Repo().GenesisBlock().Header().ID()
 	head := chain.Repo().BestBlockSummary().Header.Number()
-	filter := c.V5CandidateFilter()
+	filter := c.AcceptV5Candidate
 
 	require.False(t, filter(signedNode(t)), "no vet entry")
 	require.True(t, filter(signedNode(t, &enrEntry{ForkID: forkid.NewID(genesisID, &thor.SoloFork, head)})))

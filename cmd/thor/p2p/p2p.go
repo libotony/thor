@@ -80,7 +80,7 @@ func New(
 		NodeDatabase:        filepath.Join(instanceDir, "nodes"),
 	}
 	if communicator != nil {
-		opts.V5CandidateFilter = communicator.V5CandidateFilter()
+		opts.V5CandidateFilter = communicator.AcceptV5Candidate
 	}
 
 	// allowed peers flag will only allow p2psrv to connect to the designated peers
