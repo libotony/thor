@@ -39,7 +39,7 @@ const (
 type Server struct {
 	opts           *Options
 	srv            *p2p.Server
-	discv5         *discv5.Network
+	legacy         *discv5.Network
 	goes           sync.WaitGroup
 	done           chan struct{}
 	bootstrapNodes []*discv5.Node
@@ -145,18 +145,18 @@ func (s *Server) Start(protocols []*p2p.Protocol, topic discv5.Topic) error {
 		// Added here rather than in New: the mix pulls from the source at once, which would drain
 		// the KnownNodes seeded into candidates before anything can consume them.
 		s.mix.AddSource(countingIter{s.candidates, "legacy"})
-		if err := s.listenDiscV5(); err != nil {
+		if err := s.listenLegacyDiscovery(); err != nil {
 			return err
 		}
 		s.goes.Go(s.discoveryMetricsLoop)
 		logger.Debug("registering topic", "topic", topic)
 		s.goes.Go(func() {
-			s.discv5.RegisterTopic(topic, s.done)
+			s.legacy.RegisterTopic(topic, s.done)
 		})
 
 		logger.Debug("searching topic", "topic", topic)
 		s.goes.Go(func() {
-			s.discoverLoop(topic)
+			s.legacyDiscoverLoop(topic)
 		})
 
 		s.goes.Go(s.fetchBootstrap)
@@ -171,8 +171,8 @@ func (s *Server) Start(protocols []*p2p.Protocol, topic discv5.Topic) error {
 func (s *Server) Stop() {
 	// Order matters: legacy Close closes the socket, whose read loop then closes the unhandled
 	// channel; v5.Close waits for its read loop, which only returns once that channel is closed.
-	if s.discv5 != nil {
-		s.discv5.Close()
+	if s.legacy != nil {
+		s.legacy.Close()
 	}
 	if s.v5 != nil {
 		s.v5.Close()
@@ -218,7 +218,7 @@ func (s *Server) TryDial(node *enode.Node) error {
 	return s.srv.SetupConn(conn, 1, node)
 }
 
-func (s *Server) listenDiscV5() (err error) {
+func (s *Server) listenLegacyDiscovery() (err error) {
 	// borrowed from ethereum/p2p.Server.Start
 	addr, err := net.ResolveUDPAddr("udp", s.opts.ListenAddr)
 	if err != nil {
@@ -253,7 +253,7 @@ func (s *Server) listenDiscV5() (err error) {
 	}()
 
 	for _, node := range s.opts.DiscoveryNodes {
-		s.bootstrapNodes = append(s.bootstrapNodes, toV5Node(node))
+		s.bootstrapNodes = append(s.bootstrapNodes, toLegacyNode(node))
 	}
 	// known nodes are also acting as bootstrap servers
 	for _, node := range s.opts.KnownNodes {
@@ -261,7 +261,7 @@ func (s *Server) listenDiscV5() (err error) {
 		if _, ok := node.UDPEndpoint(); !ok || node.TCP() == 0 {
 			continue
 		}
-		s.bootstrapNodes = append(s.bootstrapNodes, toV5Node(node))
+		s.bootstrapNodes = append(s.bootstrapNodes, toLegacyNode(node))
 	}
 
 	if err := network.SetFallbackNodes(s.bootstrapNodes); err != nil {
@@ -270,12 +270,12 @@ func (s *Server) listenDiscV5() (err error) {
 	if err := s.listenV5(conn, unhandled); err != nil {
 		return err
 	}
-	s.discv5 = network
+	s.legacy = network
 	return nil
 }
 
-func (s *Server) discoverLoop(topic discv5.Topic) {
-	if s.discv5 == nil {
+func (s *Server) legacyDiscoverLoop(topic discv5.Topic) {
+	if s.legacy == nil {
 		return
 	}
 
@@ -285,7 +285,7 @@ func (s *Server) discoverLoop(topic discv5.Topic) {
 	discLookups := make(chan bool, 100)
 
 	s.goes.Go(func() {
-		s.discv5.SearchTopic(topic, setPeriod, discNodes, discLookups)
+		s.legacy.SearchTopic(topic, setPeriod, discNodes, discLookups)
 	})
 
 	var (
@@ -307,10 +307,10 @@ func (s *Server) discoverLoop(topic discv5.Topic) {
 					setPeriod <- time.Minute
 				}
 			}
-		case v5node := <-discNodes:
-			node, err := fromV5Node(v5node)
+		case legacyNode := <-discNodes:
+			node, err := fromLegacyNode(legacyNode)
 			if err != nil {
-				logger.Debug("discard discovered node", "node", v5node, "err", err)
+				logger.Debug("discard discovered node", "node", legacyNode, "err", err)
 				continue
 			}
 			s.candidates.Add(node)
@@ -341,7 +341,7 @@ func (s *Server) fetchBootstrap() {
 
 		bootnodes := slices.Clone(s.bootstrapNodes)
 		bootnodes = append(bootnodes, remoteNodes...)
-		if err := s.discv5.SetFallbackNodes(bootnodes); err != nil {
+		if err := s.legacy.SetFallbackNodes(bootnodes); err != nil {
 			return err
 		}
 		return nil
@@ -362,7 +362,7 @@ func (s *Server) fetchBootstrap() {
 	}
 }
 
-func toV5Node(n *enode.Node) *discv5.Node {
+func toLegacyNode(n *enode.Node) *discv5.Node {
 	// Shared-port bootnodes (disco) advertise tcp=udp in legacy discovery, so a tcp-less ENR maps to
 	// that same endpoint; legacy validateComplete would otherwise reject the whole fallback set.
 	tcp := n.TCP()
@@ -372,7 +372,7 @@ func toV5Node(n *enode.Node) *discv5.Node {
 	return discv5.NewNode(discv5.PubkeyID(n.Pubkey()), n.IP(), uint16(n.UDP()), uint16(tcp))
 }
 
-func fromV5Node(n *discv5.Node) (*enode.Node, error) {
+func fromLegacyNode(n *discv5.Node) (*enode.Node, error) {
 	pub, err := crypto.UnmarshalPubkey(append([]byte{4}, n.ID[:]...))
 	if err != nil {
 		return nil, err

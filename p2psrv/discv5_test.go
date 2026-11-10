@@ -49,7 +49,7 @@ func TestV5ProtocolIDIsolation(t *testing.T) {
 
 func TestLocalNodeAdvertisesLegacyUDPPort(t *testing.T) {
 	n := startSmoke(t, 1, false)
-	want := int(n.discv5.Self().UDP) // the socket legacy discv5 owns
+	want := int(n.legacy.Self().UDP) // the socket legacy discv5 owns
 	got := n.LocalNode().Node().UDP()
 	require.Equal(t, want, got, "ENR must carry the shared discovery port, not the parked upstream socket")
 	require.NotZero(t, got)
@@ -62,10 +62,10 @@ func TestToV5NodeFillsTCPFromUDP(t *testing.T) {
 	r.Set(enr.UDP(55555))
 	require.NoError(t, enode.SignV4(&r, key))
 	n, _ := enode.New(enode.ValidSchemes, &r)
-	legacy := toV5Node(n)
+	legacy := toLegacyNode(n)
 	require.EqualValues(t, 55555, legacy.UDP)
 	require.EqualValues(t, 55555, legacy.TCP, "shared-port bootnode: legacy record mirrors disco's own tcp=udp endpoint")
-	require.EqualValues(t, 30303, toV5Node(fakeNode(1)).TCP, "explicit tcp is kept")
+	require.EqualValues(t, 30303, toLegacyNode(fakeNode(1)).TCP, "explicit tcp is kept")
 
 	// the synthesized tcp is what lets legacy SetFallbackNodes accept the record
 	key2, _ := crypto.GenerateKey()
