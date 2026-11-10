@@ -31,8 +31,8 @@ var logger = log.WithContext("pkg", "p2psrv")
 const (
 	// candidateMixTimeout is how long FairMix waits on the source whose turn it is before taking a candidate from any source (geth eth uses 100ms).
 	candidateMixTimeout = 100 * time.Millisecond
-	// v5PrefetchNodeCount is how many filtered discv5 candidates are buffered ahead of the dialer (geth eth uses 32).
-	v5PrefetchNodeCount = 32
+	// prefetchNodeCount is how many filtered discv5 candidates are buffered ahead of the dialer (geth eth uses 32).
+	prefetchNodeCount = 32
 )
 
 // Server p2p server wraps ethereum's p2p.Server, and handles discovery v5 stuff.

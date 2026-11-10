@@ -46,7 +46,7 @@ func (s *Server) listenV5(conn *net.UDPConn, unhandled chan discover.ReadPacket)
 	if f := s.opts.V5CandidateFilter; f != nil {
 		iter = enode.Filter(iter, f)
 	}
-	s.mix.AddSource(countingIter{enode.NewBufferIter(iter, v5PrefetchNodeCount), "v5"})
+	s.mix.AddSource(countingIter{enode.NewBufferIter(iter, prefetchNodeCount), "v5"})
 	return nil
 }
 
