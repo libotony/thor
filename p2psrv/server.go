@@ -145,7 +145,7 @@ func (s *Server) Start(protocols []*p2p.Protocol, topic discv5.Topic) error {
 		// Added here rather than in New: the mix pulls from the source at once, which would drain
 		// the KnownNodes seeded into candidates before anything can consume them.
 		s.mix.AddSource(countingIter{s.candidates, "legacy"})
-		if err := s.listenLegacyDiscovery(); err != nil {
+		if err := s.listenDiscovery(); err != nil {
 			return err
 		}
 		s.goes.Go(s.discoveryMetricsLoop)
@@ -218,7 +218,7 @@ func (s *Server) TryDial(node *enode.Node) error {
 	return s.srv.SetupConn(conn, 1, node)
 }
 
-func (s *Server) listenLegacyDiscovery() (err error) {
+func (s *Server) listenDiscovery() (err error) {
 	// borrowed from ethereum/p2p.Server.Start
 	addr, err := net.ResolveUDPAddr("udp", s.opts.ListenAddr)
 	if err != nil {
