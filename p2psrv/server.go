@@ -142,8 +142,10 @@ func (s *Server) Start(protocols []*p2p.Protocol, topic discv5.Topic) error {
 		return err
 	}
 	if !s.opts.NoDiscovery {
-		// Added here rather than in New: the mix pulls from the source at once, which would drain
-		// the KnownNodes seeded into candidates before anything can consume them.
+		// Added here rather than in New: AddSource starts a goroutine that calls Next() on the
+		// source right away, taking one node out of the candidate cache and holding it until the
+		// dial scheduler (which only exists after srv.Start) consumes it. Done in New, a seeded
+		// KnownNode would already be gone from the cache before Start.
 		s.mix.AddSource(countingIter{s.candidates, "legacy"})
 		if err := s.listenDiscovery(); err != nil {
 			return err
