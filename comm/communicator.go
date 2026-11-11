@@ -17,6 +17,7 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/p2p"
+	"github.com/ethereum/go-ethereum/p2p/enode"
 
 	"github.com/vechain/thor/v2/block"
 	"github.com/vechain/thor/v2/chain"
@@ -143,18 +144,21 @@ func (c *Communicator) Protocols() []*p2p.Protocol {
 			return c.servePeer(peer, rw, version)
 		}
 	}
+	attrs := c.enrAttributes()
 	return []*p2p.Protocol{
 		{
-			Name:    proto.Name,
-			Version: proto.V1,
-			Length:  proto.Length,
-			Run:     run(proto.V1),
+			Name:       proto.Name,
+			Version:    proto.V1,
+			Length:     proto.Length,
+			Run:        run(proto.V1),
+			Attributes: attrs,
 		},
 		{
-			Name:    proto.Name,
-			Version: proto.Version,
-			Length:  proto.Length,
-			Run:     run(proto.Version),
+			Name:       proto.Name,
+			Version:    proto.Version,
+			Length:     proto.Length,
+			Run:        run(proto.Version),
+			Attributes: attrs,
 		},
 	}
 }
@@ -168,10 +172,13 @@ func (c *Communicator) DiscTopic() discv5.Topic {
 	return discv5.Topic(fmt.Sprintf("%v1@%x", proto.Name, genesisID[24:]))
 }
 
-// Start start the communicator.
-func (c *Communicator) Start() {
+// Start starts the communicator loops. ln is the local node record to keep the vet entry updated on; nil skips the updater.
+func (c *Communicator) Start(ln *enode.LocalNode) {
 	c.goes.Go(c.txsLoop)
 	c.goes.Go(c.announcementLoop)
+	if ln != nil {
+		c.startENRUpdater(ln)
+	}
 }
 
 // Stop stop the communicator.

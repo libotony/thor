@@ -22,11 +22,13 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"slices"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/p2p/discover"
 	"github.com/ethereum/go-ethereum/p2p/nat"
 	"github.com/ethereum/go-ethereum/p2p/netutil"
 	"github.com/ethereum/go-ethereum/rlp"
@@ -227,11 +229,16 @@ type udp struct {
 	ourEndpoint rpcEndpoint
 	nat         nat.Interface
 	net         *Network
+
+	// unhandled receives packets that don't look like legacy discv5 packets; nil disables forwarding.
+	unhandled chan<- discover.ReadPacket
 }
 
 // ListenUDP returns a new table that listens for UDP packets on laddr.
-func ListenUDP(priv *ecdsa.PrivateKey, conn conn, realaddr *net.UDPAddr, nodeDBPath string, netrestrict *netutil.Netlist) (*Network, error) {
-	transport, err := listenUDP(priv, conn, realaddr)
+// If unhandled is non-nil, packets not recognised as legacy discv5 are sent to it
+// (non-blocking, dropped when full) and it is closed when the read loop exits.
+func ListenUDP(priv *ecdsa.PrivateKey, conn conn, realaddr *net.UDPAddr, nodeDBPath string, netrestrict *netutil.Netlist, unhandled chan<- discover.ReadPacket) (*Network, error) {
+	transport, err := listenUDP(priv, conn, realaddr, unhandled)
 	if err != nil {
 		return nil, err
 	}
@@ -245,8 +252,8 @@ func ListenUDP(priv *ecdsa.PrivateKey, conn conn, realaddr *net.UDPAddr, nodeDBP
 	return net, nil
 }
 
-func listenUDP(priv *ecdsa.PrivateKey, conn conn, realaddr *net.UDPAddr) (*udp, error) {
-	return &udp{conn: conn, priv: priv, ourEndpoint: makeEndpoint(realaddr, uint16(realaddr.Port))}, nil
+func listenUDP(priv *ecdsa.PrivateKey, conn conn, realaddr *net.UDPAddr, unhandled chan<- discover.ReadPacket) (*udp, error) {
+	return &udp{conn: conn, priv: priv, ourEndpoint: makeEndpoint(realaddr, uint16(realaddr.Port)), unhandled: unhandled}, nil
 }
 
 func (t *udp) localAddr() *net.UDPAddr {
@@ -367,6 +374,9 @@ func encodePacket(priv *ecdsa.PrivateKey, ptype byte, req any) (p, hash []byte, 
 // into the network loop.
 func (t *udp) readLoop() {
 	defer t.conn.Close()
+	if t.unhandled != nil {
+		defer close(t.unhandled)
+	}
 	// Discovery packets are defined to be no larger than 1280 bytes.
 	// Packets larger than this size will be cut at the end and treated
 	// as invalid because their hash won't match.
@@ -382,8 +392,20 @@ func (t *udp) readLoop() {
 			log.Debug(fmt.Sprintf("Read error: %v", err))
 			return
 		}
+		if t.unhandled != nil && !isLegacyPacket(buf[:nbytes]) {
+			select {
+			case t.unhandled <- discover.ReadPacket{Data: slices.Clone(buf[:nbytes]), Addr: from.AddrPort()}:
+			default:
+			}
+			continue
+		}
 		t.handlePacket(from, buf[:nbytes])
 	}
+}
+
+// isLegacyPacket reports whether buf passes the legacy discv5 length and prefix checks of decodePacket.
+func isLegacyPacket(buf []byte) bool {
+	return len(buf) >= headSize+1 && bytes.HasPrefix(buf, versionPrefix)
 }
 
 func (t *udp) handlePacket(from *net.UDPAddr, buf []byte) error {

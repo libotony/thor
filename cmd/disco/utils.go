@@ -12,6 +12,7 @@ import (
 	"io"
 	"log/slog"
 	"math"
+	"net"
 	"os"
 	"os/signal"
 	"os/user"
@@ -20,6 +21,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/crypto"
 	ethlog "github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/mattn/go-isatty"
 
 	"github.com/vechain/thor/v2/log"
@@ -140,4 +142,19 @@ func handleExitSignal() context.Context {
 		cancel()
 	}()
 	return ctx
+}
+
+// newLocalNode builds the signed node record for the shared discovery port. An unspecified bind
+// address is not advertised; the caller closes ln.Database().
+func newLocalNode(key *ecdsa.PrivateKey, realAddr *net.UDPAddr, dbPath string) (*enode.LocalNode, error) {
+	db, err := enode.OpenDB(dbPath)
+	if err != nil {
+		return nil, fmt.Errorf("open node db: %w", err)
+	}
+	ln := enode.NewLocalNode(db, key)
+	ln.SetFallbackUDP(realAddr.Port)
+	if !realAddr.IP.IsUnspecified() {
+		ln.SetStaticIP(realAddr.IP)
+	}
+	return ln, nil
 }

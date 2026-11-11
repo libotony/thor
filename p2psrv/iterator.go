@@ -76,3 +76,17 @@ func (it *candidateIter) Node() *enode.Node { return it.cur }
 func (it *candidateIter) Close() {
 	it.closeOnce.Do(func() { close(it.closed) })
 }
+
+// countingIter counts every node handed out, labelled by discovery source.
+type countingIter struct {
+	enode.Iterator
+	source string
+}
+
+func (it countingIter) Next() bool {
+	if !it.Iterator.Next() {
+		return false
+	}
+	metricDialCandidates().AddWithLabel(1, map[string]string{"source": it.source})
+	return true
+}
