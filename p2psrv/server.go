@@ -29,9 +29,9 @@ import (
 var logger = log.WithContext("pkg", "p2psrv")
 
 const (
-	// candidateMixTimeout is how long FairMix waits on the source whose turn it is before taking a candidate from any source (geth eth uses 100ms).
+	// candidateMixTimeout is how long FairMix waits on the source whose turn it is before taking a candidate from any source
 	candidateMixTimeout = 100 * time.Millisecond
-	// prefetchNodeCount is how many filtered discv5 candidates are buffered ahead of the dialer (geth eth uses 32).
+	// prefetchNodeCount is how many filtered discv5 candidates are buffered ahead of the dialer
 	prefetchNodeCount = 32
 )
 
