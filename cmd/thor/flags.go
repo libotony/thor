@@ -221,6 +221,13 @@ var (
 		Usage:   "comma separated list of node IDs that can be connected to",
 		Sources: envVar("ALLOWED_PEERS"),
 	}
+	staticPeersFlag = &cli.StringFlag{
+		Name:    "static-peers",
+		Local:   true,
+		Hidden:  true,
+		Usage:   "comma separated list of enode URLs to stay connected to alongside discovery (dials use the outbound quota; exclusive with --allowed-peers)",
+		Sources: envVar("STATIC_PEERS"),
+	}
 	targetGasLimitFlag = &cli.Uint64Flag{
 		Name:    "target-gas-limit",
 		Local:   true,

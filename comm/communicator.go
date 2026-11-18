@@ -14,14 +14,15 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/event"
+	"github.com/ethereum/go-ethereum/p2p"
 
 	"github.com/vechain/thor/v2/block"
 	"github.com/vechain/thor/v2/chain"
 	"github.com/vechain/thor/v2/comm/proto"
 	"github.com/vechain/thor/v2/forkid"
 	"github.com/vechain/thor/v2/log"
-	"github.com/vechain/thor/v2/p2p"
 	"github.com/vechain/thor/v2/p2p/discv5"
 	"github.com/vechain/thor/v2/thor"
 	"github.com/vechain/thor/v2/tx"
@@ -299,16 +300,22 @@ func (c *Communicator) PeerCount() int {
 	return c.peerSet.Len()
 }
 
+// legacyPeerID renders the 128-hex uncompressed-pubkey peer ID that the
+// public API exposed before the enode.ID migration (legacy wire identity).
+func legacyPeerID(peer *p2p.Peer) string {
+	return fmt.Sprintf("%x", crypto.FromECDSAPub(peer.Node().Pubkey())[1:])
+}
+
 // PeersStats returns all peers' stats
 func (c *Communicator) PeersStats() []*PeerStats {
 	var stats []*PeerStats
 	for _, peer := range c.peerSet.Slice() {
 		bestID, totalScore := peer.Head()
 		stats = append(stats, &PeerStats{
-			Name:        peer.Name(),
+			Name:        peer.Fullname(),
 			BestBlockID: bestID,
 			TotalScore:  totalScore,
-			PeerID:      peer.ID().String(),
+			PeerID:      legacyPeerID(peer.Peer),
 			NetAddr:     peer.RemoteAddr().String(),
 			Inbound:     peer.Inbound(),
 			Duration:    uint64(time.Duration(peer.Duration()) / time.Second),

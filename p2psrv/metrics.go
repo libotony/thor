@@ -7,8 +7,4 @@ package p2psrv
 
 import "github.com/vechain/thor/v2/metrics"
 
-var (
-	metricConnectedPeers  = metrics.LazyLoadGauge("p2p_connected_peers_gauge")
-	metricDiscoveredNodes = metrics.LazyLoadCounter("p2p_discovered_node_count")
-	metricDialingNewNode  = metrics.LazyLoadGauge("p2p_dialing_new_node_count")
-)
+var metricConnectedPeers = metrics.LazyLoadGauge("p2p_connected_peers_gauge")

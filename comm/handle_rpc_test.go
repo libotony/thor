@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum/go-ethereum/p2p"
+	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -18,8 +20,6 @@ import (
 	"github.com/vechain/thor/v2/comm/proto"
 	"github.com/vechain/thor/v2/forkid"
 	"github.com/vechain/thor/v2/genesis"
-	"github.com/vechain/thor/v2/p2p"
-	"github.com/vechain/thor/v2/p2p/discover"
 	"github.com/vechain/thor/v2/test/testchain"
 	"github.com/vechain/thor/v2/thor"
 	"github.com/vechain/thor/v2/tx"
@@ -39,7 +39,7 @@ func TestHandleRPC_MsgNewTx(t *testing.T) {
 	defer pool.Close()
 
 	comm := New(repo, pool, nil)
-	peer := newPeer(p2p.NewPeer(discover.NodeID{}, "test", nil), stubMsgReadWriter{}, proto.Version)
+	peer := newPeer(p2p.NewPeer(enode.ID{}, "test", nil), stubMsgReadWriter{}, proto.Version)
 
 	to, _ := thor.ParseAddress("0x7567d83b7b8d80addcb281a71d54fc7b3364ffed")
 	chainTag := repo.ChainTag()
@@ -205,7 +205,7 @@ func TestHandleRPC_MsgGetStatus(t *testing.T) {
 
 	getStatus := func(version uint) any {
 		t.Helper()
-		peer := newPeer(p2p.NewPeer(discover.NodeID{}, "test", nil), stubMsgReadWriter{}, version)
+		peer := newPeer(p2p.NewPeer(enode.ID{}, "test", nil), stubMsgReadWriter{}, version)
 		payload, err := rlp.EncodeToBytes(&struct{}{})
 		require.NoError(t, err)
 		msg := &p2p.Msg{Code: proto.MsgGetStatus, Size: uint32(len(payload)), Payload: bytes.NewReader(payload)}

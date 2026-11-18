@@ -11,14 +11,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum/go-ethereum/p2p"
+	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/vechain/thor/v2/block"
 	"github.com/vechain/thor/v2/comm/proto"
-	"github.com/vechain/thor/v2/p2p"
-	"github.com/vechain/thor/v2/p2p/discover"
 	"github.com/vechain/thor/v2/test/testchain"
 	"github.com/vechain/thor/v2/thor"
 	"github.com/vechain/thor/v2/txpool"
@@ -70,7 +70,7 @@ func fetchBlockByIDResult(t *testing.T, served rlp.RawValue, want thor.Bytes32) 
 
 	c := New(chain.Repo(), pool, nil)
 	rw := &replyRW{read: make(chan p2p.Msg, 1), result: served}
-	peer := newPeer(p2p.NewPeer(discover.NodeID{}, "test", nil), rw, proto.Version)
+	peer := newPeer(p2p.NewPeer(enode.ID{}, "test", nil), rw, proto.Version)
 	go peer.Serve(func(*p2p.Msg, func(any)) error { return nil }, proto.MaxMsgSize)
 
 	events := make(chan *NewBlockEvent, 1)
