@@ -6,6 +6,7 @@
 package main
 
 import (
+	"encoding/hex"
 	"math"
 	"testing"
 
@@ -85,5 +86,21 @@ func TestReadIntFromUInt64Flag_TooLarge(t *testing.T) {
 	val := uint64(math.MaxInt) + 1
 	if _, err := readIntFromUInt64Flag(val); err == nil {
 		t.Fatalf("expected error for value > MaxInt")
+	}
+}
+
+func TestParseNodeListRejectsHostname(t *testing.T) {
+	key, err := crypto.GenerateKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	id := hex.EncodeToString(crypto.FromECDSAPub(&key.PublicKey)[1:])
+
+	if _, err := parseNodeList("enode://" + id + "@example.com:11235"); err == nil {
+		t.Fatal("expected error for DNS hostname")
+	}
+	nodes, err := parseNodeList("enode://" + id + "@127.0.0.1:11235")
+	if err != nil || len(nodes) != 1 {
+		t.Fatalf("IP form should parse: %v", err)
 	}
 }

@@ -666,6 +666,9 @@ func parseNodeList(list string) ([]*enode.Node, error) {
 		if err != nil {
 			return nil, err
 		}
+		if node.Hostname() != "" {
+			return nil, fmt.Errorf("invalid node %q: DNS hostname is not supported, use an IP address", i)
+		}
 		nodes = append(nodes, node)
 	}
 
