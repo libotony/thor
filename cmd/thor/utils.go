@@ -662,7 +662,7 @@ func parseNodeList(list string) ([]*enode.Node, error) {
 		if i == "" {
 			continue
 		}
-		node, err := enode.ParseV4(i)
+		node, err := enode.Parse(enode.ValidSchemes, i)
 		if err != nil {
 			return nil, err
 		}
