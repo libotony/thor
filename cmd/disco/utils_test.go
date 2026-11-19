@@ -10,9 +10,13 @@ import (
 	"io"
 	"log/slog"
 	"math"
+	"net"
+	"strings"
 	"testing"
 
+	"github.com/ethereum/go-ethereum/crypto"
 	ethlog "github.com/ethereum/go-ethereum/log"
+	"github.com/stretchr/testify/require"
 
 	"github.com/vechain/thor/v2/log"
 )
@@ -80,4 +84,18 @@ func BenchmarkEthLoggerDebug(b *testing.B) {
 			}
 		})
 	}
+}
+
+func TestNewLocalNodeEndpoint(t *testing.T) {
+	key, _ := crypto.GenerateKey()
+	ln, err := newLocalNode(key, &net.UDPAddr{IP: net.IPv4(1, 2, 3, 4), Port: 55555})
+	require.NoError(t, err)
+	require.Equal(t, "1.2.3.4", ln.Node().IPAddr().String())
+	require.Equal(t, 55555, ln.Node().UDP())
+	require.True(t, strings.HasPrefix(ln.Node().String(), "enr:"))
+
+	ln, err = newLocalNode(key, &net.UDPAddr{IP: net.IPv4zero, Port: 55555})
+	require.NoError(t, err)
+	require.False(t, ln.Node().IPAddr().IsValid(), "unspecified bind address must not be advertised")
+	require.Equal(t, 55555, ln.Node().UDP())
 }
