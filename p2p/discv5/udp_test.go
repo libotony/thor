@@ -17,18 +17,22 @@
 package discv5
 
 import (
+	"bytes"
 	"encoding/hex"
 	"errors"
 	"io"
 	"net"
 	"reflect"
+	"slices"
 	"sync"
 	"testing"
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/p2p/discover"
 	"github.com/ethereum/go-ethereum/rlp"
+	"github.com/stretchr/testify/assert"
 )
 
 func init() {
@@ -447,4 +451,58 @@ func (c *dgramPipe) waitPacketOut() []byte {
 	copy(c.queue, c.queue[1:])
 	c.queue = c.queue[:len(c.queue)-1]
 	return p
+}
+
+// scriptedConn replays packets then fails permanently, which ends readLoop.
+type scriptedConn struct {
+	packets [][]byte
+	from    *net.UDPAddr
+}
+
+func (c *scriptedConn) ReadFromUDP(b []byte) (int, *net.UDPAddr, error) {
+	if len(c.packets) == 0 {
+		return 0, nil, errors.New("closed")
+	}
+	p := c.packets[0]
+	c.packets = c.packets[1:]
+	return copy(b, p), c.from, nil
+}
+func (c *scriptedConn) WriteToUDP(b []byte, _ *net.UDPAddr) (int, error) { return len(b), nil }
+func (c *scriptedConn) Close() error                                     { return nil }
+func (c *scriptedConn) LocalAddr() net.Addr                              { return c.from }
+
+func TestIsLegacyPacket(t *testing.T) {
+	withPrefix := func(n int) []byte { return append(slices.Clone(versionPrefix), make([]byte, n-versionPrefixSize)...) }
+	assert.True(t, isLegacyPacket(withPrefix(headSize+1)))
+	assert.False(t, isLegacyPacket(withPrefix(headSize)), "one byte short of the legacy minimum")
+	assert.False(t, isLegacyPacket(bytes.Repeat([]byte{0xab}, headSize+1)), "prefix mismatch")
+	assert.False(t, isLegacyPacket(bytes.Repeat([]byte{0xab}, 63)), "WHOAREYOU-sized packet")
+}
+
+func TestReadLoopForwardsNonLegacyPackets(t *testing.T) {
+	legacyBadSig := append(slices.Clone(versionPrefix), make([]byte, headSize-versionPrefixSize+1)...) // prefix ok, signature all-zero
+	whoareyou := bytes.Repeat([]byte{0xab}, 63)
+	short := []byte{1, 2, 3}
+	overflow := bytes.Repeat([]byte{0xcd}, 200)
+
+	unhandled := make(chan discover.ReadPacket, 2)
+	from := &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 30303}
+	tr := &udp{conn: &scriptedConn{packets: [][]byte{legacyBadSig, whoareyou, short, overflow}, from: from}, unhandled: unhandled}
+	tr.readLoop() // returns on the permanent read error; must close unhandled on the way out
+
+	var got [][]byte
+	for p := range unhandled { // terminates only if readLoop closed the channel
+		assert.Equal(t, from.AddrPort(), p.Addr)
+		got = append(got, p.Data)
+	}
+	// legacyBadSig stays on the legacy path (decode fails before any Network access);
+	// overflow is dropped because the channel (cap 2) is full—delivery must not block.
+	assert.Equal(t, [][]byte{whoareyou, short}, got)
+}
+
+func TestReadLoopWithoutUnhandledKeepsLegacyBehavior(t *testing.T) {
+	tr := &udp{conn: &scriptedConn{packets: [][]byte{bytes.Repeat([]byte{0xab}, 63)}, from: &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1)}}}
+	// No explicit assert: passes iff readLoop returns without panic when unhandled is nil
+	// (a missing nil-guard on defer close(t.unhandled) would panic).
+	tr.readLoop()
 }
