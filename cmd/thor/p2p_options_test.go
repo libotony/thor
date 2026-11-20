@@ -3,7 +3,7 @@
 // Distributed under the GNU Lesser General Public License v3.0 software license, see the accompanying
 // file LICENSE or <https://www.gnu.org/licenses/lgpl-3.0.html>
 
-package p2p
+package main
 
 import (
 	"bytes"
@@ -152,7 +152,7 @@ func TestNewThorP2P(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			opts, err := BuildOptions(Inputs{
+			opts, err := buildP2POptions(p2pInputs{
 				Version:        "1.0",
 				PrivateKey:     privateKey,
 				MaxPeers:       tc.maxPeers,
@@ -179,7 +179,7 @@ func TestNewThorP2P(t *testing.T) {
 func TestNewThorP2PAllowedAndStaticExclusive(t *testing.T) {
 	privateKey, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 
-	opts, err := BuildOptions(Inputs{
+	opts, err := buildP2POptions(p2pInputs{
 		Version:      "1.0",
 		PrivateKey:   privateKey,
 		MaxPeers:     10,
@@ -194,7 +194,7 @@ func TestNewThorP2PAllowedAndStaticExclusive(t *testing.T) {
 func TestNewThorP2PBootnodeSplit(t *testing.T) {
 	key, _ := crypto.GenerateKey()
 	withTCP, noTCP := testNode(1), enrNode(2)
-	opts, err := BuildOptions(Inputs{Version: "v", PrivateKey: key, MaxPeers: 10, ListenAddr: ":11235", BootstrapNodes: []*enode.Node{withTCP, noTCP}})
+	opts, err := buildP2POptions(p2pInputs{Version: "v", PrivateKey: key, MaxPeers: 10, ListenAddr: ":11235", BootstrapNodes: []*enode.Node{withTCP, noTCP}})
 	require.NoError(t, err)
 	require.Equal(t, []*enode.Node{withTCP, noTCP}, opts.DiscoveryNodesV5)
 	require.Equal(t, []*enode.Node{withTCP, noTCP}, opts.DiscoveryNodes, "shared port: an ENR bootnode also seeds legacy discovery")
@@ -203,21 +203,21 @@ func TestNewThorP2PBootnodeSplit(t *testing.T) {
 
 func TestNewThorP2PDefaultsKeepV5Unseeded(t *testing.T) {
 	key, _ := crypto.GenerateKey()
-	opts, err := BuildOptions(Inputs{Version: "v", PrivateKey: key, MaxPeers: 10, ListenAddr: ":11235", CachedPeers: []*enode.Node{testNode(3)}})
+	opts, err := buildP2POptions(p2pInputs{Version: "v", PrivateKey: key, MaxPeers: 10, ListenAddr: ":11235", CachedPeers: []*enode.Node{testNode(3)}})
 	require.NoError(t, err)
 	require.Empty(t, opts.DiscoveryNodesV5, "fallback list and cached peers never seed v5")
 }
 
 func TestNewThorP2PRejectsNoTCPPins(t *testing.T) {
 	key, _ := crypto.GenerateKey()
-	base := Inputs{Version: "v", PrivateKey: key, MaxPeers: 10, ListenAddr: ":11235"}
+	base := p2pInputs{Version: "v", PrivateKey: key, MaxPeers: 10, ListenAddr: ":11235"}
 	in := base
 	in.StaticPeers = []*enode.Node{enrNode(2)}
-	_, err := BuildOptions(in)
+	_, err := buildP2POptions(in)
 	require.ErrorContains(t, err, "tcp")
 	in = base
 	in.AllowedPeers = []*enode.Node{enrNode(2)}
-	_, err = BuildOptions(in)
+	_, err = buildP2POptions(in)
 	require.ErrorContains(t, err, "tcp")
 }
 
@@ -230,6 +230,6 @@ func TestNewThorP2PRejectsIncompleteBootnode(t *testing.T) {
 	n, err := enode.New(enode.ValidSchemes, &r)
 	require.NoError(t, err)
 
-	_, err = BuildOptions(Inputs{Version: "v", PrivateKey: key, MaxPeers: 10, ListenAddr: ":11235", BootstrapNodes: []*enode.Node{n}})
+	_, err = buildP2POptions(p2pInputs{Version: "v", PrivateKey: key, MaxPeers: 10, ListenAddr: ":11235", BootstrapNodes: []*enode.Node{n}})
 	require.ErrorContains(t, err, "bootnode")
 }

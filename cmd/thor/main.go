@@ -29,7 +29,6 @@ import (
 	"github.com/vechain/thor/v2/chain"
 	"github.com/vechain/thor/v2/cmd/thor/httpserver"
 	"github.com/vechain/thor/v2/cmd/thor/node"
-	"github.com/vechain/thor/v2/cmd/thor/p2p"
 	"github.com/vechain/thor/v2/cmd/thor/pruner"
 	"github.com/vechain/thor/v2/cmd/thor/reprocess"
 	"github.com/vechain/thor/v2/cmd/thor/solo"
@@ -382,7 +381,7 @@ func defaultAction(_ context.Context, ctx *cli.Command) error {
 		p2pSrv.Stop()
 
 		log.Info("saving peers cache...")
-		if err := p2p.SavePeersCache(instanceDir, p2pSrv.KnownNodes()); err != nil {
+		if err := savePeersCache(instanceDir, p2pSrv.KnownNodes()); err != nil {
 			log.Warn("failed to write peers cache", "err", err)
 		}
 	}()

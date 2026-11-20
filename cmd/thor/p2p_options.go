@@ -3,12 +3,11 @@
 // Distributed under the GNU Lesser General Public License v3.0 software license, see the accompanying
 // file LICENSE or <https://www.gnu.org/licenses/lgpl-3.0.html>
 
-package p2p
+package main
 
 import (
 	"crypto/ecdsa"
 	"fmt"
-	"path/filepath"
 	"runtime"
 	"slices"
 
@@ -19,12 +18,8 @@ import (
 	"github.com/vechain/thor/v2/p2psrv"
 )
 
-// peersCacheFile holds the warm-start peer list (enode URLs). Not the legacy
-// peers.cache, whose RLP layout is tied to the removed discover.Node type.
-const peersCacheFile = "peers-v2.cache"
-
-// Inputs is everything BuildOptions needs, already parsed.
-type Inputs struct {
+// p2pInputs is everything buildP2POptions needs, already parsed.
+type p2pInputs struct {
 	Version        string
 	PrivateKey     *ecdsa.PrivateKey
 	NAT            nat.Interface
@@ -36,8 +31,8 @@ type Inputs struct {
 	BootstrapNodes []*enode.Node
 }
 
-// BuildOptions assembles the p2p server options. It does no I/O.
-func BuildOptions(in Inputs) (*p2psrv.Options, error) {
+// buildP2POptions assembles the p2p server options. It does no I/O.
+func buildP2POptions(in p2pInputs) (*p2psrv.Options, error) {
 	allowedPeers, staticPeers, cachedPeers, bootstrapNodes := in.AllowedPeers, in.StaticPeers, in.CachedPeers, in.BootstrapNodes
 
 	for _, n := range slices.Concat(allowedPeers, staticPeers) {
@@ -94,16 +89,6 @@ func BuildOptions(in Inputs) (*p2psrv.Options, error) {
 	}
 
 	return opts, nil
-}
-
-// LoadPeersCache loads the warm-start peers saved under instanceDir by a previous run.
-func LoadPeersCache(instanceDir string) []*enode.Node {
-	return loadNodesCache(filepath.Join(instanceDir, peersCacheFile))
-}
-
-// SavePeersCache writes the warm-start peers under instanceDir for the next run.
-func SavePeersCache(instanceDir string, nodes []*enode.Node) error {
-	return saveNodesCache(filepath.Join(instanceDir, peersCacheFile), nodes)
 }
 
 func dedupNodeSlice(slice1, slice2 []*enode.Node) []*enode.Node {

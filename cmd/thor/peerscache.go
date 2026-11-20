@@ -3,14 +3,29 @@
 // Distributed under the GNU Lesser General Public License v3.0 software license, see the accompanying
 // file LICENSE or <https://www.gnu.org/licenses/lgpl-3.0.html>
 
-package p2p
+package main
 
 import (
 	"encoding/json"
 	"os"
+	"path/filepath"
 
 	"github.com/ethereum/go-ethereum/p2p/enode"
 )
+
+// peersCacheFile holds the warm-start peer list (enode URLs). Not the legacy
+// peers.cache, whose RLP layout is tied to the removed discover.Node type.
+const peersCacheFile = "peers-v2.cache"
+
+// loadPeersCache loads the warm-start peers saved under instanceDir by a previous run.
+func loadPeersCache(instanceDir string) []*enode.Node {
+	return loadNodesCache(filepath.Join(instanceDir, peersCacheFile))
+}
+
+// savePeersCache writes the warm-start peers under instanceDir for the next run.
+func savePeersCache(instanceDir string, nodes []*enode.Node) error {
+	return saveNodesCache(filepath.Join(instanceDir, peersCacheFile), nodes)
+}
 
 // loadNodesCache reads the peer cache as a JSON list of enode URLv4 strings.
 // Any read or decode failure yields nil so the cache is silently rebuilt;
