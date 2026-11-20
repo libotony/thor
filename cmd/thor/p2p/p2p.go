@@ -12,13 +12,10 @@ import (
 	"runtime"
 	"slices"
 
-	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/p2p/nat"
 	"github.com/pkg/errors"
 
-	"github.com/vechain/thor/v2/comm"
-	"github.com/vechain/thor/v2/log"
 	"github.com/vechain/thor/v2/p2psrv"
 )
 
@@ -26,27 +23,23 @@ import (
 // peers.cache, whose RLP layout is tied to the removed discover.Node type.
 const peersCacheFile = "peers-v2.cache"
 
-type P2P struct {
-	comm           *comm.Communicator
-	p2pSrv         *p2psrv.Server
-	peersCachePath string
-	enode          string
+// Inputs is everything BuildOptions needs, already parsed.
+type Inputs struct {
+	Version        string
+	PrivateKey     *ecdsa.PrivateKey
+	NAT            nat.Interface
+	MaxPeers       int
+	ListenAddr     string
+	AllowedPeers   []*enode.Node
+	StaticPeers    []*enode.Node
+	CachedPeers    []*enode.Node
+	BootstrapNodes []*enode.Node
 }
 
-func New(
-	communicator *comm.Communicator,
-	privateKey *ecdsa.PrivateKey,
-	instanceDir string,
-	nat nat.Interface,
-	version string,
-	maxPeers int,
-	listenPort int,
-	listenAddr string,
-	allowedPeers []*enode.Node,
-	staticPeers []*enode.Node,
-	cachedPeers []*enode.Node,
-	bootstrapNodes []*enode.Node,
-) (*P2P, error) {
+// BuildOptions assembles the p2p server options. It does no I/O.
+func BuildOptions(in Inputs) (*p2psrv.Options, error) {
+	allowedPeers, staticPeers, cachedPeers, bootstrapNodes := in.AllowedPeers, in.StaticPeers, in.CachedPeers, in.BootstrapNodes
+
 	for _, n := range slices.Concat(allowedPeers, staticPeers) {
 		if n.TCP() == 0 {
 			return nil, fmt.Errorf("node %s has no tcp endpoint; --allowed-peers/--static-peers need enode:// URLs or ENRs with a tcp port", n.ID())
@@ -63,20 +56,17 @@ func New(
 		return nil, errors.New("--allowed-peers and --static-peers are mutually exclusive: allowed-peers is an exclusive whitelist with discovery disabled, static-peers pins peers on top of discovery")
 	}
 
-	// known peers will be loaded/stored from/in this file
-	peersCachePath := filepath.Join(instanceDir, peersCacheFile)
-
 	// default option setting
 	// no known nodes for p2p connection
 	// use the hardcoded fallbackDiscoveryNodes for discovery only
 	opts := &p2psrv.Options{
-		Name:                fmt.Sprintf("thor/v%s/%s/%s", version, runtime.GOOS, runtime.Version()),
-		PrivateKey:          privateKey,
-		MaxPeers:            maxPeers,
-		ListenAddr:          listenAddr,
+		Name:                fmt.Sprintf("thor/v%s/%s/%s", in.Version, runtime.GOOS, runtime.Version()),
+		PrivateKey:          in.PrivateKey,
+		MaxPeers:            in.MaxPeers,
+		ListenAddr:          in.ListenAddr,
 		DiscoveryNodes:      fallbackDiscoveryNodes,
 		RemoteDiscoveryList: remoteDiscoveryNodesList,
-		NAT:                 nat,
+		NAT:                 in.NAT,
 	}
 
 	// allowed peers flag will only allow p2psrv to connect to the designated peers
@@ -103,34 +93,7 @@ func New(
 		opts.StaticNodes = staticPeers
 	}
 
-	return &P2P{
-		comm:           communicator,
-		p2pSrv:         p2psrv.New(opts),
-		peersCachePath: peersCachePath,
-		enode:          fmt.Sprintf("enode://%x@[extip]:%v", crypto.FromECDSAPub(&privateKey.PublicKey)[1:], listenPort),
-	}, nil
-}
-
-func (p *P2P) Start() error {
-	log.Info("starting P2P networking")
-	if err := p.p2pSrv.Start(p.comm); err != nil {
-		return errors.Wrap(err, "start P2P server")
-	}
-	p.comm.Start(p.p2pSrv.LocalNode())
-	return nil
-}
-
-func (p *P2P) Stop() {
-	log.Info("stopping communicator...")
-	p.comm.Stop()
-
-	log.Info("stopping P2P server...")
-	p.p2pSrv.Stop()
-
-	log.Info("saving peers cache...")
-	if err := saveNodesCache(p.peersCachePath, p.p2pSrv.KnownNodes()); err != nil {
-		log.Warn("failed to write peers cache", "err", err)
-	}
+	return opts, nil
 }
 
 // LoadPeersCache loads the warm-start peers saved under instanceDir by a previous run.
@@ -138,12 +101,9 @@ func LoadPeersCache(instanceDir string) []*enode.Node {
 	return loadNodesCache(filepath.Join(instanceDir, peersCacheFile))
 }
 
-func (p *P2P) Communicator() *comm.Communicator {
-	return p.comm
-}
-
-func (p *P2P) Enode() string {
-	return p.enode
+// SavePeersCache writes the warm-start peers under instanceDir for the next run.
+func SavePeersCache(instanceDir string, nodes []*enode.Node) error {
+	return saveNodesCache(filepath.Join(instanceDir, peersCacheFile), nodes)
 }
 
 func dedupNodeSlice(slice1, slice2 []*enode.Node) []*enode.Node {

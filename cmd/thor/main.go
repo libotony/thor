@@ -29,15 +29,18 @@ import (
 	"github.com/vechain/thor/v2/chain"
 	"github.com/vechain/thor/v2/cmd/thor/httpserver"
 	"github.com/vechain/thor/v2/cmd/thor/node"
+	"github.com/vechain/thor/v2/cmd/thor/p2p"
 	"github.com/vechain/thor/v2/cmd/thor/pruner"
 	"github.com/vechain/thor/v2/cmd/thor/reprocess"
 	"github.com/vechain/thor/v2/cmd/thor/solo"
+	"github.com/vechain/thor/v2/comm"
 	"github.com/vechain/thor/v2/consensus"
 	"github.com/vechain/thor/v2/genesis"
 	"github.com/vechain/thor/v2/log"
 	"github.com/vechain/thor/v2/logdb"
 	"github.com/vechain/thor/v2/metrics"
 	"github.com/vechain/thor/v2/muxdb"
+	"github.com/vechain/thor/v2/p2psrv"
 	"github.com/vechain/thor/v2/packer"
 	"github.com/vechain/thor/v2/state"
 	"github.com/vechain/thor/v2/thor"
@@ -48,6 +51,8 @@ import (
 	_ "github.com/vechain/thor/v2/tracers/logger"
 	_ "github.com/vechain/thor/v2/tracers/native"
 )
+
+var _ p2psrv.Application = (*comm.Communicator)(nil)
 
 var (
 	version              string
@@ -295,10 +300,12 @@ func defaultAction(_ context.Context, ctx *cli.Command) error {
 	txPool := txpool.New(repo, state.NewStater(mainDB), txpoolOpt, forkConfig)
 	defer func() { log.Info("closing tx pool..."); txPool.Close() }()
 
-	p2pCommunicator, err := newP2PCommunicator(ctx, repo, txPool, forkConfig, instanceDir)
+	p2pOpts, err := newP2POptions(ctx, instanceDir)
 	if err != nil {
 		return err
 	}
+	communicator := comm.New(repo, txPool, forkConfig)
+	p2pSrv := p2psrv.New(p2pOpts)
 
 	adminURL := ""
 	logAPIRequests := &atomic.Bool{}
@@ -318,7 +325,7 @@ func defaultAction(_ context.Context, ctx *cli.Command) error {
 			ctx.String(adminAddrFlag.Name),
 			logLevel,
 			repo,
-			p2pCommunicator.Communicator(),
+			communicator,
 			apiLogsGate,
 			txpoolGate,
 			pprofGate,
@@ -350,7 +357,7 @@ func defaultAction(_ context.Context, ctx *cli.Command) error {
 		txPool,
 		logDB,
 		bftEngine,
-		p2pCommunicator.Communicator(),
+		communicator,
 		forkConfig,
 		makeAPIConfig(ctx, logAPIRequests, enableTxPool, false),
 	)
@@ -359,12 +366,26 @@ func defaultAction(_ context.Context, ctx *cli.Command) error {
 	}
 	defer func() { log.Info("stopping API server..."); srvCloser() }()
 
-	printStartupMessage2(gene, apiURL, p2pCommunicator.Enode(), metricsURL, adminURL, false)
+	enodeURL := fmt.Sprintf("enode://%x@[extip]:%v", crypto.FromECDSAPub(&p2pOpts.PrivateKey.PublicKey)[1:], ctx.Uint64(p2pPortFlag.Name))
+	printStartupMessage2(gene, apiURL, enodeURL, metricsURL, adminURL, false)
 
-	if err := p2pCommunicator.Start(); err != nil {
-		return err
+	log.Info("starting P2P networking")
+	if err := p2pSrv.Start(communicator); err != nil {
+		return errors.Wrap(err, "start P2P server")
 	}
-	defer p2pCommunicator.Stop()
+	communicator.Start(p2pSrv.LocalNode())
+	defer func() {
+		log.Info("stopping communicator...")
+		communicator.Stop()
+
+		log.Info("stopping P2P server...")
+		p2pSrv.Stop()
+
+		log.Info("saving peers cache...")
+		if err := p2p.SavePeersCache(instanceDir, p2pSrv.KnownNodes()); err != nil {
+			log.Warn("failed to write peers cache", "err", err)
+		}
+	}()
 
 	if !ctx.Bool(disablePrunerFlag.Name) {
 		pruner := pruner.New(mainDB, repo, bftEngine, *forkConfig)
@@ -391,7 +412,7 @@ func defaultAction(_ context.Context, ctx *cli.Command) error {
 		logDB,
 		txPool,
 		filepath.Join(instanceDir, "tx.stash"),
-		p2pCommunicator.Communicator(),
+		communicator,
 		forkConfig,
 		options,
 		consensus.New(repo, stater, forkConfig),
