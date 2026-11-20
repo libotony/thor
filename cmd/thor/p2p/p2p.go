@@ -78,9 +78,6 @@ func New(
 		RemoteDiscoveryList: remoteDiscoveryNodesList,
 		NAT:                 nat,
 	}
-	if communicator != nil {
-		opts.V5CandidateFilter = communicator.AcceptV5Candidate
-	}
 
 	// allowed peers flag will only allow p2psrv to connect to the designated peers
 	if len(allowedPeers) > 0 {
@@ -116,7 +113,7 @@ func New(
 
 func (p *P2P) Start() error {
 	log.Info("starting P2P networking")
-	if err := p.p2pSrv.Start(p.comm.Protocols(), p.comm.DiscTopic()); err != nil {
+	if err := p.p2pSrv.Start(p.comm); err != nil {
 		return errors.Wrap(err, "start P2P server")
 	}
 	p.comm.Start(p.p2pSrv.LocalNode())

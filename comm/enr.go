@@ -55,7 +55,7 @@ func (c *Communicator) enrAttributes() []enr.Entry {
 // AcceptV5Candidate reports whether a discv5 candidate may be dialed: its advertised
 // fork id must pass the same EIP-2124 filter the Status handshake uses. Not an equality
 // check against our own record — a syncing node is behind, yet must still accept
-// up-to-date peers. p2psrv consumes it as a method value (Options.V5CandidateFilter).
+// up-to-date peers. p2psrv calls it through its Application interface.
 func (c *Communicator) AcceptV5Candidate(n *enode.Node) bool {
 	var entry enrEntry
 	// read the candidate's own fork id from its record; none or undecodable → not a thor peer

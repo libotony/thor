@@ -33,8 +33,9 @@ type smokeNode struct {
 }
 
 type smokeCfg struct {
-	opts Options
-	net  uint // advertised "smoke" ENR attribute, lets filters tell test networks apart
+	opts   Options
+	accept func(*enode.Node) bool
+	net    uint // advertised "smoke" ENR attribute, lets filters tell test networks apart
 }
 
 func withV5Bootnodes(nodes ...*enode.Node) func(*smokeCfg) {
@@ -42,7 +43,7 @@ func withV5Bootnodes(nodes ...*enode.Node) func(*smokeCfg) {
 }
 
 func withV5Filter(f func(*enode.Node) bool) func(*smokeCfg) {
-	return func(c *smokeCfg) { c.opts.V5CandidateFilter = f }
+	return func(c *smokeCfg) { c.accept = f }
 }
 
 func withNet(n uint) func(*smokeCfg) {
@@ -93,10 +94,14 @@ func startSmoke(t *testing.T, maxPeers int, noDiscovery bool, mods ...func(*smok
 		}
 	}
 	attrs := []enr.Entry{enr.WithEntry("smoke", cfg.net)}
-	require.NoError(t, n.Start([]*p2p.Protocol{
-		{Name: "smoke", Version: 1, Length: 1, Run: run, Attributes: attrs},
-		{Name: "smoke", Version: 2, Length: 1, Run: run, Attributes: attrs},
-	}, "smoke"))
+	require.NoError(t, n.Start(testApp{
+		protos: []*p2p.Protocol{
+			{Name: "smoke", Version: 1, Length: 1, Run: run, Attributes: attrs},
+			{Name: "smoke", Version: 2, Length: 1, Run: run, Attributes: attrs},
+		},
+		topic:  "smoke",
+		accept: cfg.accept,
+	}))
 	t.Cleanup(func() { n.stopWithin(t, smokeStopTimeout) })
 	return n
 }

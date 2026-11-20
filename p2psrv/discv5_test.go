@@ -70,7 +70,7 @@ func TestToV5NodeFillsTCPFromUDP(t *testing.T) {
 	// the synthesized tcp is what lets legacy SetFallbackNodes accept the record
 	key2, _ := crypto.GenerateKey()
 	s := New(&Options{Name: "x", PrivateKey: key2, MaxPeers: 1, ListenAddr: "127.0.0.1:0", DiscoveryNodes: []*enode.Node{n}})
-	require.NoError(t, s.Start(nil, "smoke"))
+	require.NoError(t, s.Start(testApp{topic: "smoke"}))
 	s.Stop()
 }
 
@@ -78,7 +78,7 @@ func TestStartRejectsBadV5Bootnode(t *testing.T) {
 	key, _ := crypto.GenerateKey()
 	noUDP := enode.NewV4(&key.PublicKey, net.IPv4(10, 0, 0, 1), 30303, 0)
 	s := New(&Options{Name: "x", PrivateKey: key, MaxPeers: 1, ListenAddr: "127.0.0.1:0", DiscoveryNodesV5: []*enode.Node{noUDP}})
-	err := s.Start(nil, "smoke")
+	err := s.Start(testApp{topic: "smoke"})
 	require.ErrorContains(t, err, "listen discv5")
 	s.Stop() // must not hang or panic after a failed start
 }
