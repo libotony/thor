@@ -144,7 +144,7 @@ func (n *smokeNode) peerCount() int { return n.srv.PeerCount() }
 // listening port, inbound peers (ephemeral remote port) are not.
 func TestSmokeInterconnect(t *testing.T) {
 	a, b := startSmoke(t, 10, false), startSmoke(t, 10, false)
-	bPort := b.NodeInfo().Ports.Listener
+	bPort := b.Self().TCP()
 	require.NotZero(t, bPort)
 
 	a.candidates.Add(b.Self())

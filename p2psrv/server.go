@@ -215,16 +215,6 @@ func (s *Server) KnownNodes() []*enode.Node {
 	return nodes
 }
 
-// NodeInfo gathers and returns a collection of metadata known about the host.
-func (s *Server) NodeInfo() *p2p.NodeInfo {
-	return s.srv.NodeInfo()
-}
-
-// Options returns the options.
-func (s *Server) Options() *Options {
-	return s.opts
-}
-
 // TryDial dials the node synchronously, bypassing the dial scheduler and its MaxDialedConns
 // budget; still bounded by MaxPeers. Kept for external embedders; errors are returned to the caller.
 func (s *Server) TryDial(node *enode.Node) error {
