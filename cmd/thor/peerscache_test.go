@@ -46,8 +46,8 @@ func TestNodesCacheRoundTripAndTolerance(t *testing.T) {
 
 	// missing file, corrupted content and legacy RLP all yield nil without panic
 	assert.Nil(t, loadNodesCache(filepath.Join(dir, "absent")))
-	require.NoError(t, os.WriteFile(path, []byte("{broken"), 0600))
+	require.NoError(t, os.WriteFile(path, []byte("{broken"), 0o600))
 	assert.Nil(t, loadNodesCache(path))
-	require.NoError(t, os.WriteFile(path, []byte{0xc0, 0x01, 0x02}, 0600)) // fake RLP
+	require.NoError(t, os.WriteFile(path, []byte{0xc0, 0x01, 0x02}, 0o600)) // fake RLP
 	assert.Nil(t, loadNodesCache(path))
 }
