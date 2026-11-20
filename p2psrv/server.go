@@ -35,9 +35,24 @@ const (
 	prefetchNodeCount = 32
 )
 
+// Application is everything the server needs from the protocol layer running on top of it.
+// Start reads Protocols and DiscTopic once, before it returns, and rejects a nil Application.
+type Application interface {
+	// Protocols returns the devp2p protocols served on every connection.
+	Protocols() []*p2p.Protocol
+	// DiscTopic returns the legacy discovery topic to register and search.
+	DiscTopic() discv5.Topic
+	// AcceptV5Candidate reports whether a node found by modern discv5 may be dialed. A connected
+	// peer it accepts also counts as discoverable in p2p_v5_discoverable_peers_gauge, even when
+	// that peer is not in the discv5 table. It is called from the discovery iterator goroutine
+	// and the discoverability sampler, so it must be safe for concurrent use.
+	AcceptV5Candidate(*enode.Node) bool
+}
+
 // Server p2p server wraps ethereum's p2p.Server, and handles discovery v5 stuff.
 type Server struct {
 	opts           *Options
+	app            Application
 	srv            *p2p.Server
 	legacy         *discv5.Network
 	goes           sync.WaitGroup
@@ -103,8 +118,13 @@ func (s *Server) LocalNode() *enode.LocalNode {
 }
 
 // Start start the server.
-func (s *Server) Start(protocols []*p2p.Protocol, topic discv5.Topic) error {
-	for _, proto := range protocols {
+func (s *Server) Start(app Application) error {
+	if app == nil {
+		return errors.New("p2psrv: nil application")
+	}
+	s.app = app
+	topic := app.DiscTopic()
+	for _, proto := range app.Protocols() {
 		cpy := *proto
 		run := cpy.Run
 		cpy.Run = func(peer *p2p.Peer, rw p2p.MsgReadWriter) (err error) {
@@ -193,16 +213,6 @@ func (s *Server) KnownNodes() []*enode.Node {
 		return true
 	})
 	return nodes
-}
-
-// NodeInfo gathers and returns a collection of metadata known about the host.
-func (s *Server) NodeInfo() *p2p.NodeInfo {
-	return s.srv.NodeInfo()
-}
-
-// Options returns the options.
-func (s *Server) Options() *Options {
-	return s.opts
 }
 
 // TryDial dials the node synchronously, bypassing the dial scheduler and its MaxDialedConns

@@ -8,6 +8,7 @@ package p2psrv
 import (
 	"fmt"
 	"net"
+	"sync/atomic"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/crypto"
@@ -165,7 +166,7 @@ func TestTryDial(t *testing.T) {
 			ListenAddr:  "127.0.0.1:0",
 			NoDiscovery: true,
 		})
-		require.NoError(t, s.Start([]*p2p.Protocol{{
+		require.NoError(t, s.Start(testApp{protos: []*p2p.Protocol{{
 			Name:    "trydial",
 			Version: 1,
 			Length:  1,
@@ -177,7 +178,7 @@ func TestTryDial(t *testing.T) {
 					}
 				}
 			},
-		}}, ""))
+		}}}))
 		t.Cleanup(s.Stop)
 		return s
 	}
@@ -215,10 +216,27 @@ func TestStartToleratesIncompleteKnownNodes(t *testing.T) {
 		ListenAddr: "127.0.0.1:0",
 		KnownNodes: []*enode.Node{incomplete, complete},
 	})
-	require.NoError(t, s.Start(nil, ""))
+	require.NoError(t, s.Start(testApp{}))
 	t.Cleanup(s.Stop)
 
 	// the complete node still seeds discv5
 	require.Len(t, s.bootstrapNodes, 1)
 	assert.Equal(t, complete.TCP(), int(s.bootstrapNodes[0].TCP))
+}
+
+func TestStartRejectsNilApplication(t *testing.T) {
+	s := New(&Options{MaxPeers: 25, NoDiscovery: true, ListenAddr: "127.0.0.1:0"})
+	require.EqualError(t, s.Start(nil), "p2psrv: nil application")
+}
+
+func TestStartNoDiscoveryNeverCallsFilter(t *testing.T) {
+	key, err := crypto.GenerateKey()
+	require.NoError(t, err)
+	var calls atomic.Int32
+	s := New(&Options{MaxPeers: 25, NoDiscovery: true, ListenAddr: "127.0.0.1:0", PrivateKey: key})
+	require.NoError(t, s.Start(testApp{accept: func(*enode.Node) bool { calls.Add(1); return true }}))
+	defer s.Stop()
+	require.Nil(t, s.v5)
+	require.Nil(t, s.legacy)
+	require.Zero(t, calls.Load())
 }

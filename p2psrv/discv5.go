@@ -43,9 +43,7 @@ func (s *Server) listenV5(conn *net.UDPConn, unhandled chan discover.ReadPacket)
 	// The filter is the protocol layer's compatibility judgment (same rule as the Status
 	// handshake). Rejected nodes are simply not dialed; they stay in the table and keep
 	// serving lookups.
-	if f := s.opts.V5CandidateFilter; f != nil {
-		iter = enode.Filter(iter, f)
-	}
+	iter = enode.Filter(iter, s.app.AcceptV5Candidate)
 	s.mix.AddSource(countingIter{enode.NewBufferIter(iter, prefetchNodeCount), "v5"})
 	return nil
 }
@@ -66,7 +64,7 @@ func (s *Server) countDiscoverable() int {
 	for _, p := range s.srv.Peers() {
 		if _, ok := inTable[p.ID()]; ok {
 			count++
-		} else if f := s.opts.V5CandidateFilter; f != nil && f(p.Node()) {
+		} else if s.app.AcceptV5Candidate(p.Node()) {
 			count++
 		}
 	}

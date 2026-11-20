@@ -43,16 +43,14 @@ import (
 	"github.com/vechain/thor/v2/chain"
 	"github.com/vechain/thor/v2/cmd/thor/httpserver"
 	"github.com/vechain/thor/v2/cmd/thor/node"
-	"github.com/vechain/thor/v2/cmd/thor/p2p"
-	"github.com/vechain/thor/v2/comm"
 	"github.com/vechain/thor/v2/genesis"
 	"github.com/vechain/thor/v2/log"
 	"github.com/vechain/thor/v2/logdb"
 	"github.com/vechain/thor/v2/muxdb"
+	"github.com/vechain/thor/v2/p2psrv"
 	"github.com/vechain/thor/v2/state"
 	"github.com/vechain/thor/v2/thor"
 	"github.com/vechain/thor/v2/tx"
-	"github.com/vechain/thor/v2/txpool"
 )
 
 const (
@@ -495,7 +493,8 @@ func loadNodeMaster(ctx *cli.Command) (*node.Master, error) {
 	return master, nil
 }
 
-func newP2PCommunicator(ctx *cli.Command, repo *chain.Repository, txPool *txpool.TxPool, forkConfig *thor.ForkConfig, instanceDir string) (*p2p.P2P, error) {
+// newP2POptions loads the node key, parses the p2p flags and the peers cache, and assembles the server options.
+func newP2POptions(ctx *cli.Command, instanceDir string) (*p2psrv.Options, error) {
 	configDir, err := makeConfigDir(ctx)
 	if err != nil {
 		return nil, err
@@ -527,20 +526,17 @@ func newP2PCommunicator(ctx *cli.Command, repo *chain.Repository, txPool *txpool
 		return nil, fmt.Errorf("unable to parse bootnode peers - %w", err)
 	}
 
-	return p2p.New(
-		comm.New(repo, txPool, forkConfig),
-		key,
-		instanceDir,
-		userNAT,
-		fullVersion(),
-		int(ctx.Uint64(maxPeersFlag.Name)),
-		int(ctx.Uint64(p2pPortFlag.Name)),
-		fmt.Sprintf(":%v", ctx.Uint64(p2pPortFlag.Name)),
-		allowedPeers,
-		staticPeers,
-		p2p.LoadPeersCache(instanceDir),
-		bootnodePeers,
-	)
+	return buildP2POptions(p2pInputs{
+		Version:        fullVersion(),
+		PrivateKey:     key,
+		NAT:            userNAT,
+		MaxPeers:       int(ctx.Uint64(maxPeersFlag.Name)),
+		ListenAddr:     fmt.Sprintf(":%v", ctx.Uint64(p2pPortFlag.Name)),
+		AllowedPeers:   allowedPeers,
+		StaticPeers:    staticPeers,
+		CachedPeers:    loadPeersCache(instanceDir),
+		BootstrapNodes: bootnodePeers,
+	})
 }
 
 func printStartupMessage1(
