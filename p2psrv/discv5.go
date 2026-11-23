@@ -51,7 +51,7 @@ func (s *Server) listenV5(conn *net.UDPConn, unhandled chan discover.ReadPacket)
 	// handshake). Rejected nodes are simply not dialed; they stay in the table and keep
 	// serving lookups.
 	iter = enode.Filter(iter, countRejected(s.app.AcceptV5Candidate, func() { metricV5CandidatesRejected().Add(1) }))
-	s.mix.AddSource(countingIter{enode.NewBufferIter(iter, prefetchNodeCount), "v5"})
+	s.mix.AddSource(countingIter{enode.NewBufferIter(iter, prefetchNodeCount), "v5", nil})
 	return nil
 }
 

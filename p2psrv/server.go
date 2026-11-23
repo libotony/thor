@@ -68,6 +68,7 @@ type Server struct {
 	bootstrapNodes []*discv5.Node
 	knownNodes     *cache.PrioCache
 	candidates     *candidateIter
+	knownSeeds     map[enode.ID]struct{}
 	v5             *discover.UDPv5
 	mix            *enode.FairMix
 	// v5Bootnodes is what was handed to discover.ListenV5.
@@ -81,9 +82,11 @@ type Server struct {
 func New(opts *Options) *Server {
 	knownNodes := cache.NewPrioCache(5)
 	candidates := newCandidateIter(128)
+	knownSeeds := make(map[enode.ID]struct{}, len(opts.KnownNodes))
 	for _, node := range opts.KnownNodes {
 		knownNodes.Set(node.ID(), node, 0)
 		candidates.Add(node)
+		knownSeeds[node.ID()] = struct{}{}
 	}
 
 	cfg := p2p.Config{
@@ -115,6 +118,7 @@ func New(opts *Options) *Server {
 		done:       make(chan struct{}),
 		knownNodes: knownNodes,
 		candidates: candidates,
+		knownSeeds: knownSeeds,
 		mix:        enode.NewFairMix(candidateMixTimeout),
 	}
 }
@@ -199,7 +203,7 @@ func (s *Server) Start(app Application) error {
 		// KnownNode would already be gone from the cache before Start.
 		// The source stays attached when the legacy stack is off: New seeds s.candidates with
 		// KnownNodes, and this is their only path to the dialer.
-		s.mix.AddSource(countingIter{s.candidates, "legacy"})
+		s.mix.AddSource(countingIter{s.candidates, "legacy", s.knownSeeds})
 		if err := s.listenDiscovery(); err != nil {
 			return err
 		}
