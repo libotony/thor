@@ -50,9 +50,28 @@ func (s *Server) listenV5(conn *net.UDPConn, unhandled chan discover.ReadPacket)
 	// The filter is the protocol layer's compatibility judgment (same rule as the Status
 	// handshake). Rejected nodes are simply not dialed; they stay in the table and keep
 	// serving lookups.
-	iter = enode.Filter(iter, s.app.AcceptV5Candidate)
+	iter = enode.Filter(iter, countRejected(s.app.AcceptV5Candidate, func() { metricV5CandidatesRejected().Add(1) }))
 	s.mix.AddSource(countingIter{enode.NewBufferIter(iter, prefetchNodeCount), "v5"})
 	return nil
+}
+
+// countRejected wraps accept so that every refusal is reported through rejected.
+func countRejected(accept func(*enode.Node) bool, rejected func()) func(*enode.Node) bool {
+	return func(n *enode.Node) bool {
+		ok := accept(n)
+		if !ok {
+			rejected()
+		}
+		return ok
+	}
+}
+
+// v5TableSize returns how many nodes the modern discv5 table holds; 0 when v5 is not running.
+func (s *Server) v5TableSize() int {
+	if s.v5 == nil {
+		return 0
+	}
+	return len(s.v5.AllNodes())
 }
 
 var discoveryMetricsInterval = 5 * time.Minute
@@ -85,9 +104,14 @@ func (s *Server) discoveryMetricsLoop() {
 	for {
 		select {
 		case <-ticker.C:
-			metricV5DiscoverablePeers().Set(int64(s.countDiscoverable()))
+			s.publishDiscoveryMetrics()
 		case <-s.done:
 			return
 		}
 	}
+}
+
+func (s *Server) publishDiscoveryMetrics() {
+	metricV5DiscoverablePeers().Set(int64(s.countDiscoverable()))
+	metricV5TableSize().Set(int64(s.v5TableSize()))
 }
