@@ -56,6 +56,9 @@ type Options struct {
 	// Start; its nodes seed both discovery stacks. Empty disables the fetch.
 	RemoteDiscoveryList string
 
+	// NoLegacyDiscovery leaves the legacy topic discovery stack off; modern discv5 then owns the UDP socket.
+	NoLegacyDiscovery bool
+
 	// Connectivity can be restricted to certain IP networks.
 	// If this option is set to a non-nil value, only hosts which match one of the
 	// IP networks contained in the list are considered.

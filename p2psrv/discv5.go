@@ -19,16 +19,23 @@ import (
 // header validation and the packet is dropped before any handshake.
 var V5ProtocolID = [6]byte{'v', 'e', 'c', 'h', 'n', '5'}
 
+// listenV5 starts modern discv5 on conn. A nil unhandled means discv5 owns the socket; otherwise it
+// reads the packets the legacy stack did not recognise.
 func (s *Server) listenV5(conn *net.UDPConn, unhandled chan discover.ReadPacket) error {
 	ln := s.srv.LocalNode()
 	// Upstream binds its own UDP socket whenever NoDiscovery is false, and we need that
-	// mode for DialCandidates to be wired in. Since 11235/udp already belongs to the legacy
-	// stack, New parks that socket on 127.0.0.1:0 (a random loopback port nobody talks to),
-	// and upstream then records the parked port as the ENR udp fallback. Override it with
-	// the port of the shared discovery socket, which is what peers must reach us on.
+	// mode for DialCandidates to be wired in. Discovery runs on a socket we open ourselves
+	// (shared with the legacy stack unless that is off), so New parks upstream's socket on
+	// 127.0.0.1:0 (a random loopback port nobody talks to), and upstream then records the
+	// parked port as the ENR udp fallback. Override it with the port of our discovery
+	// socket, which is what peers must reach us on.
 	ln.SetFallbackUDP(conn.LocalAddr().(*net.UDPAddr).Port)
 
-	v5, err := discover.ListenV5(&discover.SharedUDPConn{UDPConn: conn, Unhandled: unhandled}, ln, discover.Config{
+	var pconn discover.UDPConn = conn
+	if unhandled != nil {
+		pconn = &discover.SharedUDPConn{UDPConn: conn, Unhandled: unhandled}
+	}
+	v5, err := discover.ListenV5(pconn, ln, discover.Config{
 		PrivateKey:   s.opts.PrivateKey,
 		NetRestrict:  s.opts.NetRestrict,
 		Bootnodes:    s.v5Bootnodes,

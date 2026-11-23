@@ -197,23 +197,27 @@ func (s *Server) Start(app Application) error {
 		// source right away, taking one node out of the candidate cache and holding it until the
 		// dial scheduler (which only exists after srv.Start) consumes it. Done in New, a seeded
 		// KnownNode would already be gone from the cache before Start.
+		// The source stays attached when the legacy stack is off: New seeds s.candidates with
+		// KnownNodes, and this is their only path to the dialer.
 		s.mix.AddSource(countingIter{s.candidates, "legacy"})
 		if err := s.listenDiscovery(); err != nil {
 			return err
 		}
 		s.goes.Go(s.discoveryMetricsLoop)
-		logger.Debug("registering topic", "topic", topic)
-		s.goes.Go(func() {
-			s.legacy.RegisterTopic(topic, s.done)
-		})
+		if s.legacy != nil {
+			logger.Debug("registering topic", "topic", topic)
+			s.goes.Go(func() {
+				s.legacy.RegisterTopic(topic, s.done)
+			})
 
-		logger.Debug("searching topic", "topic", topic)
-		s.goes.Go(func() {
-			s.legacyDiscoverLoop(topic)
-		})
+			logger.Debug("searching topic", "topic", topic)
+			s.goes.Go(func() {
+				s.legacyDiscoverLoop(topic)
+			})
 
-		if fetchFailed {
-			s.goes.Go(s.retryRemoteList)
+			if fetchFailed {
+				s.goes.Go(s.retryRemoteList)
+			}
 		}
 	}
 
@@ -284,6 +288,15 @@ func (s *Server) listenDiscovery() (err error) {
 			realaddr = &net.UDPAddr{IP: ext, Port: realaddr.Port}
 			s.srv.LocalNode().SetStaticIP(ext)
 		}
+	}
+
+	if s.opts.NoLegacyDiscovery {
+		// v5 owns the socket: v5.Close closes it, so Stop has no ordering constraint.
+		if err := s.listenV5(conn, nil); err != nil {
+			conn.Close()
+			return err
+		}
+		return nil
 	}
 
 	unhandled := make(chan discover.ReadPacket, 100)

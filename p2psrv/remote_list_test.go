@@ -305,6 +305,7 @@ func TestStartWithoutAnySeeds(t *testing.T) {
 
 	for name, mod := range map[string]func(*Options){
 		"legacy and v5": func(*Options) {},
+		"v5 only":       noLegacy,
 	} {
 		t.Run(name, func(t *testing.T) {
 			s := newListServer(t, "", mod)
