@@ -7,9 +7,18 @@ package main
 
 import (
 	"github.com/ethereum/go-ethereum/p2p/enode"
+
+	"github.com/vechain/thor/v2/genesis"
+	"github.com/vechain/thor/v2/thor"
 )
 
 const remoteDiscoveryNodesList = "https://vechain.github.io/bootstraps/node.list"
+
+// isOfficialNetwork reports whether the genesis is mainnet's or testnet's, the networks the
+// built-in bootnodes and the remote list serve.
+func isOfficialNetwork(genesisID thor.Bytes32) bool {
+	return genesisID == genesis.NewMainnet().ID() || genesisID == genesis.NewTestnet().ID()
+}
 
 var fallbackDiscoveryNodes = []*enode.Node{
 	enode.MustParseV4(

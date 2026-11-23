@@ -494,7 +494,7 @@ func loadNodeMaster(ctx *cli.Command) (*node.Master, error) {
 }
 
 // newP2POptions loads the node key, parses the p2p flags and the peers cache, and assembles the server options.
-func newP2POptions(ctx *cli.Command, instanceDir string) (*p2psrv.Options, error) {
+func newP2POptions(ctx *cli.Command, instanceDir string, genesisID thor.Bytes32) (*p2psrv.Options, error) {
 	configDir, err := makeConfigDir(ctx)
 	if err != nil {
 		return nil, err
@@ -536,6 +536,9 @@ func newP2POptions(ctx *cli.Command, instanceDir string) (*p2psrv.Options, error
 		StaticPeers:    staticPeers,
 		CachedPeers:    loadPeersCache(instanceDir),
 		BootstrapNodes: bootnodePeers,
+
+		GenesisID:              genesisID,
+		DisableLegacyDiscovery: ctx.Bool(disableLegacyDiscoveryFlag.Name),
 	})
 }
 
