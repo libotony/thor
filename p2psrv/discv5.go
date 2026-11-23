@@ -31,7 +31,7 @@ func (s *Server) listenV5(conn *net.UDPConn, unhandled chan discover.ReadPacket)
 	v5, err := discover.ListenV5(&discover.SharedUDPConn{UDPConn: conn, Unhandled: unhandled}, ln, discover.Config{
 		PrivateKey:   s.opts.PrivateKey,
 		NetRestrict:  s.opts.NetRestrict,
-		Bootnodes:    s.opts.DiscoveryNodesV5,
+		Bootnodes:    s.v5Bootnodes,
 		V5ProtocolID: &V5ProtocolID,
 	})
 	if err != nil {
