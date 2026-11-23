@@ -214,6 +214,13 @@ var (
 		Usage:   "comma separated list of bootstrap nodes (enode:// URLs or enr: records); each seeds both discovery stacks",
 		Sources: envVar("BOOTNODE"),
 	}
+	disableLegacyDiscoveryFlag = &cli.BoolFlag{
+		Name:    "disable-legacy-discovery",
+		Local:   true,
+		Hidden:  true,
+		Usage:   "do not start the legacy topic discovery stack",
+		Sources: envVar("DISABLE_LEGACY_DISCOVERY"),
+	}
 	allowedPeersFlag = &cli.StringFlag{
 		Name:    "allowed-peers",
 		Local:   true,

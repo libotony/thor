@@ -46,17 +46,18 @@ type Options struct {
 	// upstream static pool. Distinct from KnownNodes, which is a best-effort warm-start cache.
 	StaticNodes []*enode.Node
 
-	// DiscoveryNodes are used to establish connectivity
-	// with the rest of the network using the V5 discovery
-	// protocol.
+	// DiscoveryNodes seed the legacy topic discovery stack, together with the remote list.
 	DiscoveryNodes []*enode.Node
 
-	// DiscoveryNodesV5 seeds the modern discv5 table. Only explicit --bootnode entries land here;
-	// hardcoded fallbacks, the remote list and KnownNodes stay legacy-only.
+	// DiscoveryNodesV5 seed the modern discv5 table, together with the remote list.
 	DiscoveryNodesV5 []*enode.Node
 
-	// RemoteDiscoveryList is the url of remote dynamic discovery node list.
+	// RemoteDiscoveryList is the URL of a plain list of node URLs, one per line, fetched once at
+	// Start; its nodes seed both discovery stacks. Empty disables the fetch.
 	RemoteDiscoveryList string
+
+	// NoLegacyDiscovery leaves the legacy topic discovery stack off; modern discv5 then owns the UDP socket.
+	NoLegacyDiscovery bool
 
 	// Connectivity can be restricted to certain IP networks.
 	// If this option is set to a non-nil value, only hosts which match one of the

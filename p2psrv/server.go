@@ -28,6 +28,14 @@ import (
 
 var logger = log.WithContext("pkg", "p2psrv")
 
+// Variables so tests can shorten them.
+var (
+	// remoteListTimeout bounds the fetch of the bootnode list in Start.
+	remoteListTimeout = 3 * time.Second
+	// remoteListRetryInterval is the pause between background fetches after a failed start-up fetch.
+	remoteListRetryInterval = 10 * time.Second
+)
+
 const (
 	// candidateMixTimeout is how long FairMix waits on the source whose turn it is before taking a candidate from any source
 	candidateMixTimeout = 100 * time.Millisecond
@@ -60,17 +68,25 @@ type Server struct {
 	bootstrapNodes []*discv5.Node
 	knownNodes     *cache.PrioCache
 	candidates     *candidateIter
+	knownSeeds     map[enode.ID]struct{}
 	v5             *discover.UDPv5
 	mix            *enode.FairMix
+	// v5Bootnodes is what was handed to discover.ListenV5.
+	v5Bootnodes []*enode.Node
+
+	remoteMu     sync.Mutex
+	remoteLegacy []*enode.Node
 }
 
 // New create a p2p server.
 func New(opts *Options) *Server {
 	knownNodes := cache.NewPrioCache(5)
 	candidates := newCandidateIter(128)
+	knownSeeds := make(map[enode.ID]struct{}, len(opts.KnownNodes))
 	for _, node := range opts.KnownNodes {
 		knownNodes.Set(node.ID(), node, 0)
 		candidates.Add(node)
+		knownSeeds[node.ID()] = struct{}{}
 	}
 
 	cfg := p2p.Config{
@@ -90,8 +106,9 @@ func New(opts *Options) *Server {
 		StaticNodes: opts.StaticNodes,
 	}
 	if !opts.NoDiscovery {
-		// Upstream binds a UDP socket whenever NoDiscovery is false, and 11235/udp belongs to
-		// legacy discv5. Park the unused socket on a random loopback port.
+		// Upstream binds a UDP socket whenever NoDiscovery is false, but discovery runs on a
+		// socket this package opens itself (shared with the legacy stack unless that is off).
+		// Park the unused upstream socket on a random loopback port.
 		cfg.DiscAddr = "127.0.0.1:0"
 	}
 
@@ -101,6 +118,7 @@ func New(opts *Options) *Server {
 		done:       make(chan struct{}),
 		knownNodes: knownNodes,
 		candidates: candidates,
+		knownSeeds: knownSeeds,
 		mix:        enode.NewFairMix(candidateMixTimeout),
 	}
 }
@@ -124,6 +142,22 @@ func (s *Server) Start(app Application) error {
 	}
 	s.app = app
 	topic := app.DiscTopic()
+
+	// Modern discv5 only takes seeds at start-up, so the list is fetched before anything else comes up.
+	s.v5Bootnodes = slices.Clone(s.opts.DiscoveryNodesV5)
+	fetchFailed := false
+	if !s.opts.NoDiscovery && s.opts.RemoteDiscoveryList != "" {
+		ctx, cancel := context.WithTimeout(context.Background(), remoteListTimeout)
+		nodes, err := fetchBootnodeList(ctx, s.opts.RemoteDiscoveryList)
+		cancel()
+		if err != nil {
+			logger.Warn("fetch bootnode list failed, continuing with built-in seeds", "err", err)
+			fetchFailed = true
+		} else {
+			s.setRemoteLegacy(nodes)
+			s.v5Bootnodes = append(s.v5Bootnodes, nodes...)
+		}
+	}
 	for _, proto := range app.Protocols() {
 		cpy := *proto
 		run := cpy.Run
@@ -167,22 +201,28 @@ func (s *Server) Start(app Application) error {
 		// source right away, taking one node out of the candidate cache and holding it until the
 		// dial scheduler (which only exists after srv.Start) consumes it. Done in New, a seeded
 		// KnownNode would already be gone from the cache before Start.
-		s.mix.AddSource(countingIter{s.candidates, "legacy"})
+		// The source stays attached when the legacy stack is off: New seeds s.candidates with
+		// KnownNodes, and this is their only path to the dialer.
+		s.mix.AddSource(countingIter{s.candidates, "legacy", s.knownSeeds})
 		if err := s.listenDiscovery(); err != nil {
 			return err
 		}
 		s.goes.Go(s.discoveryMetricsLoop)
-		logger.Debug("registering topic", "topic", topic)
-		s.goes.Go(func() {
-			s.legacy.RegisterTopic(topic, s.done)
-		})
+		if s.legacy != nil {
+			logger.Debug("registering topic", "topic", topic)
+			s.goes.Go(func() {
+				s.legacy.RegisterTopic(topic, s.done)
+			})
 
-		logger.Debug("searching topic", "topic", topic)
-		s.goes.Go(func() {
-			s.legacyDiscoverLoop(topic)
-		})
+			logger.Debug("searching topic", "topic", topic)
+			s.goes.Go(func() {
+				s.legacyDiscoverLoop(topic)
+			})
 
-		s.goes.Go(s.fetchBootstrap)
+			if fetchFailed {
+				s.goes.Go(s.retryRemoteList)
+			}
+		}
 	}
 
 	self := s.Self()
@@ -254,6 +294,15 @@ func (s *Server) listenDiscovery() (err error) {
 		}
 	}
 
+	if s.opts.NoLegacyDiscovery {
+		// v5 owns the socket: v5.Close closes it, so Stop has no ordering constraint.
+		if err := s.listenV5(conn, nil); err != nil {
+			conn.Close()
+			return err
+		}
+		return nil
+	}
+
 	unhandled := make(chan discover.ReadPacket, 100)
 	network, err := discv5.ListenUDP(s.opts.PrivateKey, conn, realaddr, "", s.opts.NetRestrict, unhandled)
 	if err != nil {
@@ -277,14 +326,34 @@ func (s *Server) listenDiscovery() (err error) {
 		s.bootstrapNodes = append(s.bootstrapNodes, toLegacyNode(node))
 	}
 
-	if err := network.SetFallbackNodes(s.bootstrapNodes); err != nil {
+	applied, err := setLegacyFallback(network, s.bootstrapNodes, s.remoteLegacyNodes())
+	if err != nil {
 		return err
 	}
+	s.bootstrapNodes = applied
 	if err := s.listenV5(conn, unhandled); err != nil {
 		return err
 	}
 	s.legacy = network
 	return nil
+}
+
+// setLegacyFallback seeds the legacy stack with base plus the remote nodes. The legacy stack rejects the
+// whole set on one bad node and the remote file is untrusted, so on rejection it falls back to base alone.
+// It returns the set that was applied.
+func setLegacyFallback(network *discv5.Network, base []*discv5.Node, remote []*enode.Node) ([]*discv5.Node, error) {
+	if len(remote) > 0 {
+		all := slices.Clone(base)
+		for _, node := range remote {
+			all = append(all, toLegacyNode(node))
+		}
+		err := network.SetFallbackNodes(all)
+		if err == nil {
+			return all, nil
+		}
+		logger.Warn("legacy stack rejected the seed set that includes remote bootnodes, retrying without them", "err", err)
+	}
+	return base, network.SetFallbackNodes(base)
 }
 
 func (s *Server) legacyDiscoverLoop(topic discv5.Topic) {
@@ -335,43 +404,54 @@ func (s *Server) legacyDiscoverLoop(topic discv5.Topic) {
 	}
 }
 
-func (s *Server) fetchBootstrap() {
-	if s.opts.RemoteDiscoveryList == "" {
-		return
-	}
+func (s *Server) setRemoteLegacy(nodes []*enode.Node) {
+	s.remoteMu.Lock()
+	defer s.remoteMu.Unlock()
+	s.remoteLegacy = nodes
+}
 
+func (s *Server) remoteLegacyNodes() []*enode.Node {
+	s.remoteMu.Lock()
+	defer s.remoteMu.Unlock()
+	return s.remoteLegacy
+}
+
+// retryRemoteList runs after a failed start-up fetch and updates the legacy stack only.
+func (s *Server) retryRemoteList() {
 	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	go func() {
-		<-s.done
-		cancel()
+		select {
+		case <-s.done:
+			cancel()
+		case <-ctx.Done():
+		}
 	}()
 
-	f := func() error {
-		remoteNodes, err := fetchRemoteBootstrapNodes(ctx, s.opts.RemoteDiscoveryList)
-		if err != nil {
-			return err
-		}
-
-		bootnodes := slices.Clone(s.bootstrapNodes)
-		bootnodes = append(bootnodes, remoteNodes...)
-		if err := s.legacy.SetFallbackNodes(bootnodes); err != nil {
-			return err
-		}
-		return nil
-	}
-
 	for {
-		err := f()
-		if err == nil || errors.Is(err, context.Canceled) {
-			return
-		}
-		logger.Warn("update bootstrap nodes from remote failed", "err", err)
-
 		select {
-		case <-ctx.Done():
+		case <-s.done:
 			return
-		case <-time.After(time.Second * 10):
+		case <-time.After(remoteListRetryInterval):
 		}
+
+		actx, acancel := context.WithTimeout(ctx, remoteListTimeout)
+		remote, err := fetchBootnodeList(actx, s.opts.RemoteDiscoveryList)
+		acancel()
+		if err != nil {
+			logger.Warn("update bootstrap nodes from remote failed", "err", err)
+			continue
+		}
+		bootnodes := slices.Clone(s.bootstrapNodes)
+		for _, node := range remote {
+			bootnodes = append(bootnodes, toLegacyNode(node))
+		}
+		if err := s.legacy.SetFallbackNodes(bootnodes); err != nil {
+			logger.Warn("update bootstrap nodes from remote failed", "err", err)
+			continue
+		}
+		s.setRemoteLegacy(remote)
+		return
 	}
 }
 

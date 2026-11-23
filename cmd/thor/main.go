@@ -123,6 +123,7 @@ func main() {
 			p2pPortFlag,
 			natFlag,
 			bootNodeFlag,
+			disableLegacyDiscoveryFlag,
 			allowedPeersFlag,
 			staticPeersFlag,
 			skipLogsFlag,
@@ -299,7 +300,7 @@ func defaultAction(_ context.Context, ctx *cli.Command) error {
 	txPool := txpool.New(repo, state.NewStater(mainDB), txpoolOpt, forkConfig)
 	defer func() { log.Info("closing tx pool..."); txPool.Close() }()
 
-	p2pOpts, err := newP2POptions(ctx, instanceDir)
+	p2pOpts, err := newP2POptions(ctx, instanceDir, gene.ID())
 	if err != nil {
 		return err
 	}

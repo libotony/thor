@@ -97,3 +97,12 @@ func TestCountingIterPassesThrough(t *testing.T) {
 	it.Close()
 	require.False(t, it.Next())
 }
+
+func TestCountingIterLabelsKnownNodes(t *testing.T) {
+	it := countingIter{source: "legacy", known: map[enode.ID]struct{}{fakeNode(1).ID(): {}}}
+	require.Equal(t, "known", it.label(fakeNode(1)))
+	require.Equal(t, "legacy", it.label(fakeNode(2)))
+
+	it.known = nil
+	require.Equal(t, "legacy", it.label(fakeNode(1)))
+}

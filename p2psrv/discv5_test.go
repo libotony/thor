@@ -93,3 +93,20 @@ func TestProtocolAttributesLandInLocalNode(t *testing.T) {
 	require.EqualValues(t, 1, got)
 	require.True(t, strings.HasPrefix(record.String(), "enr:"), "local record must be a signed ENR, not a synthetic v4 node")
 }
+
+func TestCountRejected(t *testing.T) {
+	var n int
+	f := countRejected(func(node *enode.Node) bool { return node.ID() == fakeNode(1).ID() }, func() { n++ })
+	require.True(t, f(fakeNode(1)))
+	require.False(t, f(fakeNode(2)))
+	require.False(t, f(fakeNode(3)))
+	require.Equal(t, 2, n)
+}
+
+func TestV5TableSize(t *testing.T) {
+	require.Zero(t, startSmoke(t, 4, true).v5TableSize())
+
+	b := startSmoke(t, 10, false)
+	a := startSmoke(t, 10, false, withV5Bootnodes(b.LocalNode().Node()))
+	require.Eventually(t, func() bool { return a.v5TableSize() >= 1 }, smokeWait, smokeTick)
+}

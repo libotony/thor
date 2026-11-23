@@ -240,3 +240,13 @@ func TestStartNoDiscoveryNeverCallsFilter(t *testing.T) {
 	require.Nil(t, s.legacy)
 	require.Zero(t, calls.Load())
 }
+
+func TestNewRecordsKnownSeeds(t *testing.T) {
+	a, b := fakeNode(1), fakeNode(2)
+	s := New(&Options{MaxPeers: 10, KnownNodes: []*enode.Node{a, b}})
+	assert.Len(t, s.knownSeeds, 2)
+	assert.Contains(t, s.knownSeeds, a.ID())
+	assert.Contains(t, s.knownSeeds, b.ID())
+
+	assert.Empty(t, New(&Options{MaxPeers: 10}).knownSeeds)
+}

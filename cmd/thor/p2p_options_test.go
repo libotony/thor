@@ -19,7 +19,9 @@ import (
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/p2p/enr"
 
+	"github.com/vechain/thor/v2/genesis"
 	"github.com/vechain/thor/v2/test/datagen"
+	"github.com/vechain/thor/v2/thor"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -161,6 +163,7 @@ func TestNewThorP2P(t *testing.T) {
 				StaticPeers:    tc.staticPeers,
 				CachedPeers:    tc.cachedPeers,
 				BootstrapNodes: tc.bootstrapNodes,
+				GenesisID:      genesis.NewMainnet().ID(),
 			})
 			assert.NoError(t, err)
 
@@ -201,11 +204,11 @@ func TestNewThorP2PBootnodeSplit(t *testing.T) {
 	require.Equal(t, []*enode.Node{withTCP}, opts.KnownNodes, "udp-only endpoints are not dial candidates")
 }
 
-func TestNewThorP2PDefaultsKeepV5Unseeded(t *testing.T) {
+func TestP2POptionsCachedPeersNeverSeedV5(t *testing.T) {
 	key, _ := crypto.GenerateKey()
-	opts, err := buildP2POptions(p2pInputs{Version: "v", PrivateKey: key, MaxPeers: 10, ListenAddr: ":11235", CachedPeers: []*enode.Node{testNode(3)}})
+	opts, err := buildP2POptions(p2pInputs{Version: "v", PrivateKey: key, MaxPeers: 10, ListenAddr: ":11235", GenesisID: genesis.NewMainnet().ID(), CachedPeers: []*enode.Node{testNode(3)}})
 	require.NoError(t, err)
-	require.Empty(t, opts.DiscoveryNodesV5, "fallback list and cached peers never seed v5")
+	require.Equal(t, fallbackDiscoveryNodes, opts.DiscoveryNodesV5, "cached peers never seed v5")
 }
 
 func TestNewThorP2PRejectsNoTCPPins(t *testing.T) {
@@ -232,4 +235,74 @@ func TestNewThorP2PRejectsIncompleteBootnode(t *testing.T) {
 
 	_, err = buildP2POptions(p2pInputs{Version: "v", PrivateKey: key, MaxPeers: 10, ListenAddr: ":11235", BootstrapNodes: []*enode.Node{n}})
 	require.ErrorContains(t, err, "bootnode")
+}
+
+func TestRemoteDiscoveryNodesList(t *testing.T) {
+	require.Equal(t, "https://vechain.github.io/bootstraps/node.list", remoteDiscoveryNodesList)
+}
+
+func TestP2POptionsOfficialNetworks(t *testing.T) {
+	key, _ := crypto.GenerateKey()
+	for _, id := range []thor.Bytes32{genesis.NewMainnet().ID(), genesis.NewTestnet().ID()} {
+		opts, err := buildP2POptions(p2pInputs{Version: "v", PrivateKey: key, MaxPeers: 10, ListenAddr: ":11235", GenesisID: id})
+		require.NoError(t, err)
+		require.Equal(t, fallbackDiscoveryNodes, opts.DiscoveryNodes)
+		require.Equal(t, fallbackDiscoveryNodes, opts.DiscoveryNodesV5)
+		require.Len(t, opts.DiscoveryNodes, 6)
+		require.Equal(t, remoteDiscoveryNodesList, opts.RemoteDiscoveryList)
+		require.False(t, opts.NoLegacyDiscovery)
+	}
+}
+
+func TestP2POptionsOtherNetworkHasNoDefaultSeeds(t *testing.T) {
+	key, _ := crypto.GenerateKey()
+	for _, id := range []thor.Bytes32{datagen.RandomHash(), {}} {
+		opts, err := buildP2POptions(p2pInputs{Version: "v", PrivateKey: key, MaxPeers: 10, ListenAddr: ":11235", GenesisID: id})
+		require.NoError(t, err)
+		require.Empty(t, opts.DiscoveryNodes)
+		require.Empty(t, opts.DiscoveryNodesV5)
+		require.Empty(t, opts.RemoteDiscoveryList)
+	}
+}
+
+func TestP2POptionsBootnodeReplacesSeedsOnAnyNetwork(t *testing.T) {
+	key, _ := crypto.GenerateKey()
+	boot := []*enode.Node{testNode(3)}
+	for _, id := range []thor.Bytes32{genesis.NewMainnet().ID(), genesis.NewTestnet().ID(), datagen.RandomHash()} {
+		opts, err := buildP2POptions(p2pInputs{Version: "v", PrivateKey: key, MaxPeers: 10, ListenAddr: ":11235", GenesisID: id, BootstrapNodes: boot})
+		require.NoError(t, err)
+		require.Equal(t, boot, opts.DiscoveryNodes)
+		require.Equal(t, boot, opts.DiscoveryNodesV5)
+		require.Empty(t, opts.RemoteDiscoveryList)
+	}
+}
+
+func TestP2POptionsBootnodeDisablesRemoteList(t *testing.T) {
+	key, _ := crypto.GenerateKey()
+	boot := []*enode.Node{testNode(3)}
+	opts, err := buildP2POptions(p2pInputs{Version: "v", PrivateKey: key, MaxPeers: 10, ListenAddr: ":11235", GenesisID: genesis.NewMainnet().ID(), BootstrapNodes: boot})
+	require.NoError(t, err)
+	require.Empty(t, opts.RemoteDiscoveryList)
+	require.Equal(t, boot, opts.DiscoveryNodesV5)
+}
+
+func TestP2POptionsNoLegacyWithBootnode(t *testing.T) {
+	key, _ := crypto.GenerateKey()
+	boot := []*enode.Node{testNode(3)}
+	opts, err := buildP2POptions(p2pInputs{Version: "v", PrivateKey: key, MaxPeers: 10, ListenAddr: ":11235", DisableLegacyDiscovery: true, BootstrapNodes: boot})
+	require.NoError(t, err)
+	require.True(t, opts.NoLegacyDiscovery)
+	require.Empty(t, opts.RemoteDiscoveryList)
+	require.Equal(t, boot, opts.DiscoveryNodesV5)
+}
+
+func TestP2POptionsNoLegacyWithAllowedPeers(t *testing.T) {
+	key, _ := crypto.GenerateKey()
+	opts, err := buildP2POptions(p2pInputs{Version: "v", PrivateKey: key, MaxPeers: 10, ListenAddr: ":11235", DisableLegacyDiscovery: true, AllowedPeers: []*enode.Node{testNode(1)}})
+	require.NoError(t, err)
+	require.True(t, opts.NoDiscovery)
+}
+
+func TestDisableLegacyDiscoveryFlagIsHidden(t *testing.T) {
+	require.True(t, disableLegacyDiscoveryFlag.Hidden)
 }

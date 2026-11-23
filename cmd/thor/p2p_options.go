@@ -16,6 +16,7 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/vechain/thor/v2/p2psrv"
+	"github.com/vechain/thor/v2/thor"
 )
 
 // p2pInputs is everything buildP2POptions needs, already parsed.
@@ -29,6 +30,9 @@ type p2pInputs struct {
 	StaticPeers    []*enode.Node
 	CachedPeers    []*enode.Node
 	BootstrapNodes []*enode.Node
+
+	GenesisID              thor.Bytes32
+	DisableLegacyDiscovery bool
 }
 
 // buildP2POptions assembles the p2p server options. It does no I/O.
@@ -51,17 +55,20 @@ func buildP2POptions(in p2pInputs) (*p2psrv.Options, error) {
 		return nil, errors.New("--allowed-peers and --static-peers are mutually exclusive: allowed-peers is an exclusive whitelist with discovery disabled, static-peers pins peers on top of discovery")
 	}
 
-	// default option setting
-	// no known nodes for p2p connection
-	// use the hardcoded fallbackDiscoveryNodes for discovery only
+	// Only the official networks have built-in bootnodes and a remote list; any other network
+	// is seeded by --bootnode alone.
 	opts := &p2psrv.Options{
-		Name:                fmt.Sprintf("thor/v%s/%s/%s", in.Version, runtime.GOOS, runtime.Version()),
-		PrivateKey:          in.PrivateKey,
-		MaxPeers:            in.MaxPeers,
-		ListenAddr:          in.ListenAddr,
-		DiscoveryNodes:      fallbackDiscoveryNodes,
-		RemoteDiscoveryList: remoteDiscoveryNodesList,
-		NAT:                 in.NAT,
+		Name:              fmt.Sprintf("thor/v%s/%s/%s", in.Version, runtime.GOOS, runtime.Version()),
+		PrivateKey:        in.PrivateKey,
+		MaxPeers:          in.MaxPeers,
+		ListenAddr:        in.ListenAddr,
+		NoLegacyDiscovery: in.DisableLegacyDiscovery,
+		NAT:               in.NAT,
+	}
+	if isOfficialNetwork(in.GenesisID) {
+		opts.DiscoveryNodes = fallbackDiscoveryNodes
+		opts.DiscoveryNodesV5 = fallbackDiscoveryNodes
+		opts.RemoteDiscoveryList = remoteDiscoveryNodesList
 	}
 
 	// allowed peers flag will only allow p2psrv to connect to the designated peers
@@ -70,9 +77,9 @@ func buildP2POptions(in p2pInputs) (*p2psrv.Options, error) {
 		opts.DiscoveryNodes = nil
 		opts.StaticNodes = allowedPeers
 	} else {
-		// bootstrap nodes flag will overwrite the default discovery nodes and also disable remote discovery
+		// bootstrap nodes flag will overwrite the default discovery nodes and also disable the remote list
 		if len(bootstrapNodes) > 0 {
-			opts.RemoteDiscoveryList = ""          // disable remote discovery
+			opts.RemoteDiscoveryList = ""          // disable the remote list
 			opts.DiscoveryNodes = bootstrapNodes   // overwrite the default discovery nodes
 			opts.DiscoveryNodesV5 = bootstrapNodes // each bootnode seeds both discovery stacks
 			// supplied bootstrap nodes can potentially be p2p node, add to the known nodes; udp-only ones are not dial candidates
