@@ -3,7 +3,7 @@
 // Distributed under the GNU Lesser General Public License v3.0 software license, see the accompanying
 // file LICENSE or <https://www.gnu.org/licenses/lgpl-3.0.html>
 
-package p2p
+package main
 
 import (
 	"bytes"
@@ -46,8 +46,8 @@ func TestNodesCacheRoundTripAndTolerance(t *testing.T) {
 
 	// missing file, corrupted content and legacy RLP all yield nil without panic
 	assert.Nil(t, loadNodesCache(filepath.Join(dir, "absent")))
-	require.NoError(t, os.WriteFile(path, []byte("{broken"), 0600))
+	require.NoError(t, os.WriteFile(path, []byte("{broken"), 0o600))
 	assert.Nil(t, loadNodesCache(path))
-	require.NoError(t, os.WriteFile(path, []byte{0xc0, 0x01, 0x02}, 0600)) // fake RLP
+	require.NoError(t, os.WriteFile(path, []byte{0xc0, 0x01, 0x02}, 0o600)) // fake RLP
 	assert.Nil(t, loadNodesCache(path))
 }
